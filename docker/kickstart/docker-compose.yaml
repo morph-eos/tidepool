@@ -1,0 +1,74 @@
+# ============================================================================
+# KICKSTART COMPOSE - REDACTED_HOSTNAME_TC Cloud Platform
+# ============================================================================
+# Compose temporaneo per ottenere i certificati SSL la prima volta.
+# Avvia SOLO nginx HTTP-only + certbot.
+#
+# PREREQUISITO: lo stack principale NON deve essere attivo (conflitto porta 80).
+# ESEGUIRE dalla directory /mnt/nas2/docker/ (non da kickstart/).
+#
+# Flusso:
+#   1. docker-compose -f kickstart/docker-compose.yaml up -d nginx
+#   2. docker-compose -f kickstart/docker-compose.yaml run --rm certbot
+#   3. docker-compose -f kickstart/docker-compose.yaml down
+#   4. docker-compose up -d   (stack principale)
+# ============================================================================
+
+version: '3.8'
+
+services:
+
+  nginx:
+    container_name: kickstart-nginx
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+    volumes:
+      # Config HTTP-only (path relativo alla dir da cui si lancia: /mnt/nas2/docker/)
+      - ./kickstart/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Webroot ACME challenge — stesso volume del compose principale
+      - docker_certbot-www:/var/www/certbot
+    restart: "no"
+
+  certbot:
+    container_name: kickstart-certbot
+    image: certbot/certbot
+    volumes:
+      # Storage certificati — stesso path del compose principale
+      - ./data/certbot/conf:/etc/letsencrypt
+      # Webroot ACME challenge — stesso volume del compose principale
+      - docker_certbot-www:/var/www/certbot
+    command: >
+      certonly --webroot -w /var/www/certbot
+      --email "${EMAIL}"
+      -d REDACTED_HOSTNAME.REDACTED_DDNS
+      -d immich.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d plex.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d webdav.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d radicale.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d syncthing.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d openclaw.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d modem.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d www.REDACTED_DOMAIN
+      -d immich.REDACTED_DOMAIN
+      -d jellyfin.REDACTED_DOMAIN
+      -d plex.REDACTED_DOMAIN
+      -d bitwarden.REDACTED_DOMAIN
+      -d webdav.REDACTED_DOMAIN
+      -d radicale.REDACTED_DOMAIN
+      -d syncthing.REDACTED_DOMAIN
+      -d openclaw.REDACTED_DOMAIN
+      -d modem.REDACTED_DOMAIN
+      --rsa-key-size 4096
+      --agree-tos
+      --no-eff-email
+    restart: "no"
+
+# Usa il volume named già creato dal compose principale.
+# Se il compose principale non è mai stato avviato, creare prima il volume:
+#   docker volume create docker_certbot-www
+volumes:
+  docker_certbot-www:
+    external: true

@@ -1,0 +1,508 @@
+# ============================================================================
+# REDACTED_HOSTNAME_UC CLOUD PLATFORM - DOCKER COMPOSE CONFIGURATION
+# ============================================================================
+#
+# Stack completo per piattaforma cloud self-hosted che include:
+# - Immich: Gestione foto e video con AI
+# - Jellyfin/Plex: Media server per streaming
+# - Nginx: Reverse proxy con SSL termination
+# - Certbot: Gestione automatica certificati SSL
+#
+# Per configurazione iniziale vedere: .env.example
+# Per deployment automatico eseguire: ./deploy.sh
+#
+# ============================================================================
+
+version: '3.8'
+
+services:
+
+  # ==========================================================================
+  # IMMICH PHOTO MANAGEMENT SERVICES
+  # ==========================================================================
+
+  # Immich Server - Servizio principale per gestione foto/video
+  immich-server:
+    container_name: immich_server
+    ports:
+      - "${IMMICH_PORT:-2283}:2283"
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    # entrypoint: ["/usr/local/bin/immich-init.sh"]
+    # extends:
+    #   file: hwaccel.transcoding.yml
+    #   service: cpu # set to one of [nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
+    volumes:
+      # Script di inizializzazione personalizzato
+      # - ./scripts/immich-init.sh:/usr/local/bin/immich-init.sh:ro
+      # Storage principale per foto, video e metadati
+      - ${IMMICH_DATA}:/data
+      # Sincronizzazione timezone con host
+      - /etc/localtime:/etc/localtime:ro
+      # Sincronizzazione con iCloud
+      - ${ICLOUD_PHOTOS_DIR:-./data/icloud-photos}:/import
+    environment:
+      TZ: ${IMMICH_TZ:-Etc/UTC}
+      # Configurazione database PostgreSQL
+      DB_HOSTNAME: immich-database
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      DB_USERNAME: ${IMMICH_DB_USERNAME}
+      DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME}
+      # Configurazione cache Redis
+      REDIS_HOSTNAME: immich-redis
+      IMMICH_API_KEY: ${IMMICH_API_KEY}
+    depends_on:
+      - immich-database
+      - immich-redis
+    restart: always
+    healthcheck:
+      disable: false
+
+  # Immich Machine Learning - Servizio AI per riconoscimento oggetti/volti
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    # For hardware acceleration, add one of -[armnn, cuda, rocm, openvino, rknn] to the image tag.
+    # Example tag: ${IMMICH_VERSION:-release}-cuda
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    # extends: # uncomment this section for hardware acceleration - see https://immich.app/docs/features/ml-hardware-acceleration
+    #   file: hwaccel.ml.yml
+    #   service: cpu # set to one of [armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
+    volumes:
+      # Cache per modelli AI (downloading automatico al primo avvio)
+      - model-cache:/cache
+    environment:
+      TZ: ${IMMICH_TZ:-Etc/UTC}
+      # Connessione al database condiviso con immich-server
+      DB_HOSTNAME: immich-database
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      DB_USERNAME: ${IMMICH_DB_USERNAME}
+      DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME}
+      REDIS_HOSTNAME: immich-redis
+    restart: always
+    healthcheck:
+      disable: false
+
+  # Redis Cache - Cache in-memory per Immich (sessioni, thumbnails, etc.)
+  immich-redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:8-bookworm@sha256:4a7d243f2890e13198440dcfc8d24c9adf9d4fc4092389c89c12a6fda43d3704
+    environment:
+      TZ: ${IMMICH_TZ:-Etc/UTC}
+    healthcheck:
+      test: redis-cli ping || exit 1
+    restart: always
+
+  # PostgreSQL Database - Database principale per metadati Immich
+  immich-database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    environment:
+      TZ: ${IMMICH_TZ:-Etc/UTC}
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_USER: ${IMMICH_DB_USERNAME}
+      POSTGRES_DB: ${IMMICH_DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      # Ottimizzazione per storage HDD (decommentare se usi SSD)
+      DB_STORAGE_TYPE: 'HDD'
+    volumes:
+      # Storage persistente per database PostgreSQL
+      - ${IMMICH_DB_DATA}:/var/lib/postgresql/data
+    # Memoria condivisa per PostgreSQL (ottimizzazione performance)
+    shm_size: 128mb
+    restart: always
+
+  # ==========================================================================
+  # JELLYFIN MEDIA SERVER
+  # ==========================================================================
+
+  # Jellyfin - Server media per streaming video, audio e foto
+  jellyfin:
+    image: jellyfin/jellyfin:10.11.6@sha256:048e2b9a06814f8673b8306e596659c0b42616e1510ef7f395c1c1f2c23f2bb2
+    container_name: jellyfin
+    user: ${JELLYFIN_UID:-1000}:${JELLYFIN_GID:-1000}
+    environment:
+      - TZ=${JELLYFIN_TZ:-Europe/Rome}
+      # URL pubblico per autodiscovery (opzionale)
+      - JELLYFIN_PublishedServerUrl=https://jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS
+    volumes:
+      # Configurazione e metadati Jellyfin
+      - ${JELLYFIN_CONFIG}:/config
+      # Cache per transcoding e thumbnails
+      - ${JELLYFIN_CACHE}:/cache
+      # Directory media (film, serie TV, musica, foto)
+      - type: bind
+        source: ${JELLYFIN_MEDIA}
+        target: /media
+        read_only: ${JELLYFIN_MEDIA_READONLY:-true}
+      # Directory media secondaria (opzionale)
+      - type: bind
+        source: ${JELLYFIN_MEDIA2:-/dev/null}
+        target: /media2
+        read_only: ${JELLYFIN_MEDIA_READONLY:-true}
+      # Font personalizzati per subtitle burn-in durante transcoding (opzionale)
+      - type: bind
+        source: ${JELLYFIN_FONTS:-/usr/share/fonts}
+        target: /usr/local/share/fonts/custom
+        read_only: true
+    ports:
+      # Porta per accesso diretto (opzionale, usato principalmente per autodiscovery)
+      - "${JELLYFIN_PORT:-8096}:8096"
+    restart: unless-stopped
+    # Necessario per hardware transcoding (accelerazione GPU)
+    devices:
+      - /dev/dri:/dev/dri
+    # Necessario per Docker healthcheck in modalità host network
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # PLEX MEDIA SERVER
+  # ==========================================================================
+
+  # Plex - Server media alternativo per streaming video, audio e foto
+  plex:
+    image: plexinc/pms-docker:1.43.0.10492-121068a07@sha256:b59f6e65a3ec5fad1f5ad417f9911340b71f34efe333338429eeb2dbac5e524e
+    container_name: plex
+    profiles:
+      - plex
+    network_mode: host
+    environment:
+      - TZ=${PLEX_TZ:-Europe/Rome}
+      - PLEX_CLAIM=${PLEX_CLAIM_TOKEN:-}
+      - PLEX_UID=${PLEX_UID:-1000}
+      - PLEX_GID=${PLEX_GID:-1000}
+      - PLEX_MEDIA_SERVER_DISABLE_USB=1
+      # URL pubblico per accesso esterno
+      - ADVERTISE_IP=https://plex.REDACTED_HOSTNAME.REDACTED_DDNS:443
+    volumes:
+      # Configurazione e metadati Plex
+      - ${PLEX_CONFIG}:/config
+      # Directory media condivise con Jellyfin
+      - type: bind
+        source: ${JELLYFIN_MEDIA}
+        target: /media
+        read_only: ${JELLYFIN_MEDIA_READONLY:-true}
+      # Directory media secondaria (opzionale)
+      - type: bind
+        source: ${JELLYFIN_MEDIA2:-/dev/null}
+        target: /media2
+        read_only: true
+    restart: unless-stopped
+    # Necessario per hardware transcoding (se disponibile)
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/bus/usb:/dev/bus/usb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:32400/web"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # JELLYPLEX-WATCHED - SYNC MEDIA WATCH STATUS
+  # ==========================================================================
+
+  # JellyPlex-Watched - Sincronizza stato visualizzazione tra Jellyfin e Plex
+  jellyplex-watched:
+    image: luigi311/jellyplex-watched:sha-cebff13@sha256:5989cff75e8cc4da00b2dc4bd7afa917ec88f1097bd5b5145ff311ecb5d4c37f
+    container_name: jellyplex-watched
+    profiles:
+      - plex
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - PUID=${JELLYPLEX_PUID:-1000}
+      - PGID=${JELLYPLEX_PGID:-1000}
+      - TZ=${JELLYPLEX_TZ:-Europe/Rome}
+    env_file: 
+      - .env
+    depends_on:
+      jellyfin:
+        condition: service_healthy
+      plex:
+        condition: service_healthy
+    # Sincronizzazione ogni ora
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "python.*main.py"]
+      interval: 300s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+
+  # ==========================================================================
+  # VAULTWARDEN (BITWARDEN) - PASSWORD MANAGER
+  # ==========================================================================
+
+  vaultwarden:
+    image: vaultwarden/server:1.35.3@sha256:53d9214f9df2aead45dd5224f6a72df5b103a22d59fb37c23f59427a84eef322
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${BITWARDEN_DOMAIN:-https://bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS}
+      - ADMIN_TOKEN=${BITWARDEN_ADMIN_TOKEN}
+      - WEBSOCKET_ENABLED=${BITWARDEN_WEBSOCKET_ENABLED:-true}
+      - SIGNUPS_ALLOWED=${BITWARDEN_SIGNUPS_ALLOWED:-false}
+      - SIGNUPS_VERIFY=${BITWARDEN_SIGNUPS_VERIFY:-false}
+      - INVITATIONS_ALLOWED=${BITWARDEN_INVITATIONS_ALLOWED:-true}
+      - SMTP_HOST=${BITWARDEN_SMTP_HOST}
+      - SMTP_PORT=${BITWARDEN_SMTP_PORT}
+      - SMTP_SSL=${BITWARDEN_SMTP_SSL}
+      - SMTP_EXPLICIT_TLS=${BITWARDEN_SMTP_EXPLICIT_TLS}
+      - SMTP_FROM=${BITWARDEN_SMTP_FROM}
+      - SMTP_USERNAME=${BITWARDEN_SMTP_USERNAME}
+      - SMTP_PASSWORD=${BITWARDEN_SMTP_PASSWORD}
+      - TZ=${BITWARDEN_TZ:-Europe/Rome}
+      - LOG_FILE=/data/vaultwarden.log
+    volumes:
+      - ./data/vaultwarden:/data
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:80/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # WEBDAV BACKUP (GRAPHENEOS)
+  # ==========================================================================
+
+  webdav:
+    image: bytemark/webdav:2.4@sha256:bcabbc024c511b9c63ed3345f88573e31d84c952ee493c9acb3fe345f4f80f57
+    container_name: webdav
+    restart: unless-stopped
+    environment:
+      - AUTH_TYPE=${WEBDAV_AUTH_TYPE:-Basic}
+      - USERNAME=${WEBDAV_USERNAME}
+      - PASSWORD=${WEBDAV_PASSWORD}
+      - SERVER_NAMES=webdav.REDACTED_HOSTNAME.REDACTED_DDNS
+    volumes:
+      - ${WEBDAV_DATA}:/var/lib/dav
+      - ./data/webdav-extra.conf:/usr/local/apache2/conf/sites-enabled/seedvault.conf:ro
+    expose:
+      - "80"
+
+  # ==========================================================================
+  # SYNCTHING - FILE SYNCHRONIZATION
+  # ==========================================================================
+
+  syncthing:
+    image: syncthing/syncthing:v2.0.14@sha256:6d2ab058383b533e045cf2c32fc4c6bbe87c612c92bc2aca9f552fb099b2e123
+    container_name: syncthing
+    restart: unless-stopped
+    hostname: REDACTED_HOSTNAME-syncthing
+    environment:
+      - PUID=${SYNCTHING_PUID:-1000}
+      - PGID=${SYNCTHING_PGID:-1000}
+    volumes:
+      - ${SYNCTHING_DATA:-./data/syncthing}:/var/syncthing
+    expose:
+      - "8384"
+    ports:
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+      - "21027:21027/udp"
+
+  # ==========================================================================
+  # RADICALE (CARDDAV/CALDAV) - DAVX5 SYNC
+  # ==========================================================================
+
+  radicale:
+    image: tomsquest/docker-radicale:latest@sha256:54f0a89ef3ff9a8ee0aca15d221d9fe3adbf6f336f5df0eb912c9fe39948fb64
+    container_name: radicale
+    restart: unless-stopped
+    volumes:
+      - ./data/radicale/config.d:/config:ro
+      - ${RADICALE_DATA}:/data
+    expose:
+      - "5232"
+
+  # ==========================================================================
+  # OPENCLAW - PERSONAL AI ASSISTANT
+  # ==========================================================================
+
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+    environment:
+      - HOME=/home/node
+      - TERM=xterm-256color
+      - NODE_OPTIONS=--max-old-space-size=1024
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      - OPENCLAW_GATEWAY_PASSWORD=${OPENCLAW_GATEWAY_PASSWORD}
+      - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENCLAW_TELEGRAM_TOKEN=${OPENCLAW_TELEGRAM_TOKEN}
+    volumes:
+      - ${OPENCLAW_CONFIG:-./data/openclaw}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE:-./data/openclaw/workspace}:/home/node/.openclaw/workspace
+    ports:
+      - "0.0.0.0:18789:18789"
+    expose:
+      - "18789"
+    init: true
+    command:
+      [
+        "sh",
+        "-c",
+        "node dist/index.js gateway --bind lan --port 18789 --auth password --password \"$OPENCLAW_GATEWAY_PASSWORD\"",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        reservations:
+          memory: 256M
+
+  # ==========================================================================
+  # ICLOUD PHOTO SYNC SERVICES
+  # ==========================================================================
+
+  # iCloudPD - Sincronizzazione foto da iCloud a Immich
+  icloudpd:
+    image: icloudpd/icloudpd:1.32.2@sha256:fb659bf9f8c2069d1a0585010046a0ef709f7f5915daa522b8bdcda17f28ada2
+    container_name: icloud-sync
+    restart: unless-stopped
+    profiles:
+      - icloud
+    entrypoint: ["sh", "/app/scripts/icloudpd-wrapper.sh"]
+    environment:
+      - TZ=${ICLOUD_TZ:-Europe/Rome}
+      - PUID=${ICLOUD_UID:-1000}
+      - PGID=${ICLOUD_GID:-1000}
+      - ICLOUD_USERNAME=${ICLOUD_USERNAME}
+      - ICLOUD_SYNC_INTERVAL=${ICLOUD_SYNC_INTERVAL:-3600}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+    volumes:
+      # Directory dove scaricare le foto (configurazione aggiornata dopo autenticazione)
+      - ${ICLOUD_PHOTOS_DIR:-./data/icloud-photos}:/app/photos
+      # Script per gestione automatica dei crash e fix XMP
+      - ./scripts/icloudpd-wrapper.sh:/app/scripts/icloudpd-wrapper.sh:ro
+      - ./scripts/update-xmp-datetime.sh:/app/scripts/update-xmp-datetime.sh:ro
+      - ./scripts/fix-missing-xmp.sh:/app/scripts/fix-missing-xmp.sh:ro
+      - ./scripts/revert-xmp-fix.sh:/app/scripts/revert-xmp-fix.sh:ro
+    depends_on:
+      - immich-server
+
+  # ==========================================================================
+  # REVERSE PROXY E SSL SERVICES
+  # ==========================================================================
+
+  # Nginx Reverse Proxy - Gestisce routing, SSL termination e sicurezza
+  nginx:
+    container_name: nginx
+    restart: always
+    image: nginx@sha256:f6daac2445b0ce70e64d77442ccf62839f3f1b4c24bf6746a857eff014e798c8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # Porte esposte per accesso esterno
+      - "80:80"   # HTTP (redirect a HTTPS)
+      - "443:443"  # HTTPS (traffico principale)
+    volumes:
+      # Configurazione nginx principale
+      - ./data/nginx:/etc/nginx/
+      # Certificati SSL Let's Encrypt
+      - ./data/certbot/conf:/etc/letsencrypt
+      # Directory per ACME challenges
+      - certbot-www:/var/www/certbot
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      # Attende che tutti i servizi backend siano pronti
+      - immich-server
+      - immich-machine-learning
+      - immich-redis
+      - immich-database
+      - jellyfin
+      - vaultwarden
+      - webdav
+      - radicale
+      - syncthing
+      - openclaw
+
+  # Certbot - Gestione automatica certificati SSL Let's Encrypt
+  certbot:
+    container_name: private-certbot
+    image: certbot/certbot@sha256:878bf5fe090724a2a839cf765b847252386a3782d1e36f6299c4e59ec7d2067e
+    volumes:
+      # Storage persistente per certificati
+      - ./data/certbot/conf:/etc/letsencrypt
+      # Directory per ACME challenges
+      - certbot-www:/var/www/certbot
+    # Comando per ottenere certificati per tutti i domini
+    command: certonly --webroot -w /var/www/certbot --email "$EMAIL" -d "REDACTED_HOSTNAME.REDACTED_DDNS" -d "immich.REDACTED_HOSTNAME.REDACTED_DDNS" -d "jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS" -d "plex.REDACTED_HOSTNAME.REDACTED_DDNS" -d "bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS" -d "webdav.REDACTED_HOSTNAME.REDACTED_DDNS" -d "radicale.REDACTED_HOSTNAME.REDACTED_DDNS" -d "www.REDACTED_DOMAIN" -d "immich.REDACTED_DOMAIN" -d "jellyfin.REDACTED_DOMAIN" -d "plex.REDACTED_DOMAIN" -d "bitwarden.REDACTED_DOMAIN" -d "webdav.REDACTED_DOMAIN" -d "radicale.REDACTED_DOMAIN" -d "syncthing.REDACTED_HOSTNAME.REDACTED_DDNS" -d "syncthing.REDACTED_DOMAIN" -d "openclaw.REDACTED_HOSTNAME.REDACTED_DDNS" -d "openclaw.REDACTED_DOMAIN" -d "modem.REDACTED_HOSTNAME.REDACTED_DDNS" -d "modem.REDACTED_DOMAIN" -d "REDACTED_NAME.REDACTED_DOMAIN" --rsa-key-size 4096 --agree-tos --no-eff-email --force-renewal
+    depends_on:
+      - nginx
+
+  # ========================================================================
+  # ========================================================================
+  # ==========================================================================
+  # SMART DISK HEALTH CHECKER
+  # ==========================================================================
+  smartcheck:
+    image: alpine:3.23.3@sha256:59855d3dceb3ae53991193bd03301e082b2a7faa56a514b03527ae0ec2ce3a95
+    container_name: smartcheck
+    restart: unless-stopped
+    cap_add:
+      - SYS_RAWIO
+    devices:
+      - /dev/smartcheck-nas2:/dev/smartcheck-nas2
+      - /dev/smartcheck-nas:/dev/smartcheck-nas
+    environment:
+      - SMART_DEVICES=${SMART_DEVICES:-/dev/smartcheck-nas2 /dev/smartcheck-nas}
+      - SMART_CHECK_INTERVAL=${SMART_CHECK_INTERVAL:-12h}
+      - SMART_ALERT_EMAIL=${SMART_ALERT_EMAIL}
+      - SMART_TEMP_WARN=${SMART_TEMP_WARN:-45}
+      - SMART_TEMP_CRIT=${SMART_TEMP_CRIT:-50}
+      - SMART_REALLOCATED_WARN=${SMART_REALLOCATED_WARN:-1}
+      - SMART_PENDING_WARN=${SMART_PENDING_WARN:-1}
+      - SMART_CRC_WARN=${SMART_CRC_WARN:-1}
+      - SMART_CMD_TIMEOUT_WARN=${SMART_CMD_TIMEOUT_WARN:-1}
+      - SMART_SPIN_RETRY_WARN=${SMART_SPIN_RETRY_WARN:-1}
+      - SMTP_HOST=${SMART_SMTP_HOST}
+      - SMTP_PORT=${SMART_SMTP_PORT}
+      - SMTP_USERNAME=${SMART_SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMART_SMTP_PASSWORD}
+      - SMTP_FROM=${SMART_SMTP_FROM}
+      - SMTP_FROM_NAME=${SMART_SMTP_FROM_NAME:-SMART Monitor}
+      - SMTP_SSL=${SMART_SMTP_SSL:-true}
+      - SMTP_EXPLICIT_TLS=${SMART_SMTP_EXPLICIT_TLS:-false}
+    volumes:
+      - ./scripts/smartcheck.sh:/usr/local/bin/smartcheck.sh:ro
+      - ./data/smartcheck/logs:/var/log/smart
+    command: ["/bin/sh", "/usr/local/bin/smartcheck.sh"]
+
+  # ==========================================================================
+  # BORGBACKUP SSH ENDPOINT (REDACTED_DRIVE2_TC)
+  # ==========================================================================
+
+# =============================================================================
+# DOCKER VOLUMES - Storage persistente per i servizi
+# =============================================================================
+
+volumes:
+  # Cache condivisa per modelli AI di Immich
+  model-cache:
+  # Shared ACME webroot for certbot and nginx
+  certbot-www:
