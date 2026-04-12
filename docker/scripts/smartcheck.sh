@@ -25,9 +25,10 @@ LOG_DIR=/var/log/smart
 LOG_FILE="$LOG_DIR/smartcheck.log"
 mkdir -p "$LOG_DIR"
 
-# Log su stdout (per docker logs) e su file persistente
+# Log su stderr (per docker logs) e su file persistente
 log() {
-    printf '%s\n' "$*" | tee -a "$LOG_FILE"
+    printf '%s\n' "$*" >> "$LOG_FILE"
+    printf '%s\n' "$*" >&2
 }
 
 write_msmtp_config() {

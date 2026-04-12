@@ -295,6 +295,6 @@ echo ""
 print_success "=== Configurazione dischi completata ==="
 print_info "NAS:         $NAS_MOUNT (serial $NAS_SERIAL)"
 print_info "TimeMachine: $TIMEMACHINE_MOUNT"
-print_info "NAS2:        $NAS2_MOUNT (1TB, serial $NAS2_SERIAL)"
+print_info "NAS2:        $NAS2_MOUNT (serial $NAS2_SERIAL)"
 echo ""
 df -h "$NAS_MOUNT" "$TIMEMACHINE_MOUNT" "$NAS2_MOUNT" 2>/dev/null

@@ -65,6 +65,23 @@ docker-compose ps     # Stato servizi
 ./utils.sh backup     # Backup database Immich
 ./utils.sh renew      # Rinnova certificati SSL
 ./utils.sh clean      # Pulizia Docker
+```
+
+### Backup Offsite (Proton Drive)
+```bash
+# Backup manuale (normalmente automatico via cron alle 03:00)
+sudo /mnt/nas2/nas-scripts/backup_offsite.sh
+
+# Stato backup
+systemctl status proton-drive-bridge     # Bridge FTP → Proton
+BORG_PASSCOMMAND="cat ~/.borg-offsite-passphrase" borg list /mnt/nas/backup/offsite/
+
+# Ripristino
+/mnt/nas2/nas-scripts/backup_restore.sh help
+
+# Setup da zero
+/mnt/nas2/nas-scripts/backup_setup.sh
+```
 
 ```
 ### Gestione iCloud (Opzionale)
@@ -280,6 +297,9 @@ bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS → IP_SERVER
     └── plex/
    └── vaultwarden/
 ```
+
+> **Backup offsite**: Tutto il contenuto di `data/` (escluso postgres, plex, syncthing) viene
+> backuppato giornalmente su Proton Drive via Borg. Vedi `/mnt/nas2/nas-scripts/backup_offsite.sh`.
 
 ## 🔒 Sicurezza
 

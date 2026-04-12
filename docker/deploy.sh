@@ -83,7 +83,7 @@ if [ ! -f "$CERT_PATH" ]; then
     echo "  REDACTED_DOMAIN + www/immich/jellyfin/plex/bitwarden/webdav/radicale/syncthing/openclaw/modem"
     echo ""
     
-    docker-compose -f kickstart/docker-compose.yaml up -d nginx
+    docker compose -f kickstart/docker-compose.yaml up -d nginx
     sleep 5
     
     if ! curl -f -s http://localhost > /dev/null 2>&1; then
@@ -91,21 +91,21 @@ if [ ! -f "$CERT_PATH" ]; then
         exit 1
     fi
     
-    if docker-compose -f kickstart/docker-compose.yaml run --rm certbot; then
+    if docker compose -f kickstart/docker-compose.yaml run --rm certbot; then
         print_success "Certificati SSL ottenuti!"
     else
         print_error "Errore generazione certificati (domini non puntano? porta 80 bloccata? rate limit?)"
         exit 1
     fi
     
-    docker-compose -f kickstart/docker-compose.yaml down
+    docker compose -f kickstart/docker-compose.yaml down
 else
     print_success "Certificati SSL esistenti trovati"
 fi
 
 # === Avvio stack ===
 print_info "Avvio stack completo..."
-docker-compose up -d
+docker compose up -d
 
 print_info "Attendo avvio servizi..."
 sleep 10
@@ -140,8 +140,8 @@ echo "  • https://syncthing.REDACTED_HOSTNAME.REDACTED_DDNS (sync)"
 echo "  • https://modem.REDACTED_HOSTNAME.REDACTED_DDNS (modem admin, auth required)"
 echo ""
 echo "🔌 Servizi opzionali (via profiles):"
-echo "  • Plex: docker-compose --profile plex up -d"
-echo "  • JellyPlex-Watched: docker-compose --profile jellyplex up -d"
-echo "  • iCloud Sync: docker-compose --profile icloud up -d"
+echo "  • Plex: docker compose --profile plex up -d"
+echo "  • JellyPlex-Watched: docker compose --profile jellyplex up -d"
+echo "  • iCloud Sync: docker compose --profile icloud up -d"
 echo ""
-echo "📊 Monitoraggio: docker-compose ps | docker-compose logs -f [servizio]"
+echo "📊 Monitoraggio: docker compose ps | docker compose logs -f [servizio]"

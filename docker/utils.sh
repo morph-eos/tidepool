@@ -52,7 +52,7 @@ check_env() {
 
 cmd_status() {
     print_info "Stato servizi Docker Compose:"
-    docker-compose ps
+    docker compose ps
     echo ""
     
     print_info "Utilizzo risorse:"
@@ -87,16 +87,16 @@ cmd_logs() {
     local service="${2:-}"
     if [ -n "$service" ]; then
         print_info "Log $service (Ctrl+C per uscire):"
-        docker-compose logs -f "$service"
+        docker compose logs -f "$service"
     else
         print_info "Log tutti i servizi (Ctrl+C per uscire):"
-        docker-compose logs -f
+        docker compose logs -f
     fi
 }
 
 cmd_stop() {
     print_info "Arresto tutti i servizi..."
-    docker-compose down
+    docker compose down
     print_success "Servizi arrestati"
 }
 
@@ -104,28 +104,28 @@ cmd_restart() {
     local service="${2:-}"
     if [ -n "$service" ]; then
         print_info "Riavvio $service..."
-        docker-compose restart "$service"
+        docker compose restart "$service"
     else
         print_info "Riavvio tutti i servizi..."
-        docker-compose down
-        docker-compose up -d
+        docker compose down
+        docker compose up -d
     fi
     print_success "Riavvio completato"
 }
 
 cmd_update() {
     print_info "Aggiornamento immagini Docker..."
-    docker-compose pull
+    docker compose pull
     print_info "Riavvio con nuove immagini..."
-    # Workaround docker-compose v1 + Alpine pinned images:
+    # Workaround docker compose v1 + Alpine pinned images:
     # Se up -d fallisce con KeyError, rimuovi e ricrea i container interessati
-    if ! docker-compose up -d 2>/dev/null; then
-        print_warning "docker-compose up -d fallito (probabile bug v1 con SHA256 pinned images)"
+    if ! docker compose up -d 2>/dev/null; then
+        print_warning "docker compose up -d fallito (probabile bug v1 con SHA256 pinned images)"
         print_info "Ricreo i container uno per uno..."
-        for svc in $(docker-compose config --services); do
+        for svc in $(docker compose config --services); do
             docker rm -f "$svc" 2>/dev/null || true
         done
-        docker-compose up -d
+        docker compose up -d
     fi
     print_success "Aggiornamento completato"
 }
@@ -138,7 +138,7 @@ cmd_backup() {
     mkdir -p "$BACKUP_DIR"
     BACKUP_FILE="$BACKUP_DIR/immich-backup-$(date +%Y%m%d-%H%M%S).sql.gz"
     
-    if docker-compose exec -T immich-database pg_dump -U "${IMMICH_DB_USERNAME}" "${IMMICH_DB_DATABASE_NAME}" | gzip > "$BACKUP_FILE"; then
+    if docker compose exec -T immich-database pg_dump -U "${IMMICH_DB_USERNAME}" "${IMMICH_DB_DATABASE_NAME}" | gzip > "$BACKUP_FILE"; then
         BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
         print_success "Backup completato: $BACKUP_FILE ($BACKUP_SIZE)"
         
@@ -171,7 +171,7 @@ cmd_renew() {
     if [ $DAYS_LEFT -lt 30 ]; then
         print_info "Rinnovo necessario..."
         # Usa il servizio certbot dal docker-compose.yml — contiene la lista domini aggiornata
-        if docker-compose run --rm certbot; then
+        if docker compose run --rm certbot; then
             print_success "Certificati rinnovati!"
             print_info "Ricarico nginx..."
             docker exec nginx nginx -s reload && print_success "Nginx ricaricato"
@@ -217,8 +217,8 @@ cmd_reset() {
     
     if [ "$confirm" = "RESET" ]; then
         print_info "Arresto servizi..."
-        docker-compose down -v
-        docker-compose -f kickstart/docker-compose.yaml down -v 2>/dev/null || true
+        docker compose down -v
+        docker compose -f kickstart/docker-compose.yaml down -v 2>/dev/null || true
         
         print_info "Rimozione dati Docker (data/)..."
         rm -rf data/
@@ -234,11 +234,11 @@ cmd_reset() {
 
 cmd_sync() {
     case "${2:-}" in
-        status)  docker-compose --profile jellyplex ps jellyplex-watched ;;
-        logs)    docker-compose --profile jellyplex logs -f jellyplex-watched ;;
-        restart) docker-compose --profile jellyplex restart jellyplex-watched ;;
-        start)   docker-compose --profile jellyplex up -d jellyplex-watched ;;
-        stop)    docker-compose stop jellyplex-watched ;;
+        status)  docker compose --profile jellyplex ps jellyplex-watched ;;
+        logs)    docker compose --profile jellyplex logs -f jellyplex-watched ;;
+        restart) docker compose --profile jellyplex restart jellyplex-watched ;;
+        start)   docker compose --profile jellyplex up -d jellyplex-watched ;;
+        stop)    docker compose stop jellyplex-watched ;;
         *)
             echo "Uso: ./utils.sh sync [start|stop|status|logs|restart]"
             ;;
@@ -253,22 +253,22 @@ cmd_icloud() {
                 print_error "Configura ICLOUD_USERNAME nel file .env"
                 exit 1
             fi
-            docker-compose --profile icloud up -d icloudpd
+            docker compose --profile icloud up -d icloudpd
             print_success "iCloud sync avviato"
             ;;
         stop)
-            docker-compose stop icloudpd
-            docker-compose rm -f icloudpd
+            docker compose stop icloudpd
+            docker compose rm -f icloudpd
             print_success "iCloud sync fermato"
             ;;
         status)
-            if docker-compose ps icloudpd 2>/dev/null | grep -q "Up"; then
+            if docker compose ps icloudpd 2>/dev/null | grep -q "Up"; then
                 print_success "iCloudPD attivo"
             else
                 print_warning "iCloudPD non attivo (avvia con: ./utils.sh icloud start)"
             fi
             ;;
-        logs) docker-compose logs -f icloudpd ;;
+        logs) docker compose logs -f icloudpd ;;
         *)    echo "Uso: ./utils.sh icloud [start|stop|status|logs]" ;;
     esac
 }

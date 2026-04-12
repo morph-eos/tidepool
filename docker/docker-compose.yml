@@ -13,8 +13,6 @@
 #
 # ============================================================================
 
-version: '3.8'
-
 services:
 
   # ==========================================================================
@@ -22,15 +20,17 @@ services:
   # ==========================================================================
 
   # Immich Server - Servizio principale per gestione foto/video
+  # Transcoding video accelerato via VA-API (REDACTED_GPU_MODEL)
   immich-server:
     container_name: immich_server
     ports:
       - "${IMMICH_PORT:-2283}:2283"
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
-    # entrypoint: ["/usr/local/bin/immich-init.sh"]
-    # extends:
-    #   file: hwaccel.transcoding.yml
-    #   service: cpu # set to one of [nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "992"   # render — accesso GPU REDACTED_GPU_MODEL (VA-API transcoding)
+      - "44"    # video
     volumes:
       # Script di inizializzazione personalizzato
       # - ./scripts/immich-init.sh:/usr/local/bin/immich-init.sh:ro
@@ -58,14 +58,15 @@ services:
       disable: false
 
   # Immich Machine Learning - Servizio AI per riconoscimento oggetti/volti
+  # Usa OpenVINO per accelerazione REDACTED_GPU_MODEL GPU
   immich-machine-learning:
     container_name: immich_machine_learning
-    # For hardware acceleration, add one of -[armnn, cuda, rocm, openvino, rknn] to the image tag.
-    # Example tag: ${IMMICH_VERSION:-release}-cuda
-    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
-    # extends: # uncomment this section for hardware acceleration - see https://immich.app/docs/features/ml-hardware-acceleration
-    #   file: hwaccel.ml.yml
-    #   service: cpu # set to one of [armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-openvino
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "992"   # render — accesso GPU REDACTED_GPU_MODEL (OpenVINO)
+      - "44"    # video
     volumes:
       # Cache per modelli AI (downloading automatico al primo avvio)
       - model-cache:/cache
@@ -119,6 +120,9 @@ services:
     image: jellyfin/jellyfin:10.11.6@sha256:048e2b9a06814f8673b8306e596659c0b42616e1510ef7f395c1c1f2c23f2bb2
     container_name: jellyfin
     user: ${JELLYFIN_UID:-1000}:${JELLYFIN_GID:-1000}
+    group_add:
+      - "992"   # render — accesso GPU REDACTED_GPU_MODEL (VA-API)
+      - "44"    # video
     environment:
       - TZ=${JELLYFIN_TZ:-Europe/Rome}
       # URL pubblico per autodiscovery (opzionale)
@@ -147,7 +151,7 @@ services:
       # Porta per accesso diretto (opzionale, usato principalmente per autodiscovery)
       - "${JELLYFIN_PORT:-8096}:8096"
     restart: unless-stopped
-    # Necessario per hardware transcoding (accelerazione GPU)
+    # Necessario per hardware transcoding REDACTED_GPU_MODEL (VA-API)
     devices:
       - /dev/dri:/dev/dri
     # Necessario per Docker healthcheck in modalità host network
@@ -335,7 +339,6 @@ services:
       - TERM=xterm-256color
       - NODE_OPTIONS=--max-old-space-size=1024
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
-      - OPENCLAW_GATEWAY_PASSWORD=${OPENCLAW_GATEWAY_PASSWORD}
       - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENCLAW_TELEGRAM_TOKEN=${OPENCLAW_TELEGRAM_TOKEN}
@@ -351,7 +354,7 @@ services:
       [
         "sh",
         "-c",
-        "node dist/index.js gateway --bind lan --port 18789 --auth password --password \"$OPENCLAW_GATEWAY_PASSWORD\"",
+        "node dist/index.js gateway --bind lan --port 18789 --auth token",
       ]
     healthcheck:
       test:
@@ -506,3 +509,7 @@ volumes:
   model-cache:
   # Shared ACME webroot for certbot and nginx
   certbot-www:
+
+networks:
+  docker_default:
+    external: true

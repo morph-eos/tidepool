@@ -82,12 +82,12 @@ fi
 
 # Verifica Docker Compose
 print_info "Controllo Docker Compose..."
-if command -v docker-compose > /dev/null 2>&1; then
-    COMPOSE_VERSION=$(docker-compose --version | cut -d' ' -f4 | cut -d',' -f1)
+if command -v docker compose > /dev/null 2>&1; then
+    COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || docker compose version | awk '{print $NF}')
     print_success "Docker Compose operativo (versione: $COMPOSE_VERSION)"
 else
     print_error "Docker Compose non installato"
-    if install_package "docker-compose" "Docker Compose"; then
+    if install_package "docker compose" "Docker Compose"; then
         print_success "Docker Compose installato con successo!"
     else
         ((ERRORS++))
