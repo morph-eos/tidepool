@@ -13,9 +13,9 @@ BRIDGE_BIN="/usr/local/bin/proton-drive-bridge"
 BRIDGE_PORT="2121"
 SESSION_PASSWORD="REDACTED_PROTON_SESSION_PASSWORD"
 PROTON_USER="REDACTED_OWNER_EMAIL"
-PROTON_PASS_FILE="$HOME/.proton-password"
-OTP_SECRET_FILE="$HOME/.proton-otp-secret"
-SESSION_DIR="$HOME/.local/share/pdrive-bridge"
+PROTON_PASS_FILE="/home/REDACTED_HOSTNAME/.proton-password"
+OTP_SECRET_FILE="/home/REDACTED_HOSTNAME/.proton-otp-secret"
+SESSION_DIR="/root/.local/share/pdrive-bridge"
 
 log() { echo "$(date -Is) - [proton-refresh] $*"; }
 
@@ -109,10 +109,15 @@ expect -c "
     }
 " 2>&1
 
-# Verifica che la sessione sia stata salvata
+# Verifica che la sessione sia stata salvata con vault non vuoto (>1KB)
 if [ ! -f "${SESSION_DIR}/pdrive-bridge.json" ]; then
     die "Sessione non salvata dopo login"
 fi
+SESSION_SIZE=$(wc -c < "${SESSION_DIR}/pdrive-bridge.json")
+if [ "$SESSION_SIZE" -lt 1000 ]; then
+    die "Sessione salvata ma vault vuoto (${SESSION_SIZE} bytes) — login fallito"
+fi
+log "Sessione salvata: ${SESSION_SIZE} bytes"
 
 # Uccidi il bridge temporaneo (expect lo ha lanciato in foreground)
 pkill -f "proton-drive-bridge.*--port ${BRIDGE_PORT}" 2>/dev/null || true

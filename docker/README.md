@@ -74,6 +74,8 @@ sudo /mnt/nas2/nas-scripts/backup_offsite.sh
 
 # Stato backup
 systemctl status proton-drive-bridge     # Bridge FTP → Proton
+sudo tail -30 /var/log/backup-offsite.log # Log recente
+sudo wc -l /mnt/nas/backup/offsite/.proton-manifest  # File sincronizzati
 BORG_PASSCOMMAND="cat ~/.borg-offsite-passphrase" borg list /mnt/nas/backup/offsite/
 
 # Ripristino
@@ -82,6 +84,13 @@ BORG_PASSCOMMAND="cat ~/.borg-offsite-passphrase" borg list /mnt/nas/backup/offs
 # Setup da zero
 /mnt/nas2/nas-scripts/backup_setup.sh
 ```
+
+> **Note tecniche backup**:
+> - Repo Borg: `/mnt/nas/backup/offsite/` (~146GB, ~325 file)
+> - Hash incrementale: cache mtime+size nel manifest (fase hash <1s per run tipici)
+> - Bridge: `proton-drive-bridge.service` (User=root), FTP su 127.0.0.1:2121
+> - Restart bridge ogni 50 upload per prevenire bug cache del bridge
+> - Manifest formato: `rel_path md5 mtime size` (4 campi)
 
 ```
 ### Gestione iCloud (Opzionale)
@@ -298,8 +307,10 @@ bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS → IP_SERVER
    └── vaultwarden/
 ```
 
-> **Backup offsite**: Tutto il contenuto di `data/` (escluso postgres, plex, syncthing) viene
-> backuppato giornalmente su Proton Drive via Borg. Vedi `/mnt/nas2/nas-scripts/backup_offsite.sh`.
+> **Backup offsite**: Tutto il contenuto di `data/` (escluso postgres, plex, smartcheck, webdav;
+> di syncthing solo obsidian) più file di configurazione (`docker-compose.yml`, `.env`, `*.sh`,
+> `README.md`, `kickstart/`, `scripts/`) viene backuppato giornalmente su Proton
+> Drive via Borg. Vedi `/mnt/nas2/nas-scripts/backup_offsite.sh`.
 
 ## 🔒 Sicurezza
 

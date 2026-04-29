@@ -204,14 +204,43 @@ setup_systemd() {
     echo "============================================"
 
     local service_file="/etc/systemd/system/proton-drive-bridge.service"
+    local wrapper_bin="/usr/local/bin/proton-bridge-svc"
     local user
     user=$(whoami)
 
-    if [ -f "$service_file" ]; then
-        log "Servizio systemd già presente"
-        systemctl is-active proton-drive-bridge && log "Servizio attivo" || warn "Servizio non attivo"
-        return
-    fi
+    info "Installo/aggiorno wrapper proton-bridge-svc..."
+    sudo tee /usr/local/bin/proton-bridge-svc > /dev/null <<'EXPECTEOF'
+#!/usr/bin/expect -f
+# Wrapper expect per proton-drive-bridge in systemd.
+# Risponde "q" su "Wrong session password" invece di loopare su ENTER.
+# Exit 1 pulito → systemd ferma il servizio senza busy-loop CPU.
+
+set timeout 30
+set bridge_bin "/usr/local/bin/proton-drive-bridge"
+
+eval spawn $bridge_bin {*}$argv
+
+expect {
+    "Wrong session password" {
+        send "q\r"
+        puts "\[bridge-svc\] Sessione corrotta — uscita pulita (exit 1)."
+        exit 1
+    }
+    "FTP server listening" {
+        set timeout -1
+        expect eof
+        exit 0
+    }
+    timeout {
+        puts "\[bridge-svc\] Timeout: bridge non ha risposto entro 30s."
+        exit 1
+    }
+    eof {
+        exit 0
+    }
+}
+EXPECTEOF
+    sudo chmod +x /usr/local/bin/proton-bridge-svc
 
     info "Creo servizio systemd..."
     sudo tee "$service_file" > /dev/null <<EOF
@@ -224,9 +253,11 @@ Wants=network-online.target
 Type=simple
 User=${user}
 Group=${user}
-ExecStart=/bin/bash -c 'eval \$(dbus-launch --sh-syntax) && echo "" | gnome-keyring-daemon --unlock --components=secrets 2>/dev/null; exec ${BRIDGE_BIN} --cli --sessionpassword "${SESSION_PASSWORD}" --port ${BRIDGE_PORT}'
+ExecStart=/bin/bash -c 'eval \$(dbus-launch --sh-syntax) && echo "" | gnome-keyring-daemon --unlock --components=secrets 2>/dev/null; exec /usr/local/bin/proton-bridge-svc --cli --sessionpassword "${SESSION_PASSWORD}" --port ${BRIDGE_PORT}'
 Restart=on-failure
 RestartSec=30
+StartLimitIntervalSec=300
+StartLimitBurst=3
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=proton-drive-bridge
@@ -237,7 +268,13 @@ EOF
 
     sudo systemctl daemon-reload
     sudo systemctl enable proton-drive-bridge
-    sudo systemctl start proton-drive-bridge
+
+    if systemctl is-active --quiet proton-drive-bridge; then
+        log "Servizio già attivo — restart per applicare eventuali modifiche"
+        sudo systemctl restart proton-drive-bridge
+    else
+        sudo systemctl start proton-drive-bridge
+    fi
     sleep 3
 
     if systemctl is-active --quiet proton-drive-bridge; then
