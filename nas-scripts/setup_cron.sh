@@ -37,8 +37,8 @@ JOBS=(
     "incus-cert-sync|30 5 */7 * *|systemctl restart incus|root"
     # Log cleanup settimanale (offset diverso)
     "log-cleanup|0 4 */7 * *|/mnt/nas2/nas-scripts/cleanup_logs.sh|root"
-    # Backup offsite quotidiano alle 03:00
-    "backup-offsite|0 3 * * *|sudo /mnt/nas2/nas-scripts/backup_offsite.sh|user"
+    # Backup quotidiano: prima offsite, poi Borg locale REDACTED_DRIVE anche se offsite fallisce
+    "backup-offsite|0 3 * * *|sudo /mnt/nas2/nas-scripts/backup_offsite.sh; sudo /mnt/nas2/nas-scripts/borg_backup_nas2.sh|user"
 )
 
 # --- Funzioni ---

@@ -13,12 +13,18 @@ trap '' HUP
 #
 # Sorgenti backuppate:
 #   docker/data/: certbot, icloud-photos, immich,
-#                 nginx, openclaw, jellyfin, radicale, vaultwarden,
+#                 nginx, openclaw, jellyfin, nextcloud (esc. db/),
+#                 nextcloud-db-dumps, sqlite-snapshots, vaultwarden,
 #                 syncthing/obsidian (escluso com.whatsapp)
 #   docker/:      kickstart, scripts,
 #                 docker-compose.yml, .env, *.sh, README.md
 #   nas2/:        media (ebooks+music), nas-scripts,
 #                 obsidian-index, obsidian-semantic-search
+#
+# Dump DB pre-borg:
+#   - immich postgres -> data/immich/db_dump.sql.gz (overwrite ogni run)
+#   - nextcloud mariadb -> data/nextcloud-db-dumps/nextcloud-N.sql.gz (rotazione 7gg)
+#   - sqlite (vaultwarden, jellyfin, openclaw) -> data/sqlite-snapshots/ (lock-safe)
 # =============================================================================
 
 REPO="/mnt/nas/backup/offsite"
@@ -57,18 +63,23 @@ die() {
     exit 1
 }
 
-# Invia email di notifica (usa SMTP da .env, stesse variabili di smartcheck)
+# Invia email di notifica (usa SMTP condiviso da .env, fallback SMART_*)
 send_backup_email() {
     local subject="$1" body="$2"
     local env_file="/mnt/nas2/docker/.env"
     [ -f "$env_file" ] || { log "WARN: .env non trovato, email non inviata"; return 1; }
 
-    local smtp_host smtp_port smtp_user smtp_pass smtp_from smtp_to
-    smtp_host=$(grep '^SMART_SMTP_HOST=' "$env_file" | cut -d= -f2)
-    smtp_port=$(grep '^SMART_SMTP_PORT=' "$env_file" | cut -d= -f2)
-    smtp_user=$(grep '^SMART_SMTP_USERNAME=' "$env_file" | cut -d= -f2)
-    smtp_pass=$(grep '^SMART_SMTP_PASSWORD=' "$env_file" | cut -d= -f2)
-    smtp_from=$(grep '^SMART_SMTP_FROM=' "$env_file" | cut -d= -f2)
+    env_get() { grep -E "^$1=" "$env_file" | tail -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/'; }
+
+    local smtp_host smtp_port smtp_user smtp_pass smtp_from smtp_from_name smtp_to smtp_ssl smtp_tls smtp_url
+    smtp_host=$(env_get SMTP_HOST || true); smtp_host=${smtp_host:-$(env_get SMART_SMTP_HOST || true)}
+    smtp_port=$(env_get SMTP_PORT || true); smtp_port=${smtp_port:-$(env_get SMART_SMTP_PORT || true)}
+    smtp_user=$(env_get SMTP_USERNAME || true); smtp_user=${smtp_user:-$(env_get SMART_SMTP_USERNAME || true)}
+    smtp_pass=$(env_get SMTP_PASSWORD || true); smtp_pass=${smtp_pass:-$(env_get SMART_SMTP_PASSWORD || true)}
+    smtp_from=$(env_get SMTP_FROM || true); smtp_from=${smtp_from:-$(env_get SMART_SMTP_FROM || true)}
+    smtp_from_name=$(env_get SMTP_FROM_NAME || true); smtp_from_name=${smtp_from_name:-$(env_get SMART_SMTP_FROM_NAME || true)}
+    smtp_ssl=$(env_get SMTP_SSL || true); smtp_ssl=${smtp_ssl:-$(env_get SMART_SMTP_SSL || true)}
+    smtp_tls=$(env_get SMTP_EXPLICIT_TLS || true); smtp_tls=${smtp_tls:-$(env_get SMART_SMTP_EXPLICIT_TLS || true)}
     smtp_to=$(grep '^SMART_ALERT_EMAIL=' "$env_file" | cut -d= -f2)
 
     if [ -z "$smtp_host" ] || [ -z "$smtp_to" ]; then
@@ -76,13 +87,22 @@ send_backup_email() {
         return 1
     fi
 
-    curl -s --max-time 30 --url "smtps://${smtp_host}:${smtp_port}" \
-        --ssl-reqd \
+    if [ "$smtp_ssl" = "true" ]; then
+        smtp_url="smtps://${smtp_host}:${smtp_port}"
+    else
+        smtp_url="smtp://${smtp_host}:${smtp_port}"
+    fi
+
+    local curl_tls=()
+    [ "$smtp_ssl" = "true" ] || [ "$smtp_tls" = "true" ] && curl_tls=(--ssl-reqd)
+
+    curl -s --max-time 30 --url "$smtp_url" \
+        "${curl_tls[@]}" \
         --mail-from "$smtp_from" \
         --mail-rcpt "$smtp_to" \
         --user "${smtp_user}:${smtp_pass}" \
         -T - <<MAILEOF
-From: ${smtp_from}
+From: ${smtp_from_name:-REDACTED_BRAND' Services} <${smtp_from}>
 To: ${smtp_to}
 Subject: [REDACTED_HOSTNAME backup] ${subject}
 Content-Type: text/plain; charset=utf-8
@@ -133,7 +153,7 @@ export BORG_PASSCOMMAND="cat $PASSPHRASE_FILE"
 # Verifica repo
 [ -d "$REPO/data" ] || die "Repo Borg non trovato: $REPO"
 
-# --- Step 1: Dump PostgreSQL di Immich ---------------------------------------
+# --- Step 1a: Dump PostgreSQL di Immich --------------------------------------
 
 log "=== BACKUP OFFSITE START ==="
 
@@ -143,10 +163,65 @@ if docker ps --format '{{.Names}}' | grep -q '^immich_postgres$'; then
     docker exec immich_postgres pg_dumpall -U postgres 2>/dev/null \
         | gzip > "$IMMICH_DUMP" \
         || log "WARN: pg_dump fallito, continuo senza dump DB"
-    log "Dump completato: $(du -h "$IMMICH_DUMP" | cut -f1)"
+    log "Dump immich: $(du -h "$IMMICH_DUMP" | cut -f1)"
 else
     log "WARN: container immich_postgres non attivo, skip dump DB"
 fi
+
+# --- Step 1b: Dump MariaDB di Nextcloud --------------------------------------
+# Il dump SQL è essenziale per restore consistente (i file binari MariaDB sotto
+# data/nextcloud/db copiati a caldo possono essere corrotti). Tiene 7 dump
+# rotanti per giorno della settimana (sovrascritti ogni settimana).
+
+NC_DUMP_DIR="${DOCKER_DIR}/data/nextcloud-db-dumps"
+mkdir -p "$NC_DUMP_DIR"
+NC_DUMP="${NC_DUMP_DIR}/nextcloud-$(date +%u).sql.gz"  # 1=lun .. 7=dom
+if docker ps --format '{{.Names}}' | grep -q '^nextcloud_mariadb$'; then
+    log "Dump MariaDB nextcloud..."
+    NC_DB_PASS=$(grep '^NEXTCLOUD_DB_ROOT_PASSWORD=' "${DOCKER_DIR}/.env" | cut -d= -f2-)
+    if [ -n "$NC_DB_PASS" ]; then
+        docker exec -e MYSQL_PWD="$NC_DB_PASS" nextcloud_mariadb \
+            mariadb-dump --single-transaction --quick --lock-tables=false \
+            -u root --all-databases 2>/dev/null \
+            | gzip > "$NC_DUMP" \
+            || log "WARN: mariadb-dump fallito, continuo senza dump DB nextcloud"
+        log "Dump nextcloud: $(du -h "$NC_DUMP" | cut -f1) -> $(basename "$NC_DUMP")"
+    else
+        log "WARN: NEXTCLOUD_DB_ROOT_PASSWORD non trovato in .env, skip dump"
+    fi
+else
+    log "WARN: container nextcloud_mariadb non attivo, skip dump DB"
+fi
+
+# --- Step 1c: Snapshot consistenti SQLite ------------------------------------
+# vaultwarden, jellyfin, openclaw usano SQLite (WAL mode con scritture vive).
+# Copiare il file a caldo può produrre DB corrotti. Usiamo `sqlite3 .backup`
+# (host-side, lock-safe via WAL checkpoint). Richiede pacchetto sqlite3.
+
+sqlite_snapshot() {
+    local label="$1" src="$2" out="$3"
+    if [ ! -f "$src" ]; then
+        log "WARN: snapshot $label: file sorgente $src non trovato"
+        return
+    fi
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        log "WARN: sqlite3 non installato sull'host, skip snapshot $label"
+        return
+    fi
+    if sqlite3 "$src" ".backup '$out'" 2>>"$LOGFILE"; then
+        log "Snapshot $label: $(du -h "$out" | cut -f1)"
+    else
+        log "WARN: snapshot $label fallito"
+    fi
+}
+
+SNAP_DIR="${DOCKER_DIR}/data/sqlite-snapshots"
+mkdir -p "$SNAP_DIR"
+sqlite_snapshot vaultwarden    "${DOCKER_DIR}/data/vaultwarden/db.sqlite3"           "${SNAP_DIR}/vaultwarden.sqlite3"
+sqlite_snapshot jellyfin       "${DOCKER_DIR}/data/jellyfin/config/data/jellyfin.db" "${SNAP_DIR}/jellyfin.db"
+sqlite_snapshot jellyfin-lib   "${DOCKER_DIR}/data/jellyfin/config/data/library.db"  "${SNAP_DIR}/jellyfin-library.db"
+sqlite_snapshot openclaw-mem   "${DOCKER_DIR}/data/openclaw/memory/main.sqlite"      "${SNAP_DIR}/openclaw-main.sqlite"
+sqlite_snapshot openclaw-runs  "${DOCKER_DIR}/data/openclaw/tasks/runs.sqlite"       "${SNAP_DIR}/openclaw-runs.sqlite"
 
 # --- Step 2: Borg create (incrementale, deduplica) ---------------------------
 
@@ -170,6 +245,7 @@ borg create \
     --exclude "${DOCKER_DIR}/data/syncthing/config" \
     --exclude "${DOCKER_DIR}/data/smartcheck" \
     --exclude "${DOCKER_DIR}/data/webdav" \
+    --exclude "${DOCKER_DIR}/data/nextcloud/db" \
     "${REPO}::${ARCHIVE}" \
     "${DOCKER_DIR}/data/certbot" \
     "${DOCKER_DIR}/data/icloud-photos" \
@@ -177,7 +253,9 @@ borg create \
     "${DOCKER_DIR}/data/nginx" \
     "${DOCKER_DIR}/data/openclaw" \
     "${DOCKER_DIR}/data/jellyfin" \
-    "${DOCKER_DIR}/data/radicale" \
+    "${DOCKER_DIR}/data/nextcloud" \
+    "${DOCKER_DIR}/data/nextcloud-db-dumps" \
+    "${DOCKER_DIR}/data/sqlite-snapshots" \
     "${DOCKER_DIR}/data/vaultwarden" \
     "${DOCKER_DIR}/data/syncthing/obsidian" \
     "${DOCKER_DIR}/kickstart" \
@@ -272,7 +350,7 @@ if curl -s -o /dev/null --max-time 5 "${FTP_BASE}/" ${FTP_CURL_AUTH} 2>/dev/null
             HASH_COMPUTED=$((HASH_COMPUTED + 1))
         fi
         echo "${rel} ${md5} ${file_mtime} ${file_size}"
-    done < <(find "${REPO}" -type f ! -name ".proton-manifest" ! -name ".proton-stuck" ! -name "nonce" -printf '%P\n' | sort) > "$LOCAL_MD5"
+    done < <(find "${REPO}" -type f ! -name ".proton-manifest" ! -name ".proton-stuck" -printf '%P\n' | sort) > "$LOCAL_MD5"
     unset _PREV_HASH _PREV_MTIME _PREV_SIZE
     LOCAL_COUNT=$(wc -l < "$LOCAL_MD5")
     log "md5: ${LOCAL_COUNT} file (${HASH_COMPUTED} calcolati, ${HASH_CACHED} da cache mtime+size)"
@@ -298,7 +376,8 @@ if curl -s -o /dev/null --max-time 5 "${FTP_BASE}/" ${FTP_CURL_AUTH} 2>/dev/null
     UPLOAD_COUNT=$(wc -l < "$UPLOAD_LIST")
 
     # --- Determina file obsoleti (nel manifest ma non più in locale) ---
-    # hints.*/index.*/integrity.* cambiano numero ad ogni prune — ignorati (gestiti a parte)
+    # hints.*/index.*/integrity.* cambiano numero ad ogni prune: li gestiamo
+    # come orfani remoti, cosi' il set corrente locale non viene mai eliminato.
     OBSOLETE_LIST=$(mktemp)
     while IFS=' ' read -r rel_path _md5; do
         [ -z "$rel_path" ] && continue
@@ -356,25 +435,10 @@ if curl -s -o /dev/null --max-time 5 "${FTP_BASE}/" ${FTP_CURL_AUTH} 2>/dev/null
 
     # --- File orfani su Proton (su Proton ma non in locale, esclusi obsoleti) ---
     ORPHAN_LIST=$(mktemp)
-    BORG_META_SIZE_BYTES=0
-    BORG_META_COUNT=0
     while IFS= read -r remote_rel; do
         [ -z "$remote_rel" ] && continue
         # Ignora file .new-* (fallback per file stuck — gestiti separatamente)
         [[ "$remote_rel" == *.new-* ]] && continue
-        # hints/index/integrity vecchi: conta dimensione ma non listare come orfani
-        if [[ "$remote_rel" =~ ^(hints|index|integrity)\. ]]; then
-            if ! grep -q "^${remote_rel} " "$LOCAL_MD5" 2>/dev/null; then
-                # Stima dimensione: index ~5MB, hints ~2KB, integrity ~200B
-                case "$remote_rel" in
-                    index.*) BORG_META_SIZE_BYTES=$((BORG_META_SIZE_BYTES + 5242880)) ;;
-                    hints.*) BORG_META_SIZE_BYTES=$((BORG_META_SIZE_BYTES + 2048)) ;;
-                    integrity.*) BORG_META_SIZE_BYTES=$((BORG_META_SIZE_BYTES + 256)) ;;
-                esac
-                BORG_META_COUNT=$((BORG_META_COUNT + 1))
-            fi
-            continue
-        fi
         if ! grep -q "^${remote_rel} " "$LOCAL_MD5" 2>/dev/null; then
             # Escludi file già in lista obsoleti (evita duplicati in email)
             grep -q "^${remote_rel}$" "$OBSOLETE_LIST" 2>/dev/null && continue
@@ -382,16 +446,7 @@ if curl -s -o /dev/null --max-time 5 "${FTP_BASE}/" ${FTP_CURL_AUTH} 2>/dev/null
         fi
     done < "$REMOTE_LIST"
     ORPHAN_COUNT=$(wc -l < "$ORPHAN_LIST")
-    [ "$ORPHAN_COUNT" -gt 0 ] && log "Trovati ${ORPHAN_COUNT} file orfani su Proton (non in locale) — da eliminare manualmente"
-    # Alert se le vecchie versioni hints/index/integrity superano 10GB
-    BORG_META_SIZE_GB=$((BORG_META_SIZE_BYTES / 1073741824))
-    if [ "$BORG_META_COUNT" -gt 0 ]; then
-        log "Info: ${BORG_META_COUNT} file Borg metadata vecchi su Proton (~${BORG_META_SIZE_GB}GB stimati)"
-    fi
-    if [ "$BORG_META_SIZE_BYTES" -gt 10737418240 ]; then
-        send_backup_email "Pulizia Borg metadata: ~${BORG_META_SIZE_GB}GB su Proton Drive" \
-            "Su Proton Drive ci sono ${BORG_META_COUNT} vecchie versioni di hints/index/integrity"$'\n'"per un totale stimato di ~${BORG_META_SIZE_GB}GB."$'\n'$'\n'"Eliminare le versioni vecchie da https://drive.proton.me"$'\n'"nella cartella backup/tidepool/ (tenere solo quelli con il numero piu' alto)." || true
-    fi
+    [ "$ORPHAN_COUNT" -gt 0 ] && log "Trovati ${ORPHAN_COUNT} file orfani su Proton (non in locale) — verrà tentato DELE automatico"
 
     # --- Upload con verifica md5 post-download ---
     UPLOAD_OK=0
@@ -549,14 +604,6 @@ if curl -s -o /dev/null --max-time 5 "${FTP_BASE}/" ${FTP_CURL_AUTH} 2>/dev/null
         log "Nessun file da caricare — Proton allineato"
     fi
 
-    # --- DELE non funziona sul bridge (sempre 451) — logga e basta ---
-    if [ "$OBSOLETE_COUNT" -gt 0 ]; then
-        log "WARN: ${OBSOLETE_COUNT} file obsoleti su Proton (DELE non supportata dal bridge)"
-    fi
-    if [ "$ORPHAN_COUNT" -gt 0 ]; then
-        log "WARN: ${ORPHAN_COUNT} file orfani su Proton (DELE non supportata dal bridge)"
-    fi
-
     # --- Salva manifest atomicamente ---
     sort "$NEW_MANIFEST" > "${MANIFEST}.tmp"
     mv -f "${MANIFEST}.tmp" "$MANIFEST"
@@ -565,9 +612,76 @@ if curl -s -o /dev/null --max-time 5 "${FTP_BASE}/" ${FTP_CURL_AUTH} 2>/dev/null
         log "WARN: ${UPLOAD_FAIL} file non verificati — verranno ritentati al prossimo run"
     fi
 
-    # --- Report + email file stuck (overwrite bloccato, salvati come .new-*) ---
-    # Pulisci .proton-stuck: rimuovi file che non esistono più in locale (prunati da Borg)
+    # --- Step 5: Auto-delete file da Proton Drive via FTP DELE ---------------
+    # Elimina automaticamente: obsoleti, orfani (inclusi hints/index/integrity
+    # vecchi nella root del repo), .new-* risolti, originali di file stuck.
+    # Solo i file che falliscono il DELE vengono
+    # segnalati via email per intervento manuale.
+
+    proton_ftp_delete() {
+        local rel_path="$1"
+        curl -s --max-time 30 --quote "DELE ${FTP_REMOTE_DIR}/${rel_path}" \
+            "${FTP_BASE}/" ${FTP_CURL_AUTH} >/dev/null 2>&1
+    }
+
+    DELETE_OK=0
+    DELETE_FAIL=0
+    DELETE_FAIL_LIST=$(mktemp)
+
+    # 5a. File obsoleti (nel vecchio manifest ma non più in locale — prunati da Borg)
+    if [ "$OBSOLETE_COUNT" -gt 0 ]; then
+        log "Auto-delete: ${OBSOLETE_COUNT} file obsoleti..."
+        while IFS= read -r obs_path; do
+            [ -z "$obs_path" ] && continue
+            if proton_ftp_delete "$obs_path"; then
+                DELETE_OK=$((DELETE_OK + 1))
+                log "  DELE OK: ${obs_path}"
+            else
+                DELETE_FAIL=$((DELETE_FAIL + 1))
+                echo "obsoleto: ${obs_path}" >> "$DELETE_FAIL_LIST"
+                log "  DELE FAIL: ${obs_path}"
+            fi
+        done < "$OBSOLETE_LIST"
+    fi
+
+    # 5b. File orfani (su Proton ma non in locale/manifest)
+    if [ "$ORPHAN_COUNT" -gt 0 ]; then
+        log "Auto-delete: ${ORPHAN_COUNT} file orfani..."
+        while IFS= read -r orph_path; do
+            [ -z "$orph_path" ] && continue
+            if proton_ftp_delete "$orph_path"; then
+                DELETE_OK=$((DELETE_OK + 1))
+                log "  DELE OK: ${orph_path}"
+            else
+                DELETE_FAIL=$((DELETE_FAIL + 1))
+                echo "orfano: ${orph_path}" >> "$DELETE_FAIL_LIST"
+                log "  DELE FAIL: ${orph_path}"
+            fi
+        done < "$ORPHAN_LIST"
+    fi
+
+    # 5c. File .new-* risolti (file stuck ora uploadati correttamente con nome originale)
+    if [ -s "$RESOLVED_NEW_LIST" ]; then
+        sort -u -o "$RESOLVED_NEW_LIST" "$RESOLVED_NEW_LIST"
+        RESOLVED_COUNT=$(wc -l < "$RESOLVED_NEW_LIST")
+        log "Auto-delete: ${RESOLVED_COUNT} file .new-* risolti..."
+        while IFS= read -r resolved_path; do
+            [ -z "$resolved_path" ] && continue
+            if proton_ftp_delete "$resolved_path"; then
+                DELETE_OK=$((DELETE_OK + 1))
+                log "  DELE OK .new-*: ${resolved_path}"
+            else
+                DELETE_FAIL=$((DELETE_FAIL + 1))
+                echo ".new-* risolto: ${resolved_path}" >> "$DELETE_FAIL_LIST"
+                log "  DELE FAIL .new-*: ${resolved_path}"
+            fi
+        done < "$RESOLVED_NEW_LIST"
+    fi
+
+    # 5d. Originali di file stuck (DELE originale → prossimo run ricarica pulito)
+    STUCK_MANUAL_COUNT=0
     if [ -f "$STUCK_FILE" ]; then
+        # Pulisci stuck: rimuovi file che non esistono più in locale
         STUCK_CLEAN=$(mktemp)
         while IFS= read -r sp; do
             [ -z "$sp" ] && continue
@@ -579,78 +693,61 @@ if curl -s -o /dev/null --max-time 5 "${FTP_BASE}/" ${FTP_CURL_AUTH} 2>/dev/null
     else
         STUCK_COUNT=0
     fi
-
-    # Conta sezioni da eliminare manualmente
-    MANUAL_DELETE_NEEDED=false
-    email_body="Backup offsite di $(hostname) completato il $(date '+%d/%m/%Y %H:%M')."$'\n'
-    email_body+="Upload: ${UPLOAD_OK} OK, ${UPLOAD_FAIL} FAIL su ${UPLOAD_COUNT} | Manifest: $(wc -l < "$MANIFEST") file"$'\n'
-    email_subject_parts=""
-
-    # Sezione 1: file stuck (overwrite bloccato)
     if [ "$STUCK_COUNT" -gt 0 ]; then
-        MANUAL_DELETE_NEEDED=true
-        log "WARN: ${STUCK_COUNT} file con overwrite bloccato."
-        email_body+=$'\n'"═══ FILE BLOCCATI (overwrite non funziona) ═══"$'\n'
-        email_body+="Il bridge FTP non riesce a sovrascrivere questi file (bug noto)."$'\n'
-        email_body+="I dati sono stati salvati con un nome alternativo (.new-*) e verificati."$'\n'
-        email_body+="Eliminare i file ORIGINALI (non i .new-*) da https://drive.proton.me"$'\n'
-        email_body+="nella cartella backup/tidepool/:"$'\n'$'\n'
+        log "Auto-delete: ${STUCK_COUNT} originali stuck (mantiene .new-* verificati fino al re-upload)..."
         while IFS= read -r stuck_path; do
-            log "  STUCK: ${FTP_REMOTE_DIR}/${stuck_path}"
-            email_body+="  ${stuck_path}"$'\n'
+            [ -z "$stuck_path" ] && continue
+            # Elimina solo l'originale stuck. I .new-* sono copie verificate e
+            # restano su Proton fino al prossimo run, che ricarica l'originale
+            # e poi li elimina tramite RESOLVED_NEW_LIST.
+            if proton_ftp_delete "$stuck_path"; then
+                DELETE_OK=$((DELETE_OK + 1))
+                log "  DELE OK stuck orig: ${stuck_path} (re-upload al prossimo run; .new-* tenuti)"
+            else
+                DELETE_FAIL=$((DELETE_FAIL + 1))
+                STUCK_MANUAL_COUNT=$((STUCK_MANUAL_COUNT + 1))
+                echo "stuck orig: ${stuck_path}" >> "$DELETE_FAIL_LIST"
+                log "  DELE FAIL stuck orig: ${stuck_path}"
+            fi
         done < "$STUCK_FILE"
-        email_subject_parts="${STUCK_COUNT} bloccati"
     fi
 
-    # Sezione 2: file obsoleti (nel vecchio manifest ma non piu' in locale)
-    if [ "$OBSOLETE_COUNT" -gt 0 ]; then
-        MANUAL_DELETE_NEEDED=true
-        email_body+=$'\n'"═══ FILE OBSOLETI (non piu' nel backup) ═══"$'\n'
-        email_body+="Questi file non sono piu' nel backup locale ma restano su Proton Drive."$'\n'
-        email_body+="Eliminare da https://drive.proton.me nella cartella backup/tidepool/:"$'\n'$'\n'
-        while IFS= read -r obs_path; do
-            [ -z "$obs_path" ] && continue
-            email_body+="  ${obs_path}"$'\n'
-        done < "$OBSOLETE_LIST"
-        email_subject_parts="${email_subject_parts:+${email_subject_parts}, }${OBSOLETE_COUNT} obsoleti"
+    TOTAL_DELETE=$((DELETE_OK + DELETE_FAIL))
+    if [ "$TOTAL_DELETE" -gt 0 ]; then
+        log "Auto-delete completato: ${DELETE_OK} OK, ${DELETE_FAIL} FAIL su ${TOTAL_DELETE}"
     fi
 
-    # Sezione 3: file orfani (su Proton ma mai nel manifest)
-    if [ "$ORPHAN_COUNT" -gt 0 ]; then
-        MANUAL_DELETE_NEEDED=true
-        email_body+=$'\n'"═══ FILE ORFANI (su Proton ma non in locale) ═══"$'\n'
-        email_body+="Questi file esistono su Proton Drive ma non nel backup locale."$'\n'
-        email_body+="Eliminare da https://drive.proton.me nella cartella backup/tidepool/:"$'\n'$'\n'
-        while IFS= read -r orph_path; do
-            [ -z "$orph_path" ] && continue
-            email_body+="  ${orph_path}"$'\n'
-        done < "$ORPHAN_LIST"
-        email_subject_parts="${email_subject_parts:+${email_subject_parts}, }${ORPHAN_COUNT} orfani"
-    fi
+    # --- Email solo per file che non si è riusciti a eliminare ----------------
+    if [ "$DELETE_FAIL" -gt 0 ] || [ "$STUCK_MANUAL_COUNT" -gt 0 ]; then
+        email_body="Backup offsite di $(hostname) completato il $(date '+%d/%m/%Y %H:%M')."$'\n'
+        email_body+="Upload: ${UPLOAD_OK} OK, ${UPLOAD_FAIL} FAIL su ${UPLOAD_COUNT} | Manifest: $(wc -l < "$MANIFEST") file"$'\n'
+        email_body+="Auto-delete: ${DELETE_OK} OK, ${DELETE_FAIL} FAIL"$'\n'
+        email_subject_parts=""
 
-    # Invia email unificata se serve azione manuale
-    if [ "$MANUAL_DELETE_NEEDED" = true ]; then
+        if [ "$DELETE_FAIL" -gt 0 ]; then
+            email_body+=$'\n'"═══ FILE NON ELIMINABILI ═══"$'\n'
+            email_body+="I seguenti file non sono stati eliminati automaticamente."$'\n'
+            email_body+="Eliminare manualmente da https://drive.proton.me/backup/tidepool/:"$'\n'$'\n'
+            while IFS= read -r fail_line; do
+                email_body+="  ${fail_line}"$'\n'
+            done < "$DELETE_FAIL_LIST"
+            email_subject_parts="${DELETE_FAIL} non eliminati"
+        fi
+
+        if [ "$STUCK_MANUAL_COUNT" -gt 0 ]; then
+            email_body+=$'\n'"═══ FILE ANCORA STUCK ═══"$'\n'
+            email_body+="Questi file non sono stati eliminati (DELE fallito)."$'\n'
+            email_body+="I dati sono salvati come .new-* — eliminare gli originali manualmente:"$'\n'$'\n'
+            while IFS= read -r stuck_path; do
+                grep -Fxq "stuck orig: ${stuck_path}" "$DELETE_FAIL_LIST" 2>/dev/null && email_body+="  ${stuck_path}"$'\n'
+            done < "$STUCK_FILE"
+            email_subject_parts="${email_subject_parts:+${email_subject_parts}, }${STUCK_MANUAL_COUNT} stuck"
+        fi
+
         send_backup_email "Azione richiesta: ${email_subject_parts} su Proton Drive" "$email_body" || true
     fi
 
-    # --- Email file .new-* obsoleti (file risolti dopo cleanup web) ---
-    if [ -s "$RESOLVED_NEW_LIST" ]; then
-        sort -u -o "$RESOLVED_NEW_LIST" "$RESOLVED_NEW_LIST"
-        RESOLVED_COUNT=$(wc -l < "$RESOLVED_NEW_LIST")
-        log "INFO: ${RESOLVED_COUNT} file .new-* ora obsoleti (originali risolti)"
-        obsolete_list=""
-        while IFS= read -r obsolete_path; do
-            log "  OBSOLETO: ${FTP_REMOTE_DIR}/${obsolete_path}"
-            obsolete_list="${obsolete_list}  ${obsolete_path}"$'\n'
-        done < "$RESOLVED_NEW_LIST"
-
-        email_body="Buone notizie! ${RESOLVED_COUNT} file precedentemente bloccati sono ora stati caricati"$'\n'
-        email_body+="correttamente con il nome originale su Proton Drive."$'\n'$'\n'
-        email_body+="I seguenti file .new-* sono ora OBSOLETI e possono essere eliminati"$'\n'
-        email_body+="da https://drive.proton.me nella cartella backup/tidepool/:"$'\n'$'\n'
-        email_body+="${obsolete_list}"
-        send_backup_email "Pulizia: ${RESOLVED_COUNT} file .new-* obsoleti su Proton Drive" "$email_body" || true
-    fi
+    rm -f "$DELETE_FAIL_LIST"
 
     rm -f "$LOCAL_MD5" "$PREV_MANIFEST" "$UPLOAD_LIST" "$OBSOLETE_LIST" "$NEW_MANIFEST" "$REMOTE_LIST" "$ORPHAN_LIST" "$RESOLVED_NEW_LIST"
 else

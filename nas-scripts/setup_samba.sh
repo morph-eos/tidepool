@@ -84,11 +84,21 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'SAMBAEOF'
    writable = yes
    guest ok = no
    read only = no
-   create mask = 0755
-   directory mask = 0755
+   create mask = 0664
+   force create mode = 0664
+   directory mask = 0775
+   force directory mode = 0775
    force user = REDACTED_HOSTNAME
    force group = REDACTED_HOSTNAME
    valid users = REDACTED_HOSTNAME
+   # Disabilita mappatura DOS attrs su mode bits (no exec/readonly random)
+   store dos attributes = no
+   delete readonly = yes
+   dos filemode = yes
+   map archive = no
+   map hidden = no
+   map system = no
+   map readonly = no
 
 [NAS2]
    comment = Network Attached Storage 2 (1TB)
@@ -97,11 +107,20 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'SAMBAEOF'
    writable = yes
    guest ok = no
    read only = no
-   create mask = 0755
-   directory mask = 0755
+   create mask = 0664
+   force create mode = 0664
+   directory mask = 0775
+   force directory mode = 0775
    force user = REDACTED_HOSTNAME
    force group = REDACTED_HOSTNAME
    valid users = REDACTED_HOSTNAME
+   store dos attributes = no
+   delete readonly = yes
+   dos filemode = yes
+   map archive = no
+   map hidden = no
+   map system = no
+   map readonly = no
 
 [TimeMachine]
    comment = Time Machine Backup

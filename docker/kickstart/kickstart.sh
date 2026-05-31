@@ -61,7 +61,6 @@ mkdir -p data/jellyfin/{config,cache}
 mkdir -p data/plex/config
 mkdir -p data/vaultwarden
 mkdir -p data/webdav
-mkdir -p data/radicale
 mkdir -p data/syncthing
 mkdir -p data/openclaw
 mkdir -p data/icloud-photos
@@ -144,7 +143,7 @@ if [ ! -f "$CERT_PATH" ]; then
     print_warning "Certificati SSL non trovati. Avvio kickstart..."
     
     print_info "Verifica che TUTTI questi domini puntino a questo server:"
-    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + sottodomini: immich, jellyfin, plex, bitwarden, webdav, radicale, syncthing, openclaw, modem"
+    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + sottodomini: immich, jellyfin, plex, bitwarden, webdav, syncthing, openclaw, modem"
     echo "  REDACTED_DOMAIN + stessi sottodomini"
     echo ""
     

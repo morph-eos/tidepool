@@ -38,6 +38,7 @@ Il deploy script si occupa automaticamente di:
 - **� Plex**: Media server alternativo per streaming
 - **🔄 JellyPlex-Watched**: Sincronizzazione stato visualizzazione tra media server
 - **🔐 Bitwarden (Vaultwarden)**: Password manager self-hosted
+- **☁️ Nextcloud**: Personal cloud (file, contatti, calendario)
 - **🧠 SMART Check**: Monitoraggio SMART dischi con alert email
 - **🔒 Certbot**: Certificati SSL automatici Let's Encrypt
 
@@ -118,9 +119,14 @@ Dopo il deploy, i servizi sono disponibili su:
 - **🎬 Jellyfin**: https://jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS
 - **� Plex**: https://plex.REDACTED_HOSTNAME.REDACTED_DDNS
 - **🔐 Bitwarden**: https://bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS
+- **☁️ Nextcloud**: https://cloud.REDACTED_DOMAIN
+- **🖥️ Incus UI**: https://incus.REDACTED_DOMAIN
 
 ### Debug Locale
 - **Nginx**: http://localhost:80 / https://localhost:443
+
+### Certificato Unico
+Il servizio `certbot` del compose mantiene il certificato unico `REDACTED_HOSTNAME.REDACTED_DDNS`, usato sia da nginx sia da Incus tramite symlink su `/var/lib/incus/server.{crt,key}`. Il certificato include anche `incus.REDACTED_DOMAIN`; il compose di kickstart contiene lo stesso dominio per bootstrap da zero.
 
 ## ⚙️ Configurazione
 

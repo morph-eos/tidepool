@@ -47,7 +47,6 @@ services:
       -d plex.REDACTED_HOSTNAME.REDACTED_DDNS
       -d bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS
       -d webdav.REDACTED_HOSTNAME.REDACTED_DDNS
-      -d radicale.REDACTED_HOSTNAME.REDACTED_DDNS
       -d syncthing.REDACTED_HOSTNAME.REDACTED_DDNS
       -d openclaw.REDACTED_HOSTNAME.REDACTED_DDNS
       -d modem.REDACTED_HOSTNAME.REDACTED_DDNS
@@ -57,10 +56,10 @@ services:
       -d plex.REDACTED_DOMAIN
       -d bitwarden.REDACTED_DOMAIN
       -d webdav.REDACTED_DOMAIN
-      -d radicale.REDACTED_DOMAIN
       -d syncthing.REDACTED_DOMAIN
       -d openclaw.REDACTED_DOMAIN
       -d modem.REDACTED_DOMAIN
+      -d incus.REDACTED_DOMAIN
       --rsa-key-size 4096
       --agree-tos
       --no-eff-email

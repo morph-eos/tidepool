@@ -79,8 +79,8 @@ if [ ! -f "$CERT_PATH" ]; then
     print_warning "Certificati SSL non trovati. Avvio kickstart..."
     
     print_info "Verifica che TUTTI questi domini puntino al tuo server:"
-    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + www/immich/jellyfin/plex/bitwarden/webdav/radicale/syncthing/openclaw/modem"
-    echo "  REDACTED_DOMAIN + www/immich/jellyfin/plex/bitwarden/webdav/radicale/syncthing/openclaw/modem"
+    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + www/immich/jellyfin/plex/bitwarden/webdav/syncthing/openclaw/modem"
+    echo "  REDACTED_DOMAIN + www/immich/jellyfin/plex/bitwarden/webdav/syncthing/openclaw/modem"
     echo ""
     
     docker compose -f kickstart/docker-compose.yaml up -d nginx
@@ -135,7 +135,6 @@ echo "  • https://immich.REDACTED_HOSTNAME.REDACTED_DDNS (foto)"
 echo "  • https://jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS (media)"
 echo "  • https://bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS (password manager)"
 echo "  • https://webdav.REDACTED_HOSTNAME.REDACTED_DDNS (file sharing)"
-echo "  • https://radicale.REDACTED_HOSTNAME.REDACTED_DDNS (CalDAV/CardDAV)"
 echo "  • https://syncthing.REDACTED_HOSTNAME.REDACTED_DDNS (sync)"
 echo "  • https://modem.REDACTED_HOSTNAME.REDACTED_DDNS (modem admin, auth required)"
 echo ""

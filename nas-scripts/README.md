@@ -4,16 +4,28 @@ Questa cartella contiene tutti gli script per la configurazione e gestione del s
 
 ## 📁 **Struttura del Sistema NAS:**
 
-- **NAS:** `/mnt/nas` (prima partizione 13TB) - Storage principale  
-- **Time Machine:** `/mnt/timemachine` (seconda partizione 3TB) - Backup macOS
-- **NAS2:** `/mnt/nas2` (1TB) - Storage secondario
+- **NAS:** `/mnt/nas` (prima partizione 13TB) — Storage principale
+  - `media/` — film/serie/musica/foto (montato da Jellyfin come `/media2`, RW)
+  - `REDACTED_DIR_1/`, `Sites/`, `REDACTED_DIR_2/`, `REDACTED_DIR_3/`, `TempDownload/`, `Windows Apps/` — dati utente (accessibili via Samba `\\NAS\NAS`)
+  - `backup/` — **solo repository gestiti da servizi**: `REDACTED_DRIVE2/`, `REDACTED_DRIVE/`, `offsite/` (Borg). NON aggiungere file qui a mano.
+- **Time Machine:** `/mnt/timemachine` (3TB, HFS+ ro) — Backup macOS (write solo da macOS)
+- **NAS2:** `/mnt/nas2` (1TB) — Storage secondario
+  - `media/` — `ebooks`, `music` (montato da Jellyfin come `/media`, RW)
+  - `docker/`, `incus-vms/`, `obsidian-semantic-search/` — **gestiti da servizi**: ownership/permessi specifici, NON modificare via Samba
+  - `nas-scripts/`, `obsidian-index/` — utilità
+
+### Permessi Samba (REDACTED_HOSTNAME:REDACTED_HOSTNAME)
+Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755` — l'utente Samba `REDACTED_HOSTNAME` può creare/modificare cartelle al top-level. I sottoalberi gestiti da servizi (Docker, Incus, Borg) mantengono ownership originali e non sono toccati da fix permessi.
 
 ## 🛠️ **Script Disponibili:**
 
 ### Script di Configurazione:
-- **`setup_complete.sh`** - Configurazione completa automatica
+- **`setup_reconfigure.sh`** - Riconfigurazione comoda: servizi host, cron, Samba, mail, OIDC Nextcloud
 - **`setup_disk.sh`** - Configurazione intelligente dei dischi
 - **`setup_samba.sh`** - Configurazione servizio Samba
+- **`setup_nextcloud_oidc.sh`** - Redirect URI client OIDC Nextcloud (Immich/Jellyfin/Vaultwarden)
+- **`setup_mail.sh`** - SMTP condiviso: `.env`, Nextcloud, Vaultwarden, SMART/backup
+- **`update_immich_version.sh`** - Aggiornamento idempotente tag Immich + pull/recreate container
 - **`setup_fail2ban.sh`** - SSH hardening + fail2ban (ban dopo 3 tentativi)
 
 ### Script di Gestione:
@@ -24,7 +36,7 @@ Questa cartella contiene tutti gli script per la configurazione e gestione del s
 - **`fix_nas.sh`** - Riparazione problemi di mount
 
 ### Backup Offsite (Borg + Proton Drive):
-- **`backup_offsite.sh`** - Backup giornaliero automatico (cron 03:00)
+- **`backup_offsite.sh`** - Backup giornaliero automatico (cron 03:00). Dump DB (immich pg, nextcloud mariadb, sqlite lock-safe), Borg create, sync Proton Drive con auto-delete (obsoleti/orfani, inclusi metadata root Borg)
 - **`backup_setup.sh`** - Setup completo del sistema di backup offsite
 - **`backup_restore.sh`** - Ripristino file da backup (locale o da Proton Drive)
 - **`proton_refresh_session.sh`** - Refresh automatico sessione Proton Drive (2FA)
@@ -36,17 +48,21 @@ Questa cartella contiene tutti gli script per la configurazione e gestione del s
 
 ### Manutenzione:
 - **`setup_cron.sh`** - Configurazione cron jobs idempotente (certbot restart, log cleanup, backup)
+- **`setup_host_services.sh`** - Installa idempotente i servizi systemd custom dell'host (wifi-watchdog + nas-scripts-fixperms)
 - **`cleanup_logs.sh`** - Pulizia settimanale log (journal, Docker, apt)
+- **`wifi_watchdog.sh`** - Watchdog WiFi: riconnette `REDACTED_WIFI_IFACE` se cade (es. modem riavviato di notte)
+- **`incus_vm_hook.sh`** - Hook proxy Incus + DNS sync (eseguito ogni 30s da `incus-dns-sync.timer`)
+- **`setup_kdump.sh`** - Abilita kdump (crash kernel dump) per diagnosi panic / hard hang
 
 ## 🚀 **Come Usare:**
 
 ### Prima Configurazione:
 ```bash
-# Configurazione completa automatica
-./setup_complete.sh --force
+# Riconfigurazione idempotente dei servizi principali
+sudo ./setup_reconfigure.sh install
 
-# O configurazione interattiva
-./setup_complete.sh
+# Stato sintetico delle configurazioni principali
+sudo ./setup_reconfigure.sh status
 ```
 
 ### Gestione Quotidiana:
@@ -75,15 +91,15 @@ Questa cartella contiene tutti gli script per la configurazione e gestione del s
 
 ## 🔄 **Backup Offsite (Proton Drive):**
 
-Il sistema di backup offsite usa **Borg** (deduplica + compressione + encryption) con upload su **Proton Drive** tramite `proton-drive-bridge` (FTP bridge).
+Il sistema di backup offsite usa **Borg** (deduplica + compressione + encryption) con upload su **Proton Drive** tramite `proton-drive-bridge` (FTP bridge). Il cron giornaliero lancia prima `backup_offsite.sh` e poi, anche se l'offsite fallisce, `borg_backup_nas2.sh` verso `/mnt/nas/backup/REDACTED_DRIVE`.
 
 ### Cosa viene backuppato:
-- **docker/data/**: certbot, icloud-photos, immich, nginx, openclaw, jellyfin, radicale, vaultwarden, syncthing/obsidian
+- **docker/data/**: certbot, icloud-photos, immich, nginx, openclaw, jellyfin, nextcloud, nextcloud-db-dumps, sqlite-snapshots, vaultwarden, syncthing/obsidian
 - **docker/**: kickstart, scripts, docker-compose.yml, .env, *.sh, README.md
 - **nas2/**: media (ebooks+music), nas-scripts, obsidian-index, obsidian-semantic-search
 
 ### Come Funziona:
-1. Dump PostgreSQL di Immich
+1. Dump DB: Immich PostgreSQL, Nextcloud MariaDB, SQLite lock-safe
 2. `borg create` — backup incrementale con deduplica → `/mnt/nas/backup/offsite/`
 3. `borg prune` — retention (7 daily, 4 weekly, 6 monthly)
 4. Sync verificato file-by-file → Proton Drive via FTP bridge
@@ -91,17 +107,19 @@ Il sistema di backup offsite usa **Borg** (deduplica + compressione + encryption
    - Upload + download-verifica md5 per ogni file
    - Restart bridge ogni 50 upload per prevenire degradazione cache
    - Restart bridge tra tentativi di retry su fallimenti di verifica
-   - Fallback `.new-<epoch>` per file con overwrite bloccato (bug bridge)
-   - Email notifica per azioni manuali (file bloccati, obsoleti, orfani)
+  - Fallback `.new-<epoch>` per file con overwrite bloccato (bug bridge)
+  - DELE automatico per file obsoleti/orfani, inclusi `hints.*`, `index.*`, `integrity.*` non più locali
+  - Email notifica solo per upload falliti o file che DELE non riesce a eliminare
    - Email automatica su crash o errore fatale (con riga e exit code)
-   - File `nonce` escluso dall'upload (cambia ad ogni run, non serve per il restore)
+  - File Borg root (`config`, `nonce`, `hints.*`, `index.*`, `integrity.*`) inclusi nel mirror Proton
    - Guard: file scomparsi dal repo tra scan e upload vengono skippati
 
 ### File stuck (`.proton-stuck`):
 File il cui overwrite FTP fallisce sistematicamente (bug bridge STOR).
 - Vengono salvati con nome alternativo `.new-<epoch>` e verificati md5
-- Email automatica con lista file da eliminare manualmente da [drive.proton.me](https://drive.proton.me)
-- Dopo cleanup manuale, il prossimo run rileva l'overwrite riuscito e rimuove il file dalla lista
+- Il run tenta DELE automatico dell'originale stuck, ma mantiene i `.new-*` verificati finché il run successivo non ricarica l'originale correttamente
+- I `.new-*` diventati davvero obsoleti vengono eliminati via DELE dopo il re-upload riuscito
+- Email automatica solo se il DELE fallisce e serve cleanup manuale da [drive.proton.me](https://drive.proton.me)
 
 ### Manifest (`.proton-manifest`):
 Formato a 4 campi: `rel_path md5_hash mtime_epoch size_bytes`
@@ -112,14 +130,15 @@ Formato a 4 campi: `rel_path md5_hash mtime_epoch size_bytes`
 ### Proton Drive Bridge (`proton-drive-bridge.service`):
 - Servizio systemd: `User=root`, `Group=root`, `Environment=HOME=/root`
 - FTP bridge su `127.0.0.1:2121`
-- **Bug noti del bridge**:
-  - STOR su file esistente **non sovrascrive MAI** (bridge serve il vecchio contenuto)
-  - DELE non supportato (sempre 451)
+- rclone non usato: il backend `protondrive` richiede nuovo login API e Proton blocca con CAPTCHA anti-abuse; il bridge mantiene una sessione funzionante
+- **Bug/limiti noti del bridge**:
+  - STOR su file esistente può non sovrascrivere correttamente (bridge serve il vecchio contenuto)
+  - DELE funziona su v0.4.3 ed è usato per pulizia automatica
   - RNFR/RNTO: RNFR 350 OK, RNTO 451 (rename non funziona)
   - SITE MD5 advertised ma ritorna 451
   - curl exit 18 su upload (partial transfer, contenuto OK)
   - FTP SIZE riporta valori errati
-- **Mitigazioni implementate**: restart preventivo ogni 50 upload + restart tra retry + fallback `.new-*`
+- **Mitigazioni implementate**: restart preventivo ogni 50 upload + restart tra retry + fallback `.new-*` + auto-delete via DELE
 
 ### Sessione Proton (`proton_refresh_session.sh`):
 - Refresh automatico sessione 2FA/keyring
@@ -159,7 +178,41 @@ sudo wc -l /mnt/nas/backup/offsite/.proton-manifest # File sincronizzati
 
 > ⚠️ **IMPORTANTE**: La passphrase Borg è necessaria per decriptare qualsiasi backup. Conservala in un password manager!
 
-## 🔗 **Accesso Rete:**
+## Email / SMTP condiviso
+
+`setup_mail.sh` normalizza l'invio email dei servizi verso:
+- login SMTP: `REDACTED_OWNER_EMAIL`
+- mittente visibile: `REDACTED_BRAND' Services <REDACTED_SERVICE_EMAIL>`
+- server: `smtp.gmail.com:587` con STARTTLS
+
+La sorgente stabile e' `/mnt/nas2/docker/.env`. Il compose passa le variabili ai container; Nextcloud usa anche l'hook Docker `docker/scripts/nextcloud-smtp-hook.sh` per applicarle a `config.php` a ogni avvio.
+
+```bash
+sudo bash /mnt/nas2/nas-scripts/setup_mail.sh install
+sudo bash /mnt/nas2/nas-scripts/setup_mail.sh status
+```
+
+## � SSO / OIDC (Nextcloud come IdP)
+
+Nextcloud (`https://cloud.REDACTED_DOMAIN`) funge da Identity Provider OIDC. Client registrati:
+
+| Servizio | client_id | Redirect URI |
+|----------|-----------|--------------|
+| Immich | `REDACTED_CLIENT_ID` | `immich.REDACTED_DOMAIN/auth/login`, `/user-settings`, `app.immich:///oauth-callback` |
+| Jellyfin | `REDACTED_CLIENT_ID` | `jellyfin.REDACTED_DOMAIN/sso/OID/redirect/nextcloud` |
+| Vaultwarden | `REDACTED_CLIENT_ID` | `bitwarden.REDACTED_DOMAIN/identity/connect/oidc-signin` |
+
+- Utente unificato: `REDACTED_SERVICE_EMAIL` (aggiornato su tutti i servizi)
+- Vaultwarden SSO: config in `config.json` (gestito dal pannello admin); `extra_hosts: cloud.REDACTED_DOMAIN:host-gateway` per hairpin NAT
+- Nota: SSO su Vaultwarden sostituisce solo l'autenticazione, NON la decryption (master password sempre richiesta)
+- Script redirect URI: `setup_nextcloud_oidc.sh install` (idempotente, riconcilia tutti i redirect URI)
+
+```bash
+sudo bash /mnt/nas2/nas-scripts/setup_nextcloud_oidc.sh install
+sudo bash /mnt/nas2/nas-scripts/setup_nextcloud_oidc.sh status
+```
+
+## �🔗 **Accesso Rete:**
 
 - **NAS:** `\\REDACTED_LAN_IP\NAS`
 - **NAS2:** `\\REDACTED_LAN_IP\NAS2`  
@@ -171,11 +224,26 @@ sudo wc -l /mnt/nas/backup/offsite/.proton-manifest # File sincronizzati
 
 ### Architettura:
 - **Incus 6.x** (zabbly repo) con `incus-ui-canonical` per UI web
-- **Storage:** directory-based su `/mnt/nas2/incus-vms`
+- **Storage:** pool `vmquota` (LVM thin, loop-backed 200GiB in `/var/lib/incus/disks/vmquota.img`)
 - **Rete:** bridge `incusbr0` → `10.100.0.0/24`, NAT via nftables
 - **Proxy unificato:** socat via template systemd `incus-port-proxy@<vm>--<nome>.service`
 - **iptables:** `incus-iptables.service` per coesistenza con Docker
 - **Cloud-init:** auto-installa SSH + inietta chiave host + crea utente `vm-admin`
+
+### Policy SSH (default per ogni nuova VM):
+- **Password auth: ABILITATA** (`PasswordAuthentication yes`, `KbdInteractiveAuthentication yes`)
+- **Root login: NEGATO** (`PermitRootLogin no`)
+- **MaxAuthTries:** `3`
+- **Nessun utente ha password di default:** `vm-admin` e gli altri utenti creati da cloud-init nascono con password locked. L'amministratore della VM sceglie a chi assegnarne una.
+- File policy: `/etc/ssh/sshd_config.d/01-REDACTED_BRAND_lc-defaults.conf` (prefisso `01-` per vincere su `50-cloud-init.conf` di Rocky/RHEL — sshd legge la dir in ordine alfabetico e per ogni direttiva vince la prima occorrenza).
+- Per assegnare una password a un utente esistente:
+  ```bash
+  incus exec <vm> -- passwd <user>
+  ```
+- Per riapplicare la policy a tutte le VM RUNNING (idempotente):
+  ```bash
+  sudo bash setup_incus.sh fix-vm-ssh
+  ```
 - **Hook:** timer ogni 30s gestisce tutti i proxy (SSH auto-assegnato + custom)
 - **DNS wildcard:** `*.vm.REDACTED_DOMAIN` → VM accessibili dall'esterno via SSH
 
@@ -187,11 +255,30 @@ nginx usa `ssl_preread` per instradare il traffico sulla porta 443 in base al SN
 Questo permette al browser di presentare il certificato client direttamente a Incus.
 
 ### Certificati SSL:
-- Incus usa il **certificato Let's Encrypt** tramite symlink:
+- Incus usa lo stesso **certificato Let's Encrypt unico** di nginx/certbot tramite symlink:
   - `/var/lib/incus/server.crt` → `certbot/live/REDACTED_HOSTNAME.REDACTED_DDNS/fullchain.pem`
   - `/var/lib/incus/server.key` → `certbot/live/REDACTED_HOSTNAME.REDACTED_DDNS/privkey.pem`
+- Il certificato unico deve includere anche `incus.REDACTED_DOMAIN` nei SAN; il dominio e' dichiarato nel `certbot` del compose principale e nel compose di kickstart.
+- nginx mantiene un server HTTP `:80` solo per `/.well-known/acme-challenge/` e redirect HTTPS; serve a certbot anche quando la porta 443 e' gestita dallo stream SNI.
 - Rinnovo automatico: cron `incus-cert-sync` riavvia Incus dopo il rinnovo certbot
 - Backup self-signed: `/var/lib/incus/server.crt.selfsigned`
+- Certificati client trusted gestiti da `setup_incus.sh trust-certs`: mettere i `.crt` pubblici in `/mnt/nas2/nas-scripts/incus-trust/` con nome stabile. Il file `incus-ui-notebook.crt` viene registrato in Incus come `incus-ui-notebook`.
+
+### Storage e quote:
+- Il pool `vmquota` usa driver **LVM thin** (loop-backed, 200GiB). Non ripartiziona e non formatta i dischi NAS: Incus gestisce il loop file in `/var/lib/incus/disks/vmquota.img`.
+- Creato e gestito da `setup_incus.sh migrate-storage` / `migrate-quota-storage` (idempotente). Se tutto e' gia' su `vmquota`, il comando e' no-op e pulisce solo eventuali pool legacy vuoti.
+- Quote garantite: i volumi **block** e **filesystem** sono thin volume LVM con dimensione rigida; la UI Incus non mostra il warning btrfs sulle quote.
+- Per ridimensionare il pool: `incus storage set vmquota size=<new>`.
+- Le VM usano volumi block (`virtual-machine/<nome>`); il profilo default imposta `root.size: 20GB`.
+- I volumi custom possono essere **block** o **filesystem**. Per i block la VM li vede come `/dev/sdX` con la dimensione esatta.
+  - Vanno formattati e montati dentro la VM (`mkfs.ext4 /dev/sdb && mount ...`).
+  - `setup_incus.sh migrate-volumes-block` converte eventuali volumi filesystem residui a block (idempotente).
+  - Il content-type di default per nuovi volumi custom e' `filesystem`. Per creare volumi block usare sempre `--type block`:
+    ```
+    incus storage volume create vmquota nome-disco --type block size=10GiB
+    ```
+    Dalla UI: creare il volume come "block" (non "filesystem") oppure aggiungere un disco custom dalla config VM specificando il tipo.
+- I vecchi pool `default` (dir) e `vmpool` (btrfs) sono rimossi quando vuoti dalla migrazione idempotente.
 
 ### Sistema Proxy Unificato:
 Tutti i proxy sono chiavi `user.proxy.*` sulla VM, visibili/modificabili nella UI (*Configuration > Advanced*):
@@ -235,20 +322,21 @@ incus config show myvm | grep user.proxy.auto-
 ```
 
 ### MOTD informativo + comando `vm-proxies` dentro la VM:
-Al login SSH (con tty) ogni utente vede automaticamente:
-- **Header VM**: nome, OS (PRETTY_NAME), kernel, hostname, IP interno, uptime, load, memoria, disco, sessioni attive
-- **Logica proxy**: spiegazione completa dei range (2201-2299 SSH, 3000-3099 auto, raggiungibili come `vm.REDACTED_HOSTNAME.REDACTED_DDNS:<porta>`)
-- **Tabella proxy attivi** (SSH + auto-discovery + manuali)
-- **Lista raggiungibilità da Internet** (solo proxy in 3000-3099)
-- **Comandi di gestione** (`incus config set/unset` da host)
+Al login SSH ogni utente vede un **MOTD sintetico** con:
+- nome VM + hostname + OS + uptime
+- host pubblico (`vm.REDACTED_HOSTNAME.REDACTED_DDNS`) e range porte aperte da Internet
+- invito a lanciare `vm-proxies` (status) o `vm-proxies --help` (spiegone completo)
 
-Il MOTD è in **inglese**, scritto in `/etc/motd` dal hook ogni 30s (solo se cambia md5).
-Lo stesso contenuto è disponibile come comando `vm-proxies` rieseguibile in qualsiasi
-momento dall'utente per vedere lo stato corrente:
+Il comando `/usr/local/bin/vm-proxies` è disponibile a qualsiasi utente:
+
 ```bash
-vm-proxies   # ovunque, dentro la VM, da qualunque utente
+vm-proxies          # default: VM info live + tabella proxy attivi (con * sui pubblici)
+vm-proxies --help   # spiegazione completa: range, lifecycle, comandi di gestione
+vm-proxies --motd   # banner sintetico (lo stesso che vedi al login)
 ```
-Funziona su Rocky/RHEL/Debian/Ubuntu (testato E2E su tutte e tre).
+
+Sia il MOTD sia il comando sono rigenerati dal hook ogni 30s (push via `incus file
+push` solo se md5 cambia). Funziona su Rocky/RHEL/Debian/Ubuntu (testato E2E).
 
 ### Comandi rapidi:
 ```bash
@@ -282,6 +370,24 @@ Gestiti da `setup_cron.sh` con tag `[managed:nas-scripts]` per idempotenza.
 | Incus cert reload | `30 5 */7 * *` | root |
 | Log cleanup | `0 4 */7 * *` | root |
 
+## 📡 **WiFi Watchdog (`wifi-watchdog.timer`):**
+
+Il PC e' connesso via WiFi (`REDACTED_WIFI_IFACE` su SSID `REDACTED_WIFI_SSID`). Quando il modem si riavvia di notte, NetworkManager a volte va in stato `failed (no-secrets)` durante il 4-way handshake e **non riprova piu'** anche con `autoconnect-retries=0`, lasciando l'host irraggiungibile fino al reset manuale (successo gia' avvenuto: 30 apr 2026, downtime 02:46 → 10:02).
+
+Mitigazione: `wifi_watchdog.sh` lanciato ogni 60s da systemd timer.
+- Se Ethernet (`REDACTED_ETH_IFACE`) ha gia' un IP → exit (no-op, cavo wins)
+- Se device WiFi assente → `rfkill unblock wifi`
+- Se non connesso o gateway `192.0.2.1` non risponde → `nmcli device disconnect` + `wifi rescan` + `connection up`
+
+```bash
+systemctl status wifi-watchdog.timer
+journalctl -u wifi-watchdog.service -n 50      # ultimi run
+journalctl -t wifi-watchdog -n 50              # solo log dello script
+sudo /mnt/nas2/nas-scripts/wifi_watchdog.sh    # esecuzione manuale
+```
+
+> 💡 **Soluzione migliore:** collegare il PC via cavo Ethernet (lo script si auto-disabilita appena vede `REDACTED_ETH_IFACE` con IP).
+
 ```bash
 sudo bash setup_cron.sh install   # installa/aggiorna
 sudo bash setup_cron.sh status    # mostra stato
@@ -293,8 +399,111 @@ sudo bash setup_cron.sh remove    # rimuove job gestiti
 - **Utente:** `REDACTED_HOSTNAME`
 - **Password:** `REDACTED_DEFAULT_PASSWORD`
 - **⚠️ IMPORTANTE:** Cambia la password con `./change_password.sh`
+## 🧩 **Mappa servizi systemd custom (chi installa cosa):**
 
-## 🔧 **Comandi di Sistema Utili:**
+Tutti i servizi systemd custom dell'host sono installati idempotente da uno script della suite. **Disaster recovery:** rilancia gli script nell'ordine sotto e ottieni lo stesso stato.
+
+| Unit | Installato da | Note |
+|------|---------------|------|
+| `incus-dns-sync.{service,timer}` | `setup_incus.sh` | Hook proxy + DNS Incus, ogni 30s |
+| `incus-iptables.service` | `setup_incus.sh` | Coesistenza Docker/Incus |
+| `incus-port-proxy@.service` | `setup_incus.sh` | Template socat per VM |
+| `proton-drive-bridge.service` | `backup_setup.sh` | FTP bridge per Proton Drive |
+| `wifi-watchdog.{service,timer}` | `setup_host_services.sh` | Riconnessione WiFi ogni 60s |
+| `nas-scripts-fixperms.{service,timer}` | `setup_host_services.sh` | `chmod 0775 *.sh` ogni 5 min |
+| Cron jobs | `setup_cron.sh` | backup_offsite, certbot, cleanup, ... |
+| `linux-crashdump` (kdump) | `setup_kdump.sh` | On-demand, richiede reboot |
+
+Servizi custom NON gestiti da questa suite (manuali / app):
+- `docker-ensure-containers.service` (kickstart Docker compose, vedi `docker/`)
+- `openclaw-node.service` (gioco OpenClaw, vedi `docker/`)
+
+```bash
+# Riconfigurazione ordinaria idempotente
+sudo bash setup_reconfigure.sh install      # host services + cron + Samba + mail + OIDC
+
+# Componenti con prerequisiti dedicati
+sudo bash setup_incus.sh install            # Incus stack
+sudo bash backup_setup.sh                   # Borg + Proton Drive
+# (kdump on-demand)
+sudo bash setup_kdump.sh && sudo reboot
+
+# Stato sintetico
+sudo bash setup_reconfigure.sh status
+sudo bash setup_incus.sh status
+```
+## �️ **Note operative — script bit eseguibile:**
+
+La partizione `/mnt/nas2` e' `ext4 rw,relatime` (no `noexec`), MA gli script possono perdere il bit `+x` durante operazioni Samba/restore (es. `cp` da macOS, `create mask` Samba che azzera l'exec). Se un servizio systemd va in `status=203/EXEC`, controllare i permessi:
+
+```bash
+find /mnt/nas2/nas-scripts -maxdepth 1 -name '*.sh' ! -perm -u+x
+sudo chmod 0775 /mnt/nas2/nas-scripts/*.sh
+```
+
+**Mitigazione automatica:** `nas-scripts-fixperms.timer` riapplica `chmod 0775 *.sh` ogni 5 minuti.
+
+```bash
+systemctl status nas-scripts-fixperms.timer
+sudo systemctl start nas-scripts-fixperms.service   # esegui subito
+```
+
+Servizi che dipendono da script qui dentro:
+- `incus-dns-sync.service` → `incus_vm_hook.sh`
+- `wifi-watchdog.service` → `wifi_watchdog.sh`
+- `nas-scripts-fixperms.service` → `find ... chmod 0775` (solo binari di sistema)
+- cron `backup_offsite.sh` (lanciato con `bash`, non sensibile a `+x`)
+
+## 💥 **Kdump (crash dump del kernel):**
+
+`setup_kdump.sh` configura kdump per catturare crash dump in caso di kernel panic, soft/hard lockup o MCE (Machine Check Exception). Utile su host headless senza console fisica per diagnosi post-mortem.
+
+**Cosa fa:**
+- Installa `linux-crashdump`, `kdump-tools`, `crash`, `makedumpfile`
+- Aggiunge a GRUB: `crashkernel=256M-:256M` (riserva 256 MB RAM per il crash kernel)
+- Aggiunge: `softlockup_panic=1 nmi_watchdog=1 panic=10 sysrq_always_enabled=1`
+  - `softlockup_panic=1` → lockup CPU ≥22s diventa panic (con dump)
+  - `nmi_watchdog=1` → hard lockup rilevato via NMI
+  - `panic=10` → reboot automatico 10s dopo il panic (post-dump)
+- Compressione dump: `MAKEDUMP_ARGS="-c -d 31"` (solo pagine interessanti)
+- Mantiene ultimi 3 dump in `/var/crash/`
+
+**Quando NON serve:**
+- Hard reset elettrico (kernel non gira piu')
+- Perdita di rete senza panic (es. caso WiFi down 30 apr 2026)
+- Crash applicativo (per quello c'e' `systemd-coredump`)
+
+**Quando serve:**
+- Kernel panic (driver buggato, BUG_ON, NULL deref)
+- Soft/hard lockup (CPU bloccata, deadlock)
+- Machine Check Exception (RAM ECC, CPU bug)
+
+**Setup (richiede reboot):**
+```bash
+sudo bash /mnt/nas2/nas-scripts/setup_kdump.sh
+sudo reboot
+# dopo reboot:
+kdump-config show
+cat /sys/kernel/kexec_crash_loaded   # deve essere 1
+grep crashkernel /proc/cmdline
+```
+
+**Test (DISTRUTTIVO, causa panic reale):**
+```bash
+echo c | sudo tee /proc/sysrq-trigger
+# Il sistema panica, kdump scrive vmcore in /var/crash/<timestamp>/, poi riavvia
+```
+
+**Analisi dump:**
+```bash
+cd /var/crash/202604300213/
+sudo crash /usr/lib/debug/boot/vmlinux-$(uname -r) vmcore
+# In crash: bt (stack trace), log (dmesg), ps, sys
+```
+
+**Costo:** ~256 MB RAM riservata al boot; ogni dump compresso ~200-800 MB.
+
+## �🔧 **Comandi di Sistema Utili:**
 
 ```bash
 # Riavviare Samba

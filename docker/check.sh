@@ -280,7 +280,7 @@ fi
 # Verifica DNS (se possibile)
 print_info "Controllo DNS..."
 if command -v nslookup > /dev/null 2>&1; then
-    for domain in "REDACTED_HOSTNAME.REDACTED_DDNS" "immich.REDACTED_HOSTNAME.REDACTED_DDNS" "jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS" "bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS" "webdav.REDACTED_HOSTNAME.REDACTED_DDNS" "radicale.REDACTED_HOSTNAME.REDACTED_DDNS" "syncthing.REDACTED_HOSTNAME.REDACTED_DDNS" "openclaw.REDACTED_HOSTNAME.REDACTED_DDNS" "modem.REDACTED_HOSTNAME.REDACTED_DDNS" "www.REDACTED_DOMAIN"; do
+    for domain in "REDACTED_HOSTNAME.REDACTED_DDNS" "immich.REDACTED_HOSTNAME.REDACTED_DDNS" "jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS" "bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS" "webdav.REDACTED_HOSTNAME.REDACTED_DDNS" "syncthing.REDACTED_HOSTNAME.REDACTED_DDNS" "openclaw.REDACTED_HOSTNAME.REDACTED_DDNS" "modem.REDACTED_HOSTNAME.REDACTED_DDNS" "www.REDACTED_DOMAIN"; do
         if nslookup "$domain" > /dev/null 2>&1; then
             IP=$(nslookup "$domain" | awk '/^Address: / { print $2 }' | tail -1)
             print_success "DNS risolve: $domain → $IP"
