@@ -32,6 +32,15 @@ INCUS_POOL="vmquota"
 INCUS_POOL_DRIVER="lvm"
 INCUS_POOL_SIZE="200GiB"
 INCUS_LEGACY_POOLS=("default" "vmpool")
+# Backing file del pool LVM thin loop-backed. Di default Incus lo crea su
+# /var/lib/incus/disks/ (disco di SISTEMA, /). Poiche' il thin pool annuncia
+# 200GiB ma fisicamente vive sul file, una crescita oltre lo spazio reale di /
+# riempie il disco di sistema -> I/O error/corruzione dqlite. Lo rilocchiamo sul
+# disco dati da 16TB (/mnt/nas) tenendo un symlink al path originale: la config
+# Incus (source:) resta invariata, nessuna modifica al DB. Vedi relocate-pool.
+INCUS_POOL_IMG_DEFAULT="/var/lib/incus/disks/vmquota.img"
+INCUS_POOL_IMG_DIR="/mnt/nas/incus"
+INCUS_POOL_IMG="${INCUS_POOL_IMG_DIR}/vmquota.img"
 INCUS_BACKUP_DIR="/mnt/nas2/incus-backup"
 NGINX_CONF="/mnt/nas2/docker/data/nginx/nginx.conf"
 PROXY_DIR="/mnt/nas2/incus-vms/port-proxy"
@@ -937,6 +946,119 @@ migrate_to_quota_pool() {
     log "Per ridimensionare il pool: incus storage set ${INCUS_POOL} size=<new_size>"
 }
 
+# --- Relocazione backing file del pool sul disco dati (idempotente) -----------
+# Sposta il file loop-backing del pool LVM da / (disco di sistema) a /mnt/nas
+# (disco dati 16TB) e lascia un symlink al path originale, cosi' la config Incus
+# (source:) resta invariata e non si tocca il DB. Idempotente: se il source e'
+# gia' un symlink che risolve a INCUS_POOL_IMG, e' un no-op.
+pool_backing_relocated() {
+    local src resolved_target
+    src=$(incus storage get "$INCUS_POOL" source 2>/dev/null || true)
+    [ -n "$src" ] || return 1
+    resolved_target=$(readlink -f "$INCUS_POOL_IMG" 2>/dev/null || echo "$INCUS_POOL_IMG")
+    [ "$(readlink -f "$src" 2>/dev/null)" = "$resolved_target" ]
+}
+
+relocate_pool_backing_file() {
+    log "=== Relocazione backing file pool '${INCUS_POOL}' su disco dati ==="
+
+    if ! incus storage show "$INCUS_POOL" &>/dev/null; then
+        die "Pool ${INCUS_POOL} inesistente"
+    fi
+
+    local src
+    src=$(incus storage get "$INCUS_POOL" source 2>/dev/null || true)
+    [ -n "$src" ] || die "Pool ${INCUS_POOL}: campo source vuoto (non loop-backed?)"
+
+    # source deve essere un file/symlink (loop-backed), non un block device dedicato
+    if [ -b "$src" ]; then
+        die "source ${src} e' un block device, non un file loop-backed: relocazione non applicabile"
+    fi
+
+    if pool_backing_relocated; then
+        log "Backing file gia' rilocato: ${src} -> ${INCUS_POOL_IMG} — no-op"
+        return 0
+    fi
+
+    mountpoint -q /mnt/nas || die "/mnt/nas non montato: impossibile rilocare"
+
+    local realsrc
+    realsrc=$(readlink -f "$src")
+    [ -f "$realsrc" ] || die "File backing ${realsrc} non trovato"
+
+    local src_bytes free_bytes
+    src_bytes=$(du -B1 --apparent-size "$realsrc" | cut -f1)
+    log "Backing file: ${src} (reale $(du -h "$realsrc" | cut -f1), apparente $(du -h --apparent-size "$realsrc" | cut -f1))"
+    log "Destinazione: ${INCUS_POOL_IMG} (libero su /mnt/nas: $(df -h /mnt/nas | awk 'NR==2{print $4}'))"
+
+    mkdir -p "$INCUS_POOL_IMG_DIR"
+
+    # 1) Stop VM attive (le rimettiamo su dopo)
+    local running_vms=()
+    log "Stop istanze attive..."
+    stop_running_instances running_vms
+
+    # 2) Stop daemon Incus per liberare il loop device
+    log "Stop daemon Incus..."
+    incus admin shutdown 2>/dev/null || true
+    systemctl stop incus.service 2>/dev/null || true
+    systemctl stop incus.socket 2>/dev/null || true
+    sleep 3
+
+    # 3) Disattiva VG e stacca il loop device sul file sorgente
+    local loopdev
+    loopdev=$(losetup -j "$realsrc" 2>/dev/null | cut -d: -f1)
+    vgchange -an "$INCUS_POOL" 2>/dev/null || true
+    if [ -n "$loopdev" ]; then
+        losetup -d "$loopdev" 2>/dev/null || true
+        log "Loop ${loopdev} staccato da ${realsrc}"
+    fi
+
+    # 4) Copia sparse-aware sul disco dati (preserva i buchi: non gonfia a 200G)
+    if [ -f "$INCUS_POOL_IMG" ]; then
+        warn "Destinazione ${INCUS_POOL_IMG} gia' presente: la riutilizzo senza sovrascrivere"
+    else
+        log "Copia sparse del backing file..."
+        cp --sparse=always "$realsrc" "${INCUS_POOL_IMG}.partial"
+        sync
+        mv "${INCUS_POOL_IMG}.partial" "$INCUS_POOL_IMG"
+        log "Copiato: $(du -h "$INCUS_POOL_IMG" | cut -f1) reali su /mnt/nas"
+    fi
+
+    # 5) Sostituisci l'originale con un symlink al nuovo path
+    #    (mantieni un backup di sicurezza del file originale finche' non validato)
+    if [ ! -L "$src" ]; then
+        mv "$realsrc" "${realsrc}.pre-relocate.bak"
+        ln -s "$INCUS_POOL_IMG" "$src"
+        log "Symlink creato: ${src} -> ${INCUS_POOL_IMG}"
+    fi
+
+    # 6) Riavvia il daemon Incus (ricrea il loop sul symlink, riattiva il VG)
+    log "Avvio daemon Incus..."
+    systemctl start incus.socket 2>/dev/null || true
+    systemctl start incus.service 2>/dev/null || true
+    local wait=0
+    until incus storage show "$INCUS_POOL" &>/dev/null; do
+        sleep 2; wait=$((wait+2))
+        [ "$wait" -ge 60 ] && die "Timeout: Incus non risponde dopo la relocazione (backup originale: ${realsrc}.pre-relocate.bak)"
+    done
+
+    # 7) Verifica che il loop ora punti al nuovo file
+    local newloop
+    newloop=$(losetup -j "$INCUS_POOL_IMG" 2>/dev/null | cut -d: -f1)
+    [ -n "$newloop" ] || warn "Loop sul nuovo file non rilevato (Incus potrebbe attivarlo on-demand)"
+    [ -n "$newloop" ] && log "Loop attivo sul nuovo file: ${newloop} -> ${INCUS_POOL_IMG}"
+
+    # 8) Riavvia le VM precedentemente attive
+    log "Riavvio istanze..."
+    restart_instances "${running_vms[@]}"
+
+    log "=== Relocazione completata ==="
+    log "Backing file ora su ${INCUS_POOL_IMG} (disco dati 16TB), symlink da ${src}."
+    log "Backup dell'originale: ${realsrc}.pre-relocate.bak — rimuovilo dopo aver verificato le VM:"
+    log "  sudo rm -f ${realsrc}.pre-relocate.bak"
+}
+
 migrate_to_btrfs() {
     warn "migrate_to_btrfs e' deprecato: uso il pool LVM con quote rigide."
     migrate_to_quota_pool
@@ -1198,12 +1320,16 @@ case "${1:-}" in
         [ "$(id -u)" -eq 0 ] || die "Esegui come root: sudo $0 migrate-volumes-block"
         migrate_volumes_to_block
         ;;
+    relocate-pool)
+        [ "$(id -u)" -eq 0 ] || die "Esegui come root: sudo $0 relocate-pool"
+        relocate_pool_backing_file
+        ;;
     fix-vm-ssh)
         [ "$(id -u)" -eq 0 ] || die "Esegui come root: sudo $0 fix-vm-ssh"
         fix_vm_ssh_policy
         ;;
     *)
-        echo "Uso: $0 {install|uninstall|status|export|restore|trust-certs|migrate-storage|migrate-quota-storage|migrate-volumes-block|fix-vm-ssh}"
+        echo "Uso: $0 {install|uninstall|status|export|restore|trust-certs|migrate-storage|migrate-quota-storage|migrate-volumes-block|relocate-pool|fix-vm-ssh}"
         echo ""
         echo "  install               — Installa Incus + UI + swap + nginx + hook DNS"
         echo "  uninstall             — Rimuove Incus (chiede conferma)"
@@ -1214,6 +1340,7 @@ case "${1:-}" in
         echo "  migrate-storage       — Migra a pool LVM thin con quote rigide"
         echo "  migrate-quota-storage — Alias esplicito di migrate-storage"
         echo "  migrate-volumes-block — Converte volumi custom da filesystem a block"
+        echo "  relocate-pool         — Sposta il backing file del pool su /mnt/nas (disco dati) via symlink"
         echo "  fix-vm-ssh            — Applica policy SSH REDACTED_BRAND a tutte le VM RUNNING"
         exit 1
         ;;

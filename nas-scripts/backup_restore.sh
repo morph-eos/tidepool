@@ -24,10 +24,6 @@ NC='\033[0m'
 
 REPO="/mnt/nas/backup/offsite"
 PASSPHRASE_FILE="$HOME/.borg-offsite-passphrase"
-FTP_HOST="127.0.0.1"
-FTP_PORT="2121"
-FTP_USER="REDACTED_OWNER_EMAIL"
-FTP_REMOTE_DIR="/backup/tidepool"
 
 log()  { echo -e "${GREEN}[✓]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
@@ -52,40 +48,6 @@ check_repo() {
 Se il disco è stato riformattato, scarica prima il repo da Proton Drive:
   $0 download"
     fi
-}
-
-# Download ricorsivo da FTP via curl (il bridge non supporta lftp mirror)
-ftp_download_recursive() {
-    local remote_dir="$1"
-    local local_dir="$2"
-    local ftp_url="ftp://${FTP_HOST}:${FTP_PORT}"
-    local auth="--user ${FTP_USER}:"
-
-    mkdir -p "$local_dir"
-
-    # Lista directory remota
-    local listing
-    listing=$(curl -s --max-time 30 "${ftp_url}${remote_dir}/" ${auth} 2>/dev/null) || return 1
-
-    while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        local name
-        name=$(echo "$line" | awk '{print $NF}')
-        [ -z "$name" ] && continue
-        [[ "$name" == "." || "$name" == ".." ]] && continue
-
-        if echo "$line" | grep -q '^d'; then
-            # Directory: recurse
-            ftp_download_recursive "${remote_dir}/${name}" "${local_dir}/${name}"
-        else
-            # File: download
-            info "  ↓ ${remote_dir}/${name}"
-            curl -s --max-time 300 \
-                -o "${local_dir}/${name}" \
-                "${ftp_url}${remote_dir}/${name}" \
-                ${auth} 2>/dev/null || true
-        fi
-    done <<< "$listing"
 }
 
 # =============================================================================
@@ -153,45 +115,31 @@ cmd_extract() {
 }
 
 cmd_download() {
+    local PROTON_BIN=/usr/local/bin/proton-drive
+    local REMOTE=/my-files/backup/tidepool
+    local u=REDACTED_HOSTNAME uid; uid=$(id -u "$u")
+    PD(){ sudo -u "$u" env XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" "$PROTON_BIN" "$@"; }
     echo ""
-    info "Scarica il repository Borg da Proton Drive"
+    info "Scarica il repository Borg da Proton Drive (CLI ufficiale)"
     echo ""
+    [ -x "$PROTON_BIN" ] || err "proton-drive non installato (esegui setup_proton_cli_backup.sh)"
+    PD filesystem list / >/dev/null 2>&1 || err "Proton non autenticato: come $u esegui 'proton-drive auth login' (GUI)"
 
-    # Verifica che il bridge sia attivo
-    if ! curl -s -o /dev/null --max-time 5 "ftp://${FTP_HOST}:${FTP_PORT}/" --user "${FTP_USER}:" 2>/dev/null; then
-        warn "proton-drive-bridge non attivo."
-        info "Avvialo con: sudo systemctl start proton-drive-bridge"
-        info "Oppure esegui: /mnt/nas2/nas-scripts/proton_refresh_session.sh"
-        err "Bridge non raggiungibile su ${FTP_HOST}:${FTP_PORT}"
+    local parent; parent=$(dirname "$REPO")
+    mkdir -p "$parent"
+    info "Download ricorsivo $REMOTE -> $REPO (puo' richiedere molto tempo)..."
+    PD filesystem download "$REMOTE" "$parent" || err "Download fallito"
+    # filesystem download crea "<parent>/tidepool": normalizza su $REPO
+    if [ -d "$parent/tidepool/data" ] && [ "$parent/tidepool" != "$REPO" ]; then
+        rm -rf "$REPO"; mv "$parent/tidepool" "$REPO"
     fi
-
-    mkdir -p "$REPO"
-
-    info "Contenuto remoto su Proton Drive:"
-    curl -s --max-time 15 "ftp://${FTP_HOST}:${FTP_PORT}${FTP_REMOTE_DIR}/" --user "${FTP_USER}:" 2>/dev/null || true
-    echo ""
-
-    info "Download ricorsivo da Proton Drive → ${REPO}..."
-    info "Questo potrebbe richiedere molto tempo a seconda della dimensione..."
-    echo ""
-
-    ftp_download_recursive "${FTP_REMOTE_DIR}" "${REPO}"
-
-    if [ ! -d "$REPO/data" ]; then
-        err "Download fallito: directory data/ non trovata in $REPO"
-    fi
-
+    [ -d "$REPO/data" ] || err "Download fallito: data/ non trovata in $REPO"
     log "Download completato: $(du -sh "$REPO" | cut -f1)"
 
-    # Verifica integrità
     check_passphrase
     export BORG_RELOCATED_REPO_ACCESS_IS_OK=yes
     info "Verifica integrità repo..."
-    if borg check "$REPO" 2>&1; then
-        log "Repository integro"
-    else
-        warn "Problemi di integrità rilevati. Controlla i log."
-    fi
+    if borg check "$REPO" 2>&1; then log "Repository integro"; else warn "Problemi di integrità rilevati."; fi
 }
 
 cmd_restore_immich_db() {
@@ -289,13 +237,13 @@ cmd_help() {
 ║  DISASTER RECOVERY (passo-passo)                                  ║
 ║  ───────────────────────────────                                  ║
 ║  1. Installa dipendenze:                                          ║
-║       sudo apt install borgbackup lftp expect gnome-keyring       ║
-║                         dbus-x11 python3                          ║
+║     sudo apt install borgbackup gnome-keyring dbus-x11            ║
+║       python3 curl                                                ║
 ║  2. Crea file passphrase:                                         ║
 ║       echo 'PASSPHRASE' > ~/.borg-offsite-passphrase              ║
 ║       chmod 600 ~/.borg-offsite-passphrase                        ║
-║  3. Installa proton-drive-bridge + configura servizio:            ║
-║       ./backup_setup.sh                                           ║
+║  3. Installa il CLI ufficiale Proton + timer + login:             ║
+║       ./backup_setup.sh   poi:  proton-drive auth login           ║
 ║  4. Scarica il repo da Proton Drive:                              ║
 ║       ./backup_restore.sh download                                ║
 ║  5. Lista archivi e ripristina:                                   ║

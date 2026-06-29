@@ -8,7 +8,6 @@
 #
 # NON installa (gia' coperti da altri script):
 #   - incus-* (setup_incus.sh)
-#   - proton-drive-bridge.service (backup_setup.sh)
 #   - cron jobs (setup_cron.sh)
 #   - kdump (setup_kdump.sh, on-demand)
 #
@@ -152,7 +151,7 @@ show_status() {
     systemctl list-timers wifi-watchdog.timer nas-scripts-fixperms.timer --no-pager 2>&1 | head -5
     echo
     echo "=== Altri servizi custom (gestiti altrove) ==="
-    for u in incus-dns-sync.timer incus-iptables.service proton-drive-bridge.service; do
+    for u in incus-dns-sync.timer incus-iptables.service; do
         if systemctl list-unit-files "$u" >/dev/null 2>&1; then
             printf '  %-40s %s  (vedi %s)\n' "$u" \
                 "$(systemctl is-active "$u" 2>&1)" \

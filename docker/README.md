@@ -412,6 +412,21 @@ docker-compose exec immich-server bash
 - Porta 443 (HTTPS) per il traffico principale
 - Porte 80/443 per debug locale
 
+#### Porte dirette bindate a localhost (hardening, giu 2026)
+Le porte dirette dei servizi web sono bindate solo a **`127.0.0.1`**: l'accesso esterno
+passa sempre da nginx (reverse proxy SNI/TLS su 80/443), che raggiunge i backend via rete
+docker (`docker_default`, per nome container) — non via porta host. Riduce la superficie su LAN/WAN.
+- `immich-server` → `127.0.0.1:2283`
+- `jellyfin` → `127.0.0.1:8096` (⚠️ disabilita autodiscovery/accesso diretto DLNA sulla LAN; per riabilitarlo togliere `127.0.0.1:`)
+- **Syncthing** (`22000/tcp+udp`, `21027/udp`) **resta su `0.0.0.0`**: sono porte di sync/discovery (non web), devono restare aperte o il sync coi device si rompe. La sola WebUI passa da nginx.
+- **Samba** (`139/445`) resta in LAN come da policy.
+
+> ⚠️ **Pitfall nginx + ricreazione container**: gli `upstream` in `nginx.conf` sono **statici**
+> (es. `server immich-server:2283;`) e nginx risolve l'IP docker al load. Se ricrei un backend
+> (`docker compose up -d <svc>`) l'IP cambia → nginx va in **502** finche' non fai un reload:
+> `docker exec nginx nginx -s reload` (non tocca certbot). NON usare `docker compose up` sull'intero
+> stack solo per questo (rilancia certbot `--force-renewal` → rischio rate-limit Let's Encrypt).
+
 ## 📚 Documentazione Servizi
 
 - [Immich Documentation](https://immich.app/docs)

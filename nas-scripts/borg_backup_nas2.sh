@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Repo REDACTED_DRIVE non cifrato: consenti accesso senza prompt (era ereditato dal cron.d)
+export BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes
+
 REPO="/mnt/nas/backup/REDACTED_DRIVE"
 SOURCE="/mnt/nas2"
 HOSTNAME="$(hostname -s)"

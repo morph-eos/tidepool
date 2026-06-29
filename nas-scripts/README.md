@@ -11,8 +11,6 @@ Questa cartella contiene tutti gli script per la configurazione e gestione del s
 - **Time Machine:** `/mnt/timemachine` (3TB, HFS+ ro) — Backup macOS (write solo da macOS)
 - **NAS2:** `/mnt/nas2` (1TB) — Storage secondario
   - `media/` — `ebooks`, `music` (montato da Jellyfin come `/media`, RW)
-  - `docker/`, `incus-vms/`, `obsidian-semantic-search/` — **gestiti da servizi**: ownership/permessi specifici, NON modificare via Samba
-  - `nas-scripts/`, `obsidian-index/` — utilità
 
 ### Permessi Samba (REDACTED_HOSTNAME:REDACTED_HOSTNAME)
 Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755` — l'utente Samba `REDACTED_HOSTNAME` può creare/modificare cartelle al top-level. I sottoalberi gestiti da servizi (Docker, Incus, Borg) mantengono ownership originali e non sono toccati da fix permessi.
@@ -27,6 +25,7 @@ Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755
 - **`setup_mail.sh`** - SMTP condiviso: `.env`, Nextcloud, Vaultwarden, SMART/backup
 - **`update_immich_version.sh`** - Aggiornamento idempotente tag Immich + pull/recreate container
 - **`setup_fail2ban.sh`** - SSH hardening + fail2ban (ban dopo 3 tentativi)
+- **`setup_claude_desktop.sh`** - Claude Desktop (autostart + MCP filesystem/Playwright) **e ambiente browser**: installa+inverginazione Chrome (browser di Claude) con policy anti-tracking, Firefox predefinito + privacy (ETP strict). Login manuali a fine setup (Claude Desktop + estensione Claude in Chrome)
 
 ### Script di Gestione:
 - **`nas-help.sh`** - Guida rapida ai comandi
@@ -36,11 +35,13 @@ Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755
 - **`fix_nas.sh`** - Riparazione problemi di mount
 
 ### Backup Offsite (Borg + Proton Drive):
+> ✅ **Mirror su Proton Drive via CLI ufficiale** (`proton-drive` + `proton_cli_backup.sh`), automatizzato con **systemd user timer** `proton-cli-backup.timer` (03:30). `rclone` non usabile (CAPTCHA/anti-abuso Proton).
 - **`backup_offsite.sh`** - Backup giornaliero automatico (cron 03:00). Dump DB (immich pg, nextcloud mariadb, sqlite lock-safe), Borg create, sync Proton Drive con auto-delete (obsoleti/orfani, inclusi metadata root Borg)
 - **`backup_setup.sh`** - Setup completo del sistema di backup offsite
 - **`backup_restore.sh`** - Ripristino file da backup (locale o da Proton Drive)
-- **`proton_refresh_session.sh`** - Refresh automatico sessione Proton Drive (2FA)
 - **`borg_backup_nas2.sh`** - Backup Borg locale del NAS2
+- **`setup_proton_cli_backup.sh`** - Installa il CLI ufficiale Proton + systemd user timer (mirror 03:30). Eseguire come `REDACTED_HOSTNAME`
+- **`proton_cli_backup.sh`** - Mirror del repo Borg offsite su Proton Drive (CLI ufficiale, self-healing). Eseguire come `REDACTED_HOSTNAME`
 
 ### VM Manager (Incus):
 - **`setup_incus.sh`** - Installazione/configurazione Incus + UI web + socat SSH proxy
@@ -91,75 +92,44 @@ sudo ./setup_reconfigure.sh status
 
 ## 🔄 **Backup Offsite (Proton Drive):**
 
-Il sistema di backup offsite usa **Borg** (deduplica + compressione + encryption) con upload su **Proton Drive** tramite `proton-drive-bridge` (FTP bridge). Il cron giornaliero lancia prima `backup_offsite.sh` e poi, anche se l'offsite fallisce, `borg_backup_nas2.sh` verso `/mnt/nas/backup/REDACTED_DRIVE`.
+Il sistema usa **Borg** (deduplica + compressione + encryption). Il repo
+`/mnt/nas/backup/offsite/` viene mirrorato su **Proton Drive** tramite il **CLI
+UFFICIALE** (`proton-drive`). Il cron giornaliero lancia `backup_offsite.sh` (03:00)
+e poi `borg_backup_nas2.sh` verso `/mnt/nas/backup/REDACTED_DRIVE` (HDD→HDD); il mirror Proton
+gira separatamente via systemd user timer (03:30).
 
 ### Cosa viene backuppato:
-- **docker/data/**: certbot, icloud-photos, immich, nginx, openclaw, jellyfin, nextcloud, nextcloud-db-dumps, sqlite-snapshots, vaultwarden, syncthing/obsidian
+- **docker/data/**: certbot, icloud-photos, immich, nginx, jellyfin, nextcloud, nextcloud-db-dumps, sqlite-snapshots, vaultwarden, syncthing/obsidian
 - **docker/**: kickstart, scripts, docker-compose.yml, .env, *.sh, README.md
-- **nas2/**: media (ebooks+music), nas-scripts, obsidian-index, obsidian-semantic-search
+- **nas2/**: media (ebooks+music), nas-scripts, incus-config-backup
 
-### Come Funziona:
-1. Dump DB: Immich PostgreSQL, Nextcloud MariaDB, SQLite lock-safe
-2. `borg create` — backup incrementale con deduplica → `/mnt/nas/backup/offsite/`
-3. `borg prune` — retention (7 daily, 4 weekly, 6 monthly)
-4. Sync verificato file-by-file → Proton Drive via FTP bridge
-   - Hash incrementale con cache mtime+size (ricalcola md5 solo per file modificati)
-   - Upload + download-verifica md5 per ogni file
-   - Restart bridge ogni 50 upload per prevenire degradazione cache
-   - Restart bridge tra tentativi di retry su fallimenti di verifica
-  - Fallback `.new-<epoch>` per file con overwrite bloccato (bug bridge)
-  - DELE automatico per file obsoleti/orfani, inclusi `hints.*`, `index.*`, `integrity.*` non più locali
-  - Email notifica solo per upload falliti o file che DELE non riesce a eliminare
-   - Email automatica su crash o errore fatale (con riga e exit code)
-  - File Borg root (`config`, `nonce`, `hints.*`, `index.*`, `integrity.*`) inclusi nel mirror Proton
-   - Guard: file scomparsi dal repo tra scan e upload vengono skippati
+### Flusso:
+1. Dump DB: Immich PostgreSQL, Nextcloud MariaDB, SQLite lock-safe (vaultwarden/jellyfin)
+2. `borg create` incrementale → `/mnt/nas/backup/offsite/`
+3. `borg prune` (7 daily, 4 weekly, 6 monthly) + `borg compact`
+4. `chown` repo → `REDACTED_HOSTNAME` (borg gira come root; il mirror CLI gira come REDACTED_HOSTNAME)
+5. Mirror su Proton (timer `proton-cli-backup.timer`, 03:30) — vedi sotto
 
-### File stuck (`.proton-stuck`):
-File il cui overwrite FTP fallisce sistematicamente (bug bridge STOR).
-- Vengono salvati con nome alternativo `.new-<epoch>` e verificati md5
-- Il run tenta DELE automatico dell'originale stuck, ma mantiene i `.new-*` verificati finché il run successivo non ricarica l'originale correttamente
-- I `.new-*` diventati davvero obsoleti vengono eliminati via DELE dopo il re-upload riuscito
-- Email automatica solo se il DELE fallisce e serve cleanup manuale da [drive.proton.me](https://drive.proton.me)
+### Mirror Proton — `proton_cli_backup.sh` (CLI ufficiale)
+- Gira come **REDACTED_HOSTNAME** (sessione/keyring per-utente) via **systemd USER timer**
+  (eredita D-Bus + keyring dall'autologin GNOME). Login una-tantum: `proton-drive auth login`.
+- Strategia **Borg-aware / self-healing**:
+  - metadati (`config`,`nonce`,`README`,`hints.*`,`index.*`,`integrity.*`) → upload **replace**
+  - segmenti `data/` (immutabili) → upload **skip** (solo nuovi)
+  - **orfani** (vecchie gen metadati, segmenti da compaction) → **trash** sul remoto (reversibile)
+- Destinazione: `/my-files/backup/tidepool`. Conservativo (no retry aggressivi → anti-abuso).
+- `rclone` NON usabile (CAPTCHA/anti-abuso Proton).
+- **Alert email su errore**: se l'upload/riconciliazione fallisce (contatore `FAILED>0`),
+  invia un'email di alert via SMTP (stessa logica `.env`/`SMART_*` di `backup_offsite.sh`).
+  L'auth-locked (keyring) resta uno **skip silenzioso** (recuperabile, niente rumore).
 
-### Manifest (`.proton-manifest`):
-Formato a 4 campi: `rel_path md5_hash mtime_epoch size_bytes`
-- Se mtime+size non cambiano → riusa hash dalla cache (zero I/O disco)
-- Run tipico (~10 file cambiati): fase hash **<1s** invece di ~16 min
-- Retrocompatibile: manifest a 2 campi (vecchio formato) → ricalcolo completo automatico
-
-### Proton Drive Bridge (`proton-drive-bridge.service`):
-- Servizio systemd: `User=root`, `Group=root`, `Environment=HOME=/root`
-- FTP bridge su `127.0.0.1:2121`
-- rclone non usato: il backend `protondrive` richiede nuovo login API e Proton blocca con CAPTCHA anti-abuse; il bridge mantiene una sessione funzionante
-- **Bug/limiti noti del bridge**:
-  - STOR su file esistente può non sovrascrivere correttamente (bridge serve il vecchio contenuto)
-  - DELE funziona su v0.4.3 ed è usato per pulizia automatica
-  - RNFR/RNTO: RNFR 350 OK, RNTO 451 (rename non funziona)
-  - SITE MD5 advertised ma ritorna 451
-  - curl exit 18 su upload (partial transfer, contenuto OK)
-  - FTP SIZE riporta valori errati
-- **Mitigazioni implementate**: restart preventivo ogni 50 upload + restart tra retry + fallback `.new-*` + auto-delete via DELE
-
-### Sessione Proton (`proton_refresh_session.sh`):
-- Refresh automatico sessione 2FA/keyring
-- Sessione in `/root/.local/share/pdrive-bridge` (deve corrispondere al servizio)
-- Validazione: vault ≥ 1000 bytes (rileva stub vuoti)
-
-### Setup:
+### Setup / stato / manuale:
 ```bash
-./backup_setup.sh    # Guida interattiva per configurare tutto
-```
-
-### Backup manuale:
-```bash
-sudo ./backup_offsite.sh
-```
-
-### Stato backup:
-```bash
-sudo tail -30 /var/log/backup-offsite.log          # Log recente
-systemctl status proton-drive-bridge               # Stato bridge
-sudo wc -l /mnt/nas/backup/offsite/.proton-manifest # File sincronizzati
+sudo -u REDACTED_HOSTNAME /mnt/nas2/nas-scripts/setup_proton_cli_backup.sh   # install CLI + timer
+proton-drive auth login                                              # login una-tantum (GUI)
+sudo tail -30 /var/log/proton-cli-backup.log                         # log mirror
+sudo -u REDACTED_HOSTNAME /mnt/nas2/nas-scripts/proton_cli_backup.sh         # mirror manuale
+sudo ./backup_offsite.sh                                             # backup completo manuale
 ```
 
 ### Ripristino:
@@ -186,6 +156,12 @@ sudo wc -l /mnt/nas/backup/offsite/.proton-manifest # File sincronizzati
 - server: `smtp.gmail.com:587` con STARTTLS
 
 La sorgente stabile e' `/mnt/nas2/docker/.env`. Il compose passa le variabili ai container; Nextcloud usa anche l'hook Docker `docker/scripts/nextcloud-smtp-hook.sh` per applicarle a `config.php` a ogni avvio.
+
+> ⚠️ **Fix heredoc email (giu 2026)**: in `backup_offsite.sh` e `proton_cli_backup.sh`
+> il default con apostrofo `${smtp_from_name:-REDACTED_BRAND' Services}` **dentro l'heredoc**
+> rompeva il parsing bash ("bad substitution") → le email di alert NON partivano mai.
+> Ora il from-name e' precalcolato in una variabile `from_name` fuori dall'heredoc.
+> Gli alert backup (ERRORE/CRASH offsite + errori mirror Proton) ora funzionano.
 
 ```bash
 sudo bash /mnt/nas2/nas-scripts/setup_mail.sh install
@@ -224,7 +200,9 @@ sudo bash /mnt/nas2/nas-scripts/setup_nextcloud_oidc.sh status
 
 ### Architettura:
 - **Incus 6.x** (zabbly repo) con `incus-ui-canonical` per UI web
-- **Storage:** pool `vmquota` (LVM thin, loop-backed 200GiB in `/var/lib/incus/disks/vmquota.img`)
+- **Storage:** pool `vmquota` (LVM thin, loop-backed 200GiB). Il backing file e' su
+  **`/mnt/nas/incus/vmquota.img`** (disco dati 16TB), con symlink da
+  `/var/lib/incus/disks/vmquota.img` (path che Incus ha in `source:`). Vedi `relocate-pool`.
 - **Rete:** bridge `incusbr0` → `10.100.0.0/24`, NAT via nftables
 - **Proxy unificato:** socat via template systemd `incus-port-proxy@<vm>--<nome>.service`
 - **iptables:** `incus-iptables.service` per coesistenza con Docker
@@ -265,7 +243,15 @@ Questo permette al browser di presentare il certificato client direttamente a In
 - Certificati client trusted gestiti da `setup_incus.sh trust-certs`: mettere i `.crt` pubblici in `/mnt/nas2/nas-scripts/incus-trust/` con nome stabile. Il file `incus-ui-notebook.crt` viene registrato in Incus come `incus-ui-notebook`.
 
 ### Storage e quote:
-- Il pool `vmquota` usa driver **LVM thin** (loop-backed, 200GiB). Non ripartiziona e non formatta i dischi NAS: Incus gestisce il loop file in `/var/lib/incus/disks/vmquota.img`.
+- Il pool `vmquota` usa driver **LVM thin** (loop-backed, 200GiB). Non ripartiziona e non formatta i dischi NAS.
+- **Backing file su disco dati (16TB)**: il file e' `/mnt/nas/incus/vmquota.img`, con symlink
+  da `/var/lib/incus/disks/vmquota.img` (il path che Incus tiene in `source:`). Cosi' la
+  crescita thin **non riempie il disco di sistema `/`** (rischio I/O error → corruzione dqlite).
+- **`setup_incus.sh relocate-pool`** (idempotente): sposta il backing file dal default
+  (`/var/lib/incus/disks/`, su `/`) a `/mnt/nas/incus/` e lascia il symlink. Ferma le VM e il
+  daemon, copia **sparse** (preserva i buchi: non gonfia a 200G), riavvia tutto. Se il source
+  e' gia' un symlink al target → **no-op**. Non tocca il DB dqlite (solo filesystem + symlink).
+  Il backup dell'originale (`*.pre-relocate.bak`) va rimosso a mano dopo aver verificato le VM.
 - Creato e gestito da `setup_incus.sh migrate-storage` / `migrate-quota-storage` (idempotente). Se tutto e' gia' su `vmquota`, il comando e' no-op e pulisce solo eventuali pool legacy vuoti.
 - Quote garantite: i volumi **block** e **filesystem** sono thin volume LVM con dimensione rigida; la UI Incus non mostra il warning btrfs sulle quote.
 - Per ridimensionare il pool: `incus storage set vmquota size=<new>`.
@@ -408,7 +394,6 @@ Tutti i servizi systemd custom dell'host sono installati idempotente da uno scri
 | `incus-dns-sync.{service,timer}` | `setup_incus.sh` | Hook proxy + DNS Incus, ogni 30s |
 | `incus-iptables.service` | `setup_incus.sh` | Coesistenza Docker/Incus |
 | `incus-port-proxy@.service` | `setup_incus.sh` | Template socat per VM |
-| `proton-drive-bridge.service` | `backup_setup.sh` | FTP bridge per Proton Drive |
 | `wifi-watchdog.{service,timer}` | `setup_host_services.sh` | Riconnessione WiFi ogni 60s |
 | `nas-scripts-fixperms.{service,timer}` | `setup_host_services.sh` | `chmod 0775 *.sh` ogni 5 min |
 | Cron jobs | `setup_cron.sh` | backup_offsite, certbot, cleanup, ... |
@@ -416,7 +401,6 @@ Tutti i servizi systemd custom dell'host sono installati idempotente da uno scri
 
 Servizi custom NON gestiti da questa suite (manuali / app):
 - `docker-ensure-containers.service` (kickstart Docker compose, vedi `docker/`)
-- `openclaw-node.service` (gioco OpenClaw, vedi `docker/`)
 
 ```bash
 # Riconfigurazione ordinaria idempotente
