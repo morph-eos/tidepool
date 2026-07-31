@@ -37,8 +37,15 @@ JOBS=(
     "incus-cert-sync|30 5 */7 * *|systemctl restart incus|root"
     # Log cleanup settimanale (offset diverso)
     "log-cleanup|0 4 */7 * *|/mnt/nas2/nas-scripts/cleanup_logs.sh|root"
-    # Backup quotidiano: prima offsite, poi Borg locale REDACTED_DRIVE anche se offsite fallisce
-    "backup-offsite|0 3 * * *|sudo /mnt/nas2/nas-scripts/backup_offsite.sh; sudo /mnt/nas2/nas-scripts/borg_backup_nas2.sh|user"
+    # Backup quotidiano: offsite alle 03:00 (dump+borg create, ~1min), poi Proton
+    # Drive mirror via timer utente (03:30, vedi setup_proton_cli_backup.sh).
+    # borg_backup_nas2.sh e' STACCATO alle 04:00 (non piu' incatenato con ';'):
+    # scansiona tutto /mnt/nas2 (piu' pesante, durata non garantita <30min) e
+    # sovrapporsi al mirror Proton (stesso disco /mnt/nas) ha causato contesa
+    # I/O -> soft lockup ext4 il 2026-07-04 (vedi CLAUDE.md pitfall). REDACTED_DRIVE_TC gira
+    # comunque ogni notte a prescindere dall'esito di backup_offsite.sh.
+    "backup-offsite|0 3 * * *|sudo /mnt/nas2/nas-scripts/backup_offsite.sh|user"
+    "backup-nas2-REDACTED_DRIVE|0 4 * * *|sudo /mnt/nas2/nas-scripts/borg_backup_nas2.sh|user"
 )
 
 # --- Funzioni ---

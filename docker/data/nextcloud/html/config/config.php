@@ -60,4 +60,12 @@ $CONFIG = array (
   'mail_smtppassword' => 'REDACTED_BITWARDEN_SMTP_PASSWORD',
   'mail_from_address' => 'noreply',
   'mail_domain' => 'REDACTED_DOMAIN',
+  'trusted_proxies' => 
+  array (
+    0 => '172.18.0.0/16',
+  ),
+  'forwarded_for_headers' => 
+  array (
+    0 => 'HTTP_X_FORWARDED_FOR',
+  ),
 );

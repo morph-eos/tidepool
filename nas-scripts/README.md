@@ -22,6 +22,8 @@ Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755
 - **`setup_disk.sh`** - Configurazione intelligente dei dischi
 - **`setup_samba.sh`** - Configurazione servizio Samba
 - **`setup_nextcloud_oidc.sh`** - Redirect URI client OIDC Nextcloud (Immich/Jellyfin/Vaultwarden)
+- **`setup_nginx_realip.sh`** - PROXY protocol sull'hop interno stream→8442 + `real_ip` + `trusted_proxies`/`forwarded_for_headers` Nextcloud, cosi' tutti i vhost vedono l'IP client reale invece di 127.0.0.1 (vedi sezione "Nginx Stream SNI")
+- **`setup_nginx_tls_ecdsa.sh`** - Aggiunge le suite `ECDHE-ECDSA-*` alle liste `ssl_ciphers` prive di alternative ECDSA, cosi' TLS1.2 torna negoziabile col certificato ECDSA condiviso (vedi sezione "Certificati SSL")
 - **`setup_mail.sh`** - SMTP condiviso: `.env`, Nextcloud, Vaultwarden, SMART/backup
 - **`update_immich_version.sh`** - Aggiornamento idempotente tag Immich + pull/recreate container
 - **`setup_fail2ban.sh`** - SSH hardening + fail2ban (ban dopo 3 tentativi)
@@ -39,7 +41,7 @@ Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755
 - **`backup_offsite.sh`** - Backup giornaliero automatico (cron 03:00). Dump DB (immich pg, nextcloud mariadb, sqlite lock-safe), Borg create, sync Proton Drive con auto-delete (obsoleti/orfani, inclusi metadata root Borg)
 - **`backup_setup.sh`** - Setup completo del sistema di backup offsite
 - **`backup_restore.sh`** - Ripristino file da backup (locale o da Proton Drive)
-- **`borg_backup_nas2.sh`** - Backup Borg locale del NAS2
+- **`borg_backup_nas2.sh`** - Backup Borg locale del NAS2 (cron 04:00, staccato da backup_offsite.sh)
 - **`setup_proton_cli_backup.sh`** - Installa il CLI ufficiale Proton + systemd user timer (mirror 03:30). Eseguire come `REDACTED_HOSTNAME`
 - **`proton_cli_backup.sh`** - Mirror del repo Borg offsite su Proton Drive (CLI ufficiale, self-healing). Eseguire come `REDACTED_HOSTNAME`
 
@@ -94,9 +96,17 @@ sudo ./setup_reconfigure.sh status
 
 Il sistema usa **Borg** (deduplica + compressione + encryption). Il repo
 `/mnt/nas/backup/offsite/` viene mirrorato su **Proton Drive** tramite il **CLI
-UFFICIALE** (`proton-drive`). Il cron giornaliero lancia `backup_offsite.sh` (03:00)
-e poi `borg_backup_nas2.sh` verso `/mnt/nas/backup/REDACTED_DRIVE` (HDD→HDD); il mirror Proton
-gira separatamente via systemd user timer (03:30).
+UFFICIALE** (`proton-drive`). Cron **staggerati** (job separati, non più incatenati
+con `;`) per non sovrapporre I/O pesante sullo stesso disco `/mnt/nas`:
+- **03:00** `backup_offsite.sh` — dump DB + Borg create verso `/mnt/nas/backup/offsite/`
+- **03:30** (+0-5min) mirror Proton Drive via systemd user timer (legge `offsite/`)
+- **04:00** `borg_backup_nas2.sh` — scansione `/mnt/nas2` → `/mnt/nas/backup/REDACTED_DRIVE/` (HDD→HDD)
+
+> ⚠️ Prima del 2026-07-05 `borg_backup_nas2.sh` girava incatenato subito dopo
+> `backup_offsite.sh` alle 03:00: la scansione pesante di `/mnt/nas2` poteva
+> sovrapporsi al mirror Proton (03:30) sullo stesso disco `/mnt/nas`, contesa I/O
+> sospettata concausa del soft lockup ext4 del 2026-07-04 (vedi CLAUDE.md pitfall).
+> Ora è un cron job separato (`backup-nas2-REDACTED_DRIVE`) alle 04:00.
 
 ### Cosa viene backuppato:
 - **docker/data/**: certbot, icloud-photos, immich, nginx, jellyfin, nextcloud, nextcloud-db-dumps, sqlite-snapshots, vaultwarden, syncthing/obsidian
@@ -227,12 +237,34 @@ sudo bash /mnt/nas2/nas-scripts/setup_nextcloud_oidc.sh status
 
 ### Nginx Stream SNI (TLS Passthrough):
 nginx usa `ssl_preread` per instradare il traffico sulla porta 443 in base al SNI:
-- `incus.REDACTED_DOMAIN` → **TCP passthrough** verso Incus `:8443` (mTLS intatto per login cert)
+- `incus.REDACTED_DOMAIN` → **TCP passthrough** verso un relay interno `127.0.0.1:18443` che rimuove il PROXY protocol, poi verso Incus `:8443` (mTLS intatto per login cert)
 - tutti gli altri domini → blocco HTTP interno su porta `8442`
 
 Questo permette al browser di presentare il certificato client direttamente a Incus.
 
+**IP client reale (`setup_nginx_realip.sh`):** l'hop `stream→127.0.0.1:8442` e' una NUOVA
+connessione TCP che nginx apre verso se stesso: senza accorgimenti, ogni vhost su `8442`
+vedrebbe sempre `$remote_addr=127.0.0.1` (bruteforce-protection/log per-IP condivisi da
+tutti i client, es. Nextcloud). Fix: PROXY protocol abilitato sul quel hop
+(`proxy_protocol on;` lato stream, `listen 8442 ... proxy_protocol;` + `real_ip_header
+proxy_protocol;` + `set_real_ip_from 127.0.0.1;` lato http). Incus non supporta PROXY
+protocol: il branch `incus.REDACTED_DOMAIN` passa quindi per il relay dedicato
+`127.0.0.1:18443` (accetta+rimuove l'header) prima di raggiungere Incus, cosi' l'mTLS
+resta bit-per-bit intatto. Nextcloud e' inoltre configurato con `trusted_proxies=172.18.0.0/16`
+(subnet `docker_default`, non l'IP specifico di nginx che cambia se il container viene
+ricreato) e `forwarded_for_headers=HTTP_X_FORWARDED_FOR`.
+
 ### Certificati SSL:
+- Il certificato Let's Encrypt condiviso e' **ECDSA (prime256v1)**, non RSA. Le liste
+  `ssl_ciphers` su quasi tutti i vhost (main site, Immich, Jellyfin, Plex, Vaultwarden,
+  WebDAV, Syncthing, Nextcloud, REDACTED_NAME) contenevano solo suite `ECDHE-RSA-*`/`DHE-RSA-*`
+  (nessuna valida per un certificato ECDSA): TLS1.2 era quindi "abilitato" ma senza
+  nessun cifrario realmente negoziabile, mentre TLS1.3 funzionava (li' la firma si
+  negozia separatamente). Qualunque client TLS1.2-only (Android <10, ExoPlayer/player
+  che usano lo stack TLS di sistema) falliva l'handshake su ogni servizio. Fix:
+  `setup_nginx_tls_ecdsa.sh` (idempotente) aggiunge `ECDHE-ECDSA-AES128-GCM-SHA256` e
+  affini davanti alle liste esistenti. Il vhost `modem`, che non sovrascriveva
+  `ssl_ciphers` con quella lista, non erano mai stati affetti (da qui la controprova).
 - Incus usa lo stesso **certificato Let's Encrypt unico** di nginx/certbot tramite symlink:
   - `/var/lib/incus/server.crt` → `certbot/live/REDACTED_HOSTNAME.REDACTED_DDNS/fullchain.pem`
   - `/var/lib/incus/server.key` → `certbot/live/REDACTED_HOSTNAME.REDACTED_DDNS/privkey.pem`
@@ -441,6 +473,12 @@ Servizi che dipendono da script qui dentro:
 ## 💥 **Kdump (crash dump del kernel):**
 
 `setup_kdump.sh` configura kdump per catturare crash dump in caso di kernel panic, soft/hard lockup o MCE (Machine Check Exception). Utile su host headless senza console fisica per diagnosi post-mortem.
+
+> ✅ **Applicato il 2026-07-05** dopo un soft lockup ext4 del 2026-07-04 (CPU bloccata
+> 16.5h, poi macchina giu' ~13h45min senza dump ne' auto-reboot — vedi CLAUDE.md
+> pitfall). Prima di quella data lo script esisteva ma non era mai stato eseguito
+> (GRUB aveva solo `quiet splash`, kdump-tools non installato). Riattiva al prossimo
+> reboot (reservation crashkernel richiede riavvio).
 
 **Cosa fa:**
 - Installa `linux-crashdump`, `kdump-tools`, `crash`, `makedumpfile`

@@ -24,9 +24,14 @@ services:
   immich-server:
     container_name: immich_server
     ports:
-      # Bind solo a localhost: l'accesso pubblico passa da nginx (immich-backend
-      # via rete docker). Riduce la superficie d'attacco sulla LAN/WAN.
+      # Localhost: usato da tooling locale / deploy check. L'accesso "pubblico"
+      # passa comunque da nginx via rete docker (non da questa porta host).
       - "127.0.0.1:${IMMICH_PORT:-2283}:2283"
+      # LAN diretta: i client in rete locale colpiscono Immich senza il giro
+      # DNS->WAN->hairpin-NAT->nginx (ottimizzazione connettivita' su WiFi
+      # instabile). Bind sull'IP LAN -> NON esposto su WAN (router forwarda solo
+      # 80/443); Immich ha comunque autenticazione propria.
+      - "${IMMICH_LAN_IP:-REDACTED_LAN_IP}:${IMMICH_PORT:-2283}:2283"
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
     devices:
       - /dev/dri:/dev/dri
