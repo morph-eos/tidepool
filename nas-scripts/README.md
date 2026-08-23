@@ -28,6 +28,7 @@ Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755
 - **`update_immich_version.sh`** - Aggiornamento idempotente tag Immich + pull/recreate container
 - **`setup_fail2ban.sh`** - SSH hardening + fail2ban (ban dopo 3 tentativi)
 - **`setup_claude_desktop.sh`** - Claude Desktop (autostart + MCP filesystem/Playwright) **e ambiente browser**: installa+inverginazione Chrome (browser di Claude) con policy anti-tracking, Firefox predefinito + privacy (ETP strict). Login manuali a fine setup (Claude Desktop + estensione Claude in Chrome)
+- **`setup_REDACTED_NAME_site.sh`** - Riorganizza `REDACTED_NAME.REDACTED_DOMAIN` in `/` (landing, password), `/quotes` (vecchio sito, password invariata), `/festa-ruolo` (Invito REDACTED_NAME, libero — unica location con `auth_basic off`)
 
 ### Script di Gestione:
 - **`nas-help.sh`** - Guida rapida ai comandi

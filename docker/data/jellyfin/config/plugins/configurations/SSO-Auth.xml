@@ -31,16 +31,33 @@
             <string>email</string>
             <string>groups</string>
           </OidScopes>
-          <DefaultProvider>Jellyfin.Plugin.SSO_Auth.SSOAuthenticationProviderPlugin</DefaultProvider>
+          <DefaultProvider />
           <SchemeOverride>https</SchemeOverride>
+          <PortOverride xsi:nil="true" />
           <NewPath>true</NewPath>
-          <CanonicalLinks />
+          <CanonicalLinks>
+            <item>
+              <key>
+                <string>REDACTED_HOSTNAME</string>
+              </key>
+              <value>
+                <guid>REDACTED_GUID_30</guid>
+              </value>
+            </item>
+            <item>
+              <key>
+                <string>REDACTED_USERNAME</string>
+              </key>
+              <value>
+                <guid>REDACTED_GUID_41</guid>
+              </value>
+            </item>
+          </CanonicalLinks>
           <DefaultUsernameClaim>preferred_username</DefaultUsernameClaim>
           <DisableHttps>false</DisableHttps>
           <DisablePushedAuthorization>true</DisablePushedAuthorization>
           <DoNotValidateEndpoints>false</DoNotValidateEndpoints>
           <DoNotValidateIssuerName>false</DoNotValidateIssuerName>
-          <DoNotLoadProfile>false</DoNotLoadProfile>
         </PluginConfiguration>
       </value>
     </item>

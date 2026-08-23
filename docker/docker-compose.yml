@@ -126,7 +126,7 @@ services:
 
   # Jellyfin - Server media per streaming video, audio e foto
   jellyfin:
-    image: jellyfin/jellyfin:10.11.6@sha256:048e2b9a06814f8673b8306e596659c0b42616e1510ef7f395c1c1f2c23f2bb2
+    image: jellyfin/jellyfin:10.11.11@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
     container_name: jellyfin
     user: ${JELLYFIN_UID:-1000}:${JELLYFIN_GID:-1000}
     group_add:
@@ -256,7 +256,7 @@ services:
   # ==========================================================================
 
   vaultwarden:
-    image: vaultwarden/server:1.36.0
+    image: vaultwarden/server:1.37.1
     container_name: vaultwarden
     restart: unless-stopped
     environment:
