@@ -162,11 +162,84 @@ sudo ./backup_offsite.sh                                             # backup co
 ## Email / SMTP condiviso
 
 `setup_mail.sh` normalizza l'invio email dei servizi verso:
-- login SMTP: `REDACTED_OWNER_EMAIL`
+- login SMTP: `REDACTED_SMTP_ACCOUNT` (REDACTED_SMTP_PROVIDER, piano free)
 - mittente visibile: `REDACTED_BRAND' Services <REDACTED_SERVICE_EMAIL>`
-- server: `smtp.gmail.com:587` con STARTTLS
+- server: `smtp-relay.REDACTED_SMTP_PROVIDER.com:587` con STARTTLS
 
-La sorgente stabile e' `/mnt/nas2/docker/.env`. Il compose passa le variabili ai container; Nextcloud usa anche l'hook Docker `docker/scripts/nextcloud-smtp-hook.sh` per applicarle a `config.php` a ogni avvio.
+La sorgente stabile e' `/mnt/nas2/docker/.env`. Il compose passa le variabili ai container.
+
+> ⚠️ **Migrazione Gmail -> REDACTED_SMTP_PROVIDER (set 2026)**: le email da `REDACTED_SERVICE_EMAIL` inviate
+> via relay Gmail personale (`smtp.gmail.com`, account `REDACTED_OWNER_EMAIL`)
+> arrivavano flaggate "[Possible phishing attempt]" da REDACTED_ALIAS_SERVICE. Causa: un Gmail
+> personale (non Workspace sul dominio) non puo' firmare DKIM come `d=REDACTED_DOMAIN` —
+> firma sempre come `d=gmail.com`, quindi DMARC non allineava mai per il dominio
+> dichiarato nel `From:`, a prescindere dall'SPF. Fix: migrato a REDACTED_SMTP_PROVIDER (free, 300
+> email/giorno), con DKIM autenticato per `REDACTED_DOMAIN` via 3 record DNS aggiunti in
+> REDACTED_DNS_PROVIDER (TXT `REDACTED_SMTP_PROVIDER-code` a `@`, CNAME `REDACTED_SMTP_PROVIDER1._domainkey`/`REDACTED_SMTP_PROVIDER2._domainkey` verso
+> `*.dkim.REDACTED_SMTP_PROVIDER.com`) — record **aggiunti**, non sostituiti agli esistenti SPF/DMARC.
+> Il DMARC esistente (`_dmarc`, `p=none`) e' stato lasciato invariato (REDACTED_SMTP_PROVIDER lo
+> considera comunque "verificato" con solo `p=none` presente).
+>
+> **Nota REDACTED_DNS_PROVIDER**: dopo una modifica DNS, i 4 nameserver REDACTED_DNS_PROVIDER
+> (`dns*.REDACTED_DNS_PROVIDER.*`/`dns*.REDACTED_DNS_PROVIDER_ALT.com`) possono impiegare fino a qualche ora per
+> sincronizzarsi tra loro (replica interna, non propagazione esterna) — verificabile
+> con `dig SOA REDACTED_DOMAIN @<ciascun-ns>` finche' il seriale non combacia su tutti e 4.
+>
+> **Nota Nextcloud**: l'immagine ufficiale genera `config/smtp.config.php` che legge
+> `SMTP_HOST`/`SMTP_NAME`/`SMTP_PASSWORD` ecc. via `getenv()` **a runtime del
+> container**, caricato dopo `config.php` quindi lo sovrascrive sempre — gli `occ
+> config:system:set` di `setup_mail.sh` da soli NON bastano. Le env sono "congelate"
+> al momento di `docker compose up`/creazione container: dopo aver cambiato `.env`
+> (tutti e tre leggono le stesse variabili `SMTP_*` condivise) con
+> nuovi valori — controllare poi con `docker ps -a --filter name=<servizio>` che non
+> resti un container hash-prefixato duplicato (vedi pitfall "docker compose up -d
+> interrotto a meta'" in CLAUDE.md).
+>
+> **Nota REDACTED_SMTP_PROVIDER — dominio autenticato NON basta, serve il Sender specifico**: con solo
+> il dominio `REDACTED_DOMAIN` "Autenticato" (DKIM sul dominio verificato) il flag
+> "[Possible phishing attempt]" persisteva ANCHE su REDACTED_SMTP_PROVIDER — verificato con un secondo
+> invio di test. Causa reale: REDACTED_SMTP_PROVIDER applica la firma DKIM del dominio solo per
+> indirizzi `From` registrati esplicitamente come **Sender** (Settings -> Senders,
+> Domains & Dedicated IPs -> Senders -> Add a sender), non per qualsiasi indirizzo
+> `@dominio-autenticato` passato via SMTP relay grezzo. Fix: aggiunto
+> `REDACTED_SERVICE_EMAIL` come Sender (verificato all'istante, nessuna email di
+> conferma richiesta, dato che il dominio era gia' autenticato) — da allora il flag
+> non si e' piu' presentato. Se in futuro si aggiungono altri indirizzi mittente
+> `@REDACTED_DOMAIN` (es. per un nuovo servizio), vanno registrati allo stesso modo come
+> Sender, non basta che il dominio risulti autenticato.
+>
+> **Nota REDACTED_SMTP_PROVIDER — List-Unsubscribe/tracking non disattivabile su SMTP relay**: REDACTED_SMTP_PROVIDER
+> inietta automaticamente `List-Unsubscribe`/`List-Unsubscribe-Post` (redirect verso
+> un loro dominio di tracking, es. `*.REDACTED_TRACKING_DOMAIN.com`) su OGNI email inviata via SMTP
+> relay, transazionale incluso — limitazione nota, da tempo richiesta dalla community
+> REDACTED_SMTP_PROVIDER, senza opzione ufficiale per disattivarla su questo canale (l'unica via
+> sarebbe passare all'API transazionale HTTP, che la esenta di default, ma richiede
+> riscrivere le chiamate curl in `backup_offsite.sh`/`proton_cli_backup.sh` — valutato
+> e scartato, non vale l'effort per un dettaglio cosmetico che non influisce sul
+> check anti-phishing di REDACTED_ALIAS_SERVICE, confermato basato solo su DMARC).
+>
+> ⚠️ **Rischio one-click unsubscribe**: Gmail/Outlook/Proton Mail mostrano un
+> bottone "Annulla iscrizione" cliccabile per via di quell'header. Su REDACTED_SMTP_PROVIDER esistono
+> **due liste di blocco separate**: quella generica "Contacts -> Blocked and
+> unsubscribed" (marketing) e quella **transazionale**, specifica per canale/mittente,
+> sotto `Settings -> Transactional emails -> Blocked or Unsubscribed contacts`
+> (`https://app.REDACTED_SMTP_PROVIDER.com/transactional/email/settings/blocked-contacts`) — un click
+> accidentale blocca l'indirizzo SOLO da quel mittente transazionale, non da tutto
+> l'account. Testato in pratica (2026-09-02): dopo un click volontario su un
+> indirizzo Gmail di test, il blocco NON e' comparso ne' nella lista Contacts ne' in
+> quella transazionale (probabile lag di sincronizzazione o scope diverso da quanto
+> documentato) — l'email successiva e' comunque arrivata, solo finita in **Spam
+> Gmail** (dominio/IP condiviso REDACTED_SMTP_PROVIDER troppo recente per avere reputazione presso
+> Gmail, normale nei primi giorni/settimane di un nuovo mittente: si risolve
+> cliccando "Non e' spam" e con l'uso continuativo a basso volume). Se in futuro un
+> indirizzo risulta davvero bloccato, controllare ENTRAMBE le liste prima di
+> assumere che sia irrecuperabile.
+>
+> **TODO SPF**: `include:_spf.google.com` nell'SPF di `REDACTED_DOMAIN` non serve piu'
+> (nessun servizio invia piu' via Gmail) — da rimuovere a mano su REDACTED_DNS_PROVIDER lasciando
+> `v=spf1 include:REDACTED_ALIAS_SERVICE.co ~all` (`include:REDACTED_ALIAS_SERVICE.co` resta: serve per le
+> risposte dirette agli alias dalla inbox). Non automatizzabile da qui (nessuna
+> DNS-API in questo server, solo Let's Encrypt via sfida HTTP).
 
 > ⚠️ **Fix heredoc email (giu 2026)**: in `backup_offsite.sh` e `proton_cli_backup.sh`
 > il default con apostrofo `${smtp_from_name:-REDACTED_BRAND' Services}` **dentro l'heredoc**
@@ -178,6 +251,17 @@ La sorgente stabile e' `/mnt/nas2/docker/.env`. Il compose passa le variabili ai
 sudo bash /mnt/nas2/nas-scripts/setup_mail.sh install
 sudo bash /mnt/nas2/nas-scripts/setup_mail.sh status
 ```
+
+## Servizi opzionali (Docker Compose profiles)
+
+Servizi che non devono partire in automatico con un normale `docker compose up -d`
+(es. dopo un reboot o un disaster recovery), ma restano disponibili da attivare
+esplicitamente, sono marcati con `profiles: ["<nome>"]` nel `docker-compose.yml`.
+Un servizio con profilo:
+- **non compare** in `docker compose config --services` di default, e non parte con
+  un normale `docker compose up -d` (nemmeno nominandolo esplicitamente);
+- si attiva con `docker compose --profile <nome> up -d` (o `up -d <servizio>` con lo
+  stesso flag `--profile`).
 
 ## � SSO / OIDC (Nextcloud come IdP)
 
@@ -429,11 +513,9 @@ Tutti i servizi systemd custom dell'host sono installati idempotente da uno scri
 | `incus-port-proxy@.service` | `setup_incus.sh` | Template socat per VM |
 | `wifi-watchdog.{service,timer}` | `setup_host_services.sh` | Riconnessione WiFi ogni 60s |
 | `nas-scripts-fixperms.{service,timer}` | `setup_host_services.sh` | `chmod 0775 *.sh` ogni 5 min |
+| `docker-ensure-containers.service` | `setup_host_services.sh` | `docker start` sui container `exited`/`created` dopo boot (mount `/mnt/nas2` non pronto quando parte dockerd); esclude `DOCKER_ENSURE_EXCLUDE` (certbot/icloud) — consolidato 2026-09-05, era orfano/manuale |
 | Cron jobs | `setup_cron.sh` | backup_offsite, certbot, cleanup, ... |
 | `linux-crashdump` (kdump) | `setup_kdump.sh` | On-demand, richiede reboot |
-
-Servizi custom NON gestiti da questa suite (manuali / app):
-- `docker-ensure-containers.service` (kickstart Docker compose, vedi `docker/`)
 
 ```bash
 # Riconfigurazione ordinaria idempotente

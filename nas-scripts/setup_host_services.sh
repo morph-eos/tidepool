@@ -5,6 +5,10 @@
 # Idempotente. Installa:
 #   1. wifi-watchdog.{service,timer}      → riconnette REDACTED_WIFI_IFACE se cade
 #   2. nas-scripts-fixperms.{service,timer} → riapplica chmod 0775 su *.sh
+#   3. docker-ensure-containers.service   → riavvia container Docker rimasti
+#      exited/created dopo il boot (mount /mnt/nas2 non pronto quando parte
+#      dockerd), ESCLUSI quelli intenzionalmente fermi (certbot, icloud;
+#      vedi DOCKER_ENSURE_EXCLUDE)
 #
 # NON installa (gia' coperti da altri script):
 #   - incus-* (setup_incus.sh)
@@ -23,6 +27,12 @@ set -euo pipefail
 ACTION="${1:-install}"
 SCRIPTS_DIR="/mnt/nas2/nas-scripts"
 SYSD="/etc/systemd/system"
+
+# Container che NON vanno mai auto-riavviati da docker-ensure-containers anche se
+# risultano exited/created al boot: run-once (certbot, icloud) o intenzionalmente
+# in pausa (vedi docker-compose.yml profiles). Aggiungere qui eventuali
+# nuovi servizi "activatable"/pausati manualmente.
+DOCKER_ENSURE_EXCLUDE='certbot\|icloud'
 
 log()  { echo "[host-services] $*"; }
 warn() { echo "[host-services] WARN: $*" >&2; }
@@ -61,7 +71,7 @@ cleanup_legacy() {
 # 1. WiFi watchdog
 # ---------------------------------------------------------------------------
 install_wifi_watchdog() {
-    log "[1/2] WiFi watchdog (wifi-watchdog.timer)"
+    log "[1/3] WiFi watchdog (wifi-watchdog.timer)"
     local script="$SCRIPTS_DIR/wifi_watchdog.sh"
     if [[ ! -x "$script" ]]; then
         warn "Script $script non trovato o non eseguibile"
@@ -104,7 +114,7 @@ UNIT
 # 2. nas-scripts-fixperms (riapplica +x ogni 5 min)
 # ---------------------------------------------------------------------------
 install_fixperms() {
-    log "[2/2] nas-scripts-fixperms (timer ogni 5 min)"
+    log "[2/3] nas-scripts-fixperms (timer ogni 5 min)"
     local svc_changed=0 timer_changed=0
     write_unit "$SYSD/nas-scripts-fixperms.service" "$(cat <<'UNIT'
 [Unit]
@@ -139,11 +149,43 @@ UNIT
 }
 
 # ---------------------------------------------------------------------------
+# 3. docker-ensure-containers (riavvia container exited/created dopo il boot,
+#    escludendo quelli in DOCKER_ENSURE_EXCLUDE)
+# ---------------------------------------------------------------------------
+install_docker_ensure_containers() {
+    log "[3/3] docker-ensure-containers.service (esclude: $DOCKER_ENSURE_EXCLUDE)"
+    local svc_changed=0
+    write_unit "$SYSD/docker-ensure-containers.service" "$(cat <<UNIT
+[Unit]
+Description=Ensure Docker containers are running after mounts
+After=docker.service mnt-nas.mount mnt-nas2.mount
+Requires=docker.service
+ConditionPathIsMountPoint=/mnt/nas2
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sleep 10
+ExecStart=/bin/bash -c 'stopped=\$(docker ps -a --filter "status=exited" --filter "status=created" --format "{{.Names}}" | grep -v "$DOCKER_ENSURE_EXCLUDE"); if [ -n "\$stopped" ]; then echo "Riavvio container fermi: \$stopped"; echo "\$stopped" | xargs docker start; else echo "Tutti i container sono già running"; fi'
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+)" && svc_changed=1
+    if (( svc_changed )); then
+        log "  Unit aggiornata, daemon-reload"
+        systemctl daemon-reload
+    fi
+    systemctl enable --now docker-ensure-containers.service >/dev/null
+    log "  OK ($(systemctl is-active docker-ensure-containers.service))"
+}
+
+# ---------------------------------------------------------------------------
 # Stato
 # ---------------------------------------------------------------------------
 show_status() {
     echo "=== Host services custom (gestiti da setup_host_services.sh) ==="
-    for u in wifi-watchdog.timer nas-scripts-fixperms.timer; do
+    for u in wifi-watchdog.timer nas-scripts-fixperms.timer docker-ensure-containers.service; do
         printf '  %-40s %s\n' "$u" "$(systemctl is-active "$u" 2>&1)"
     done
     echo
@@ -167,7 +209,7 @@ do_remove() {
     log "Disinstallazione servizi custom"
     for u in wifi-watchdog.timer wifi-watchdog.service \
              nas-scripts-fixperms.timer nas-scripts-fixperms.service \
-             nas-scripts-fixperms.path; do
+             nas-scripts-fixperms.path docker-ensure-containers.service; do
         systemctl disable --now "$u" 2>/dev/null || true
         rm -f "$SYSD/$u"
     done
@@ -181,6 +223,7 @@ case "$ACTION" in
         cleanup_legacy
         install_wifi_watchdog
         install_fixperms
+        install_docker_ensure_containers
         echo
         show_status
         ;;

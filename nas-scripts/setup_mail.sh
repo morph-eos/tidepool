@@ -10,9 +10,9 @@ ENV_FILE="${DOCKER_DIR}/.env"
 VW_CONFIG="${DOCKER_DIR}/data/vaultwarden/config.json"
 NC_CONTAINER="nextcloud"
 
-SMTP_HOST_VALUE="smtp.gmail.com"
+SMTP_HOST_VALUE="smtp-relay.REDACTED_SMTP_PROVIDER.com"
 SMTP_PORT_VALUE="587"
-SMTP_USERNAME_VALUE="REDACTED_OWNER_EMAIL"
+SMTP_USERNAME_VALUE="REDACTED_SMTP_ACCOUNT"
 SMTP_PASSWORD_VALUE=""
 SMTP_FROM_VALUE="REDACTED_SERVICE_EMAIL"
 SMTP_FROM_NAME_VALUE="REDACTED_BRAND' Services"
@@ -63,8 +63,6 @@ ensure_env() {
     local backup="${ENV_FILE}.bak.$(date +%Y%m%d-%H%M%S)"
     cp -a "$ENV_FILE" "$backup"
     log "Backup .env: $backup"
-
-    set_env_key EMAIL "$SMTP_USERNAME_VALUE"
 
     set_env_key SMTP_HOST "$SMTP_HOST_VALUE"
     set_env_key SMTP_PORT "$SMTP_PORT_VALUE"
@@ -145,7 +143,7 @@ configure_vaultwarden_config() {
 
 show_status() {
     echo "=== SMTP condiviso (.env) ==="
-    grep -nE '^(SMTP_|NEXTCLOUD_SMTP_|NEXTCLOUD_MAIL_|BITWARDEN_SMTP_|SMART_SMTP_|EMAIL=)' "$ENV_FILE" \
+    grep -nE '^(SMTP_|NEXTCLOUD_SMTP_|NEXTCLOUD_MAIL_|BITWARDEN_SMTP_|SMART_SMTP_)' "$ENV_FILE" \
         | sed -E 's/(PASSWORD=).*/\1<configurata>/; s/(SMTP_NAME=).*/\1<configurata>/; s/(SMTP_USERNAME=).*/\1<configurata>/'
     echo
     if docker ps --format '{{.Names}}' | grep -qx "$NC_CONTAINER"; then
