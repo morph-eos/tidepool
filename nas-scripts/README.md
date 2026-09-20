@@ -57,6 +57,7 @@ Le radici `/mnt/nas` e `/mnt/nas2` sono `REDACTED_HOSTNAME:REDACTED_HOSTNAME 755
 - **`wifi_watchdog.sh`** - Watchdog WiFi: riconnette `REDACTED_WIFI_IFACE` se cade (es. modem riavviato di notte)
 - **`incus_vm_hook.sh`** - Hook proxy Incus + DNS sync (eseguito ogni 30s da `incus-dns-sync.timer`)
 - **`setup_kdump.sh`** - Abilita kdump (crash kernel dump) per diagnosi panic / hard hang
+- **`setup_systemd_watchdog.sh`** - Alert email se PID1 resta "wedged" (D-Bus non risponde) senza panicare — vedi sezione dedicata
 
 ## 🚀 **Come Usare:**
 
@@ -550,6 +551,7 @@ sudo systemctl start nas-scripts-fixperms.service   # esegui subito
 Servizi che dipendono da script qui dentro:
 - `incus-dns-sync.service` → `incus_vm_hook.sh`
 - `wifi-watchdog.service` → `wifi_watchdog.sh`
+- `systemd-health-watchdog.service` → `systemd_watchdog.sh`
 - `nas-scripts-fixperms.service` → `find ... chmod 0775` (solo binari di sistema)
 - cron `backup_offsite.sh` (lanciato con `bash`, non sensibile a `+x`)
 
@@ -591,6 +593,39 @@ sudo reboot
 kdump-config show
 cat /sys/kernel/kexec_crash_loaded   # deve essere 1
 grep crashkernel /proc/cmdline
+```
+
+## 🩺 **Systemd health watchdog (PID1 wedged senza panic):**
+
+`setup_systemd_watchdog.sh` installa `systemd-health-watchdog.timer` (ogni 5
+min esegue `systemd_watchdog.sh`), che rileva quando systemd (PID1) e' vivo ma
+non risponde piu' a `systemctl`/D-Bus e manda una email di alert (SMTP
+condiviso da `.env`).
+
+> ✅ **Applicato il 2026-09-14** dopo l'incidente dell'11-14/09 (vedi CLAUDE.md
+> pitfall "systemd wedged"): un Oops kernel durante lo start/stop di un
+> container ha lasciato systemd bloccato SENZA far panicare il kernel — quindi
+> kdump/panic-on-lockup (sopra) non si sono attivati — e senza alcun alert per
+> **3 giorni e mezzo**, scoperto solo per caso da un 502 su Immich
+> (`immich_server` crashato non si riavviava piu': Docker non riusciva a
+> creare lo scope cgroup via systemd). Questo watchdog chiude quel gap.
+
+**Cosa fa il check:** `timeout 8 systemctl is-system-running` — un timeout o
+un errore "Failed to activate service org.freedesktop.systemd1" e' il segnale
+di PID1 wedged (diverso da "degraded", che e' normale e non genera alert).
+
+**Cosa NON fa:** non riavvia da solo. Un riavvio forzato (`reboot -f` /
+`systemctl reboot -ff`, l'unica via quando systemd e' wedged — un `sudo
+reboot` normale va anch'esso in timeout parlando con PID1) salta la sync/stop
+ordinato dei DB nei container (Postgres/MariaDB/SQLite): la decisione resta
+manuale, il watchdog si limita ad avvisare subito invece di lasciar passare
+giorni.
+
+**Setup:**
+```bash
+sudo bash /mnt/nas2/nas-scripts/setup_systemd_watchdog.sh
+sudo bash /mnt/nas2/nas-scripts/setup_systemd_watchdog.sh status
+sudo bash /mnt/nas2/nas-scripts/setup_systemd_watchdog.sh test   # verifica immediata
 ```
 
 **Test (DISTRUTTIVO, causa panic reale):**
