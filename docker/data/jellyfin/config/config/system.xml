@@ -194,5 +194,5 @@
     <JpegQuality>90</JpegQuality>
     <ProcessThreads>1</ProcessThreads>
   </TrickplayOptions>
-  <EnableLegacyAuthorization>true</EnableLegacyAuthorization>
+  <EnableLegacyAuthorization>false</EnableLegacyAuthorization>
 </ServerConfiguration>

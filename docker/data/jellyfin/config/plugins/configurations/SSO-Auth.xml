@@ -52,12 +52,21 @@
                 <guid>REDACTED_GUID_41</guid>
               </value>
             </item>
+            <item>
+              <key>
+                <string>REDACTED_USERNAME</string>
+              </key>
+              <value>
+                <guid>REDACTED_GUID_22</guid>
+              </value>
+            </item>
           </CanonicalLinks>
           <DefaultUsernameClaim>preferred_username</DefaultUsernameClaim>
           <DisableHttps>false</DisableHttps>
           <DisablePushedAuthorization>true</DisablePushedAuthorization>
           <DoNotValidateEndpoints>false</DoNotValidateEndpoints>
           <DoNotValidateIssuerName>false</DoNotValidateIssuerName>
+          <DoNotLoadProfile>false</DoNotLoadProfile>
         </PluginConfiguration>
       </value>
     </item>

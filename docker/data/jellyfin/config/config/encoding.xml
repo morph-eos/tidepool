@@ -42,6 +42,7 @@
   <AllowHevcEncoding>true</AllowHevcEncoding>
   <AllowAv1Encoding>false</AllowAv1Encoding>
   <EnableSubtitleExtraction>true</EnableSubtitleExtraction>
+  <SubtitleExtractionTimeoutMinutes>30</SubtitleExtractionTimeoutMinutes>
   <HardwareDecodingCodecs>
     <string>h264</string>
     <string>vc1</string>
