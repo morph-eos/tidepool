@@ -1,0 +1,4 @@
+# Output del backup di configurazione Incus (dati, non sorgente): vivono su Borg
+incus-config-backup/
+# Segreti reali
+.env
