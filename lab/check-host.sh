@@ -21,7 +21,8 @@ r() { # r <id> <description> <command...>
 }
 sshcfg=$(sshd -T 2>/dev/null)
 # H01
-r H01 "admin user with an SSH key and sudo" bash -c 'u=$(getent group sudo | cut -d: -f4 | cut -d, -f1); [ -n "$u" ] && [ -s "/home/$u/.ssh/authorized_keys" ]'
+# The admin group is "sudo" on Ubuntu and "wheel" on NixOS, and sshd may read keys from the home directory or from /etc/ssh/authorized_keys.d
+r H01 "admin user with an SSH key and sudo" bash -c 'u=$(getent group sudo wheel | cut -d: -f4 | tr "," "\n" | grep -v "^$" | head -1); [ -n "$u" ] && { [ -s "/home/$u/.ssh/authorized_keys" ] || [ -s "/etc/ssh/authorized_keys.d/$u" ]; }'
 # H02
 r H02a "sshd listens on 2222" bash -c 'ss -ltn | grep -qE ":2222\b"'
 r H02b "sshd does not listen on 22" bash -c '! ss -ltn | grep -qE ":22\s"'
@@ -60,7 +61,8 @@ REMOTE_EOF
 if [ "$WITH_SECRET" = 1 ]; then
 REMOTE+=$'\n'$(cat <<'REMOTE_EOF'
 # H09
-r H09a "secrets.env is root:root 0600" bash -c '[ "$(stat -c "%U:%G %a" /etc/tidepool/secrets.env)" = "root:root 600" ]'
+# -L: the file may be a link to a decrypted copy elsewhere; what counts is who can read the real file
+r H09a "secrets.env is root:root 0600" bash -c '[ "$(stat -L -c "%U:%G %a" /etc/tidepool/secrets.env)" = "root:root 600" ]'
 r H09b "secrets.env holds TIDEPOOL_TEST_SECRET" grep -q "^TIDEPOOL_TEST_SECRET=." /etc/tidepool/secrets.env
 REMOTE_EOF
 )

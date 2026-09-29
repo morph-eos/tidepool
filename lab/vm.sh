@@ -24,7 +24,7 @@
 #   lab/vm.sh console  <name>             (tail the serial log)
 #
 # --blank creates an empty system disk (no cloud image), for installing an OS from an ISO.
-# Environment for start: TIDEPOOL_EXTRA_ARGS (extra QEMU arguments, e.g. an installer ISO and kernel),
+# Environment for start: TIDEPOOL_EXTRA_ARGS (extra QEMU arguments), and the file <vm>/extra-args (one per line),
 # TIDEPOOL_NO_WAIT=1 (do not wait for SSH). The serial console is a socket, <vm>/serial.sock, also logged.
 # =============================================================================
 set -euo pipefail
@@ -143,8 +143,14 @@ cmd_start() {
     local d; d="$(vm_dir "$name")"
     local seed_port=$((SSH_PORT + 9)) seed_pid
     local extra=()
+    # Extra QEMU arguments: TIDEPOOL_EXTRA_ARGS (split on spaces) plus, if present, the file <vm>/extra-args
+    # with one argument per line (for values that contain spaces, such as a kernel command line).
     # shellcheck disable=SC2206
     local TIDEPOOL_EXTRA_ARGS_ARR=(${TIDEPOOL_EXTRA_ARGS:-})
+    if [ -f "$d/extra-args" ]; then
+        local line
+        while IFS= read -r line; do TIDEPOOL_EXTRA_ARGS_ARR+=("$line"); done < "$d/extra-args"
+    fi
     # The system disk has an explicit bootindex: with two virtio disks the firmware may otherwise pick the empty one.
     # A second disk identified by serial number, like the data disks of the real server:
     # inside the guest it appears as /dev/disk/by-id/virtio-TPDATA0001
@@ -228,18 +234,21 @@ cmd_ssh() {
         -p "$port" "$GUEST_USER@127.0.0.1" "$@"
 }
 
+# Snapshots cover every disk of the VM: a data disk left out would keep its old filesystem and make "empty" a lie
+vm_disks() { local f; for f in disk.qcow2 data.qcow2; do [ -f "$(vm_dir "$1")/$f" ] && echo "$(vm_dir "$1")/$f"; done; return 0; }
+
 cmd_snapshot() {
-    local name="${1:?name required}" tag="${2:?tag required}"
+    local name="${1:?name required}" tag="${2:?tag required}" f
     need_vm "$name"; ! is_running "$name" || die "stop $name first"
-    qemu-img snapshot -c "$tag" "$(vm_dir "$name")/disk.qcow2"
-    log "snapshot '$tag' of $name created"
+    for f in $(vm_disks "$name"); do qemu-img snapshot -c "$tag" "$f"; done
+    log "snapshot '$tag' of $name created ($(vm_disks "$name" | wc -l) disk(s))"
 }
 
 cmd_restore() {
-    local name="${1:?name required}" tag="${2:?tag required}"
+    local name="${1:?name required}" tag="${2:?tag required}" f
     need_vm "$name"; ! is_running "$name" || die "stop $name first"
-    qemu-img snapshot -a "$tag" "$(vm_dir "$name")/disk.qcow2"
-    log "$name restored to '$tag'"
+    for f in $(vm_disks "$name"); do qemu-img snapshot -a "$tag" "$f"; done
+    log "$name restored to '$tag' ($(vm_disks "$name" | wc -l) disk(s))"
 }
 
 cmd_destroy() {
