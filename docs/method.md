@@ -16,7 +16,7 @@ the same loop. The point is not only the result: it is being able to explain, la
 6. **Record the result.** What worked, what did not, what surprised me, measured numbers. Failures are results too.
 7. **Decide, in an ADR.** One file in `docs/decisions/`, from the template: context, options, criteria, outcome, consequences.
 8. **Integrate and freeze.** The winner is merged into `reengineering`; the phase closes with a tag (`v1-phase-N`). Losing branches are **kept**
-   and tagged `exp/<phase>-<candidate>` so the ADR can link to something that never moves.
+   and tagged `exp-<phase>-<candidate>` (a hyphen: a tag and a branch cannot share a name) so the ADR can link to something that never moves.
 
 ## Rules
 
@@ -33,7 +33,7 @@ the same loop. The point is not only the result: it is being able to explain, la
 | Place | What |
 |---|---|
 | `reengineering` | the integrated result of the closed phases |
-| `exp/<phase>-<candidate>` (branch, then tag) | one candidate's experiment, kept after the decision |
+| `exp/<phase>-<candidate>` (branch), `exp-<phase>-<candidate>` (tag) | one candidate's experiment, kept after the decision |
 | `docs/decisions/` | one ADR per decision, numbered |
 | `docs/method.md` | this file |
 | `lab/` | the tooling to create, snapshot and destroy the throwaway VMs |

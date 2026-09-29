@@ -39,7 +39,33 @@ after, and only for things that are best practice):
 
 ## Results
 
-_To fill after the experiments. Measured for each candidate: rebuild time, manual steps, idempotency, reboot, drift test, effort._
+### A. Ansible (`exp/host-ansible`, tag `exp-host-ansible`)
+
+Measured in the lab, from the `empty` snapshot of a 4-core, 6 GB VM with a second disk (Ansible 2.21, run from the workstation):
+
+| Measure | Result |
+|---|---|
+| Checks green ([host spec](../specs/host.md)) | **23 of 23** |
+| Rebuild time, empty to all green | **214 s** (includes the kdump reboot; the VM itself boots in about 22 s) |
+| Manual steps | **2** (export the test secret, run `ansible-playbook`), after a one-off install of Ansible (53 s, no root) |
+| Idempotency | second run: **0 changes**, 39 s |
+| Survives a reboot | 23 of 23 |
+| Drift | 4 manual changes (sshd option, fail2ban stopped, timer disabled, file mode) all put back in 28 s |
+| Effort | working in about 18 minutes of wall clock, with four problems found and fixed on the way (below) |
+| Moving parts | Ansible on the workstation, 8 roles, nothing installed on the server |
+
+What went wrong on the way, and would have gone wrong in production:
+
+1. **Not re-runnable at first.** After the first run sshd only listens on 2222, so a playbook that always connects to 22 could never run twice. Fixed by probing which port answers.
+2. **The probe lied.** A plain TCP connect succeeds through QEMU's port forwarder even when nothing listens in the guest. The probe now waits for a real `SSH-2.0` greeting.
+3. **Role order.** A directory created under `/mnt/nas` before the data disk was mounted is hidden by the mount and gets created again on the next run. The disk is now mounted first.
+4. **The checker itself was wrong twice** (`sshd -T` prints `without-password` for `prohibit-password`; the first NTP sync takes seconds). Test tools get tested too.
+
+Safety design: the SSH port changes in three steps (listen on both ports, prove 2222 works from the controller, then drop 22) so a mistake cannot lock the server out.
+
+### B. NixOS (`exp/host-nixos`)
+
+_Not run yet._
 
 ## Decision
 
