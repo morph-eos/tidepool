@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Setup Claude Desktop + ambiente browser (privacy-focused).
-#  - Claude Desktop (build community aaddrick) + MCP (filesystem /mnt, Playwright)
-#    + autostart all'accensione (autologin GNOME).
-#  - Chrome (browser di Claude): install + INVERGINAZIONE una-tantum + policy
-#    gestite anti-telemetria/tracciamento.
-#  - Firefox (browser utente): predefinito + policy/prefs anti-telemetria (ETP strict).
-# Idempotente. Eseguire COME REDACTED_HOSTNAME (usa sudo internamente per apt e /etc).
-# Login (manuali, a fine setup): Claude Desktop + estensione Claude in Chrome.
+# Setup Claude Desktop + browser environment (privacy-focused).
+#  - Claude Desktop (community build aaddrick) + MCP (filesystem /mnt, Playwright)
+#    + autostart at power-on (GNOME autologin).
+#  - Chrome (Claude's browser): install + ONE-TIME warm-up + managed
+#    anti-telemetry/tracking policies.
+#  - Firefox (user browser): default + anti-telemetry policies/prefs (strict ETP).
+# Idempotent. Run AS REDACTED_HOSTNAME (uses sudo internally for apt and /etc).
+# Logins (manual, at the end of setup): Claude Desktop + Claude in Chrome extension.
 # =============================================================================
 set -uo pipefail
 TARGET_USER=REDACTED_HOSTNAME
@@ -34,7 +34,7 @@ else
   echo "[A] claude-desktop presente (v$(dpkg -s claude-desktop 2>/dev/null | awk '/^Version/{print $2}'))"
 fi
 
-# --- B) Claude Desktop config MCP (merge non distruttivo) -------------------
+# --- B) Claude Desktop MCP config (non-destructive merge) -------------------
 mkdir -p "$CFG_DIR"; [ -f "$CFG" ] || echo '{}' > "$CFG"
 python3 - "$CFG" <<'PYEOF'
 import json,sys
@@ -61,7 +61,7 @@ Icon=claude-desktop
 X-GNOME-Autostart-enabled=true'
 [ "$(cat "$AUTOSTART" 2>/dev/null)" = "$DESK" ] || { printf '%s\n' "$DESK" > "$AUTOSTART"; echo "[C] autostart impostato"; }
 
-# --- D) Chrome: install (repo Google se assente) ----------------------------
+# --- D) Chrome: install (Google repo if absent) -----------------------------
 if ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
   curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
   echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list >/dev/null
@@ -70,7 +70,7 @@ else
   echo "[D] Chrome gia' installato"
 fi
 
-# --- E) Chrome: inverginazione UNA-TANTUM (marker) --------------------------
+# --- E) Chrome: ONE-TIME warm-up (marker) -----------------------------------
 if [ ! -f "$CHROME_MARKER" ]; then
   pkill -u "$TARGET_USER" -x chrome 2>/dev/null || true; sleep 1
   rm -rf "$HOME/.config/google-chrome" "$HOME/.cache/google-chrome" 2>/dev/null || true
@@ -80,7 +80,7 @@ else
   echo "[E] Chrome gia' inverginato in precedenza (preservo login/estensione)"
 fi
 
-# --- F) Chrome: policy gestite anti-tracking --------------------------------
+# --- F) Chrome: managed anti-tracking policies ------------------------------
 sudo mkdir -p /etc/opt/chrome/policies/managed
 sudo tee /etc/opt/chrome/policies/managed/00-REDACTED_BRAND_lc-privacy.json >/dev/null <<'JSON'
 {
@@ -106,7 +106,7 @@ sudo tee /etc/opt/chrome/policies/managed/00-REDACTED_BRAND_lc-privacy.json >/de
 JSON
 echo "[F] Chrome: policy anti-tracking applicate"
 
-# --- G) Firefox: predefinito + privacy --------------------------------------
+# --- G) Firefox: default + privacy ------------------------------------------
 FFD=firefox_firefox.desktop
 xdg-settings set default-web-browser "$FFD" 2>/dev/null || true
 xdg-mime default "$FFD" x-scheme-handler/http x-scheme-handler/https x-scheme-handler/about x-scheme-handler/unknown text/html 2>/dev/null || true
@@ -157,7 +157,7 @@ else
 echo "[G] Firefox predefinito + policy (user.js: profilo non trovato, avvia Firefox una volta)"
 fi
 
-# --- H) Passaggi manuali ----------------------------------------------------
+# --- H) Manual steps --------------------------------------------------------
 echo ""
 echo "PASSAGGI MANUALI (monitor collegato):"
 echo "  1) Apri Claude Desktop e accedi con l'account Anthropic."

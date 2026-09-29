@@ -3,16 +3,16 @@
 # ============================================================================
 # KICKSTART SCRIPT - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Bootstrap da zero:
-# 1. Valida env
-# 2. Crea directory
-# 3. Configura regole udev per device stabili
-# 4. Ottiene certificati SSL via kickstart compose
-# 5. Deploya lo stack completo
-# 6. Configura UFW, Avahi
+# Bootstrap from scratch:
+# 1. Validate env
+# 2. Create directories
+# 3. Configure udev rules for stable devices
+# 4. Obtain SSL certificates via the kickstart compose
+# 5. Deploy the full stack
+# 6. Configure UFW, Avahi
 #
 # Usage: ./kickstart/kickstart.sh
-# Prerequisiti: Docker, docker-compose, .env configurato
+# Prerequisites: Docker, docker-compose, configured .env
 # ============================================================================
 
 set -e
@@ -52,7 +52,7 @@ fi
 
 print_success "Configurazione validata"
 
-# === Directory ===
+# === Directories ===
 print_info "Creazione directory dati..."
 mkdir -p data/certbot/{conf,www}
 mkdir -p data/nginx/htpasswd
@@ -66,7 +66,7 @@ mkdir -p data/icloud-photos
 mkdir -p scripts
 print_success "Directory create"
 
-# === Regole udev ===
+# === udev rules ===
 UDEV_FILE="/etc/udev/rules.d/99-smartcheck-disks.rules"
 if [ ! -f "$UDEV_FILE" ]; then
     print_info "Creazione regole udev per symlink dischi stabili..."
@@ -89,11 +89,11 @@ sudo ufw --force enable
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 
-# Regole idempotenti (ufw ignora duplicati)
-# SSH su porta non standard (2222). Buona prassi: tenere questa regola CHIUSA e aprirla
-# solo quando serve (es. manutenzione da fuori LAN), poi richiuderla: ufw delete allow 2222/tcp
+# Idempotent rules (ufw ignores duplicates)
+# SSH on a non-standard port (2222). Good practice: keep this rule CLOSED and open it
+# only when needed (e.g. maintenance from outside the LAN), then close it again: ufw delete allow 2222/tcp
 sudo ufw allow 2222/tcp comment "SSH + VSCode Remote" 2>/dev/null || true
-# Rimuove l'eventuale regola sulla porta 22 standard
+# Remove any rule on the standard port 22
 sudo ufw delete allow 22/tcp 2>/dev/null || true
 sudo ufw allow 80/tcp comment "HTTP nginx" 2>/dev/null || true
 sudo ufw allow 443/tcp comment "HTTPS nginx" 2>/dev/null || true
@@ -102,7 +102,7 @@ sudo ufw allow 22000/udp comment "Syncthing sync" 2>/dev/null || true
 sudo ufw allow from "$LAN_SUBNET" to any port 139 proto tcp comment "Samba LAN only" 2>/dev/null || true
 sudo ufw allow from "$LAN_SUBNET" to any port 445 proto tcp comment "Samba LAN only" 2>/dev/null || true
 sudo ufw allow from "$LAN_SUBNET" to any port 21027 proto udp comment "Syncthing discovery LAN" 2>/dev/null || true
-# Rimuovi regole Samba generiche se presenti
+# Remove generic Samba rules if present
 sudo ufw delete allow Samba 2>/dev/null || true
 sudo ufw delete allow samba 2>/dev/null || true
 print_success "UFW configurato"
@@ -134,12 +134,12 @@ AVAHI
     print_success "Avahi configurato"
 fi
 
-# === Disabilita CUPS (non necessario) ===
+# === Disable CUPS (not needed) ===
 for svc in cups cups-browsed cups.socket; do
     sudo systemctl disable --now "$svc" 2>/dev/null || true
 done
 
-# === Certificati SSL ===
+# === SSL certificates ===
 CERT_PATH="data/certbot/conf/live/REDACTED_HOSTNAME.REDACTED_DDNS/fullchain.pem"
 
 if [ ! -f "$CERT_PATH" ]; then
@@ -150,7 +150,7 @@ if [ ! -f "$CERT_PATH" ]; then
     echo "  REDACTED_DOMAIN + stessi sottodomini"
     echo ""
     
-    # Crea il volume named se non esiste (bootstrap da zero)
+    # Create the named volume if it does not exist (bootstrap from scratch)
     if ! docker volume inspect docker_certbot-www &>/dev/null; then
         print_info "Creazione volume docker_certbot-www..."
         docker volume create docker_certbot-www
@@ -183,7 +183,7 @@ print_info "Avvio stack completo..."
 docker compose up -d
 sleep 10
 
-# === Verifica ===
+# === Verify ===
 print_info "Verifica servizi..."
 for svc_url in "Nginx:http://localhost:80" "Immich:http://localhost:2283" "Jellyfin:http://localhost:8096"; do
     name=${svc_url%%:*}

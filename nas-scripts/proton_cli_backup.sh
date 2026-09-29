@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Mirror del repo Borg "offsite" su Proton Drive via CLI UFFICIALE (proton-drive).
-# Mirror incrementale del repo Borg offsite su Proton Drive (CLI ufficiale).
+# Mirror of the "offsite" Borg repo to Proton Drive via the OFFICIAL CLI (proton-drive).
+# Incremental mirror of the offsite Borg repo to Proton Drive (official CLI).
 #
-# Self-healing / riconciliante:
-#   - metadati repo (config, nonce, README, hints.*, index.*, integrity.*):
-#     upload con strategy "replace" (aggiorna i mutabili, aggiunge le nuove gen)
-#   - segmenti data/ (immutabili): upload con "skip" (carica solo i nuovi)
-#   - ORFANI: confronta l'albero remoto con quello locale e sposta nel cestino remoto
-#     i file non piu' presenti (vecchie generazioni metadati, segmenti rimossi
-#     dalla compaction, residui di vecchi upload)
+# Self-healing / reconciling:
+#   - repo metadata (config, nonce, README, hints.*, index.*, integrity.*):
+#     upload with the "replace" strategy (updates the mutable ones, adds the new generations)
+#   - data/ segments (immutable): upload with "skip" (uploads only the new ones)
+#   - ORPHANS: compares the remote tree with the local one and moves to the remote trash
+#     the files no longer present (old metadata generations, segments removed
+#     by compaction, leftovers of old uploads)
 #
-# Esegue come REDACTED_HOSTNAME; richiede D-Bus utente + keyring sbloccato. Per
-# l'automazione usare un systemd USER timer (eredita il session bus).
-# Conservativo: nessun retry aggressivo (anti-abuso Proton).
+# Runs as REDACTED_HOSTNAME; requires the user D-Bus + an unlocked keyring. For
+# automation use a systemd USER timer (inherits the session bus).
+# Conservative: no aggressive retries (Proton anti-abuse).
 # =============================================================================
 set -uo pipefail
 TARGET_USER=REDACTED_HOSTNAME
@@ -21,7 +21,7 @@ if [ "$(id -un)" != "$TARGET_USER" ]; then
     echo "Esegui come $TARGET_USER (NON root): sudo -u $TARGET_USER $0"; exit 1
 fi
 
-# Session bus (per keyring); se non gia' nell'ambiente (es. cron), derivalo
+# Session bus (for the keyring); if not already in the environment (e.g. cron), derive it
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
 
@@ -35,11 +35,11 @@ LOCK=/tmp/proton-cli-backup.lock
 log(){ echo "$(date -Is) - $*" >> "$LOG" 2>/dev/null; echo "$*"; }
 PD(){ "$BIN" "$@"; }
 
-# Contatore errori upload/riconciliazione: se >0 a fine run -> email di alert.
+# Upload/reconciliation error counter: if >0 at the end of the run -> alert email.
 FAILED=0
 
-# Invia email di notifica (stessa logica SMTP di backup_offsite.sh: legge .env,
-# fallback su SMART_*). Best-effort: non deve mai far fallire il mirror.
+# Send a notification email (same SMTP logic as backup_offsite.sh: reads .env,
+# fallback to SMART_*). Best-effort: must never make the mirror fail.
 ENV_FILE="/mnt/nas2/docker/.env"
 send_alert_email(){
     local subject="$1" body="$2"
@@ -61,8 +61,8 @@ send_alert_email(){
     if [ "$smtp_ssl" = "true" ]; then smtp_url="smtps://${smtp_host}:${smtp_port}"; else smtp_url="smtp://${smtp_host}:${smtp_port}"; fi
     local curl_tls=()
     [ "$smtp_ssl" = "true" ] || [ "$smtp_tls" = "true" ] && curl_tls=(--ssl-reqd)
-    # from-name precalcolato fuori dall'heredoc (apostrofo in ${var:-...} dentro
-    # heredoc rompe il parsing bash). Vedi stessa fix in backup_offsite.sh.
+    # from-name precomputed outside the heredoc (apostrophe in ${var:-...} inside a
+    # heredoc breaks bash parsing). See the same fix in backup_offsite.sh.
     local from_name="${smtp_from_name:-REDACTED_BRAND Services}"
     curl -s --max-time 30 --url "$smtp_url" "${curl_tls[@]}" \
         --mail-from "$smtp_from" --mail-rcpt "$smtp_to" --user "${smtp_user}:${smtp_pass}" \
@@ -93,11 +93,11 @@ fi
 
 log "=== MIRROR PROTON (CLI) START ==="
 
-# Cartelle remote
+# Remote folders
 PD filesystem create-folder /my-files backup >/dev/null 2>&1 || true
 PD filesystem create-folder /my-files/backup tidepool >/dev/null 2>&1 || true
 
-# Helper: elenca una cartella remota -> righe "name<TAB>type"
+# Helper: list a remote folder -> "name<TAB>type" rows
 rlist(){ PD filesystem list -j "$1" 2>/dev/null | python3 -c '
 import json,sys
 try: d=json.load(sys.stdin)
@@ -106,7 +106,7 @@ for o in d:
     n=o.get("name",{}).get("value"); t=o.get("type")
     if n: print("%s\t%s"%(n,t))'; }
 
-# 1) Metadati -> replace
+# 1) Metadata -> replace
 META=()
 for f in config nonce README hints.* index.* integrity.*; do
     for p in "$REPO"/$f; do [ -f "$p" ] && META+=("$p"); done
@@ -116,11 +116,11 @@ if [ "${#META[@]}" -gt 0 ]; then
     PD filesystem upload -d merge -f replace -t "${META[@]}" "$REMOTE" >>"$LOG" 2>&1 || { log "WARN: upload metadati con errori"; FAILED=$((FAILED+1)); }
 fi
 
-# 2) Data -> skip (carica solo i nuovi segmenti immutabili)
+# 2) Data -> skip (upload only the new immutable segments)
 log "Upload data/ (skip esistenti)"
 PD filesystem upload -d merge -f skip -t "$REPO/data" "$REMOTE" >>"$LOG" 2>&1 || { log "WARN: upload data/ con errori"; FAILED=$((FAILED+1)); }
 
-# 3) Riconciliazione orfani: remoto - locale -> delete
+# 3) Orphan reconciliation: remote - local -> delete
 LOCAL=$(mktemp); REMOTEF=$(mktemp)
 ( cd "$REPO" && find . -type f ! -name '.proton-cli-manifest' | sed 's|^\./||' ) | sort -u > "$LOCAL"
 # root
@@ -139,11 +139,11 @@ while IFS= read -r rel; do
 done < <(comm -23 "$REMOTEF" "$LOCAL")
 [ "$DEL" -gt 0 ] && log "Orfani rimossi dal remoto: $DEL"
 
-# 4) Manifest informativo
+# 4) Informational manifest
 cp -f "$LOCAL" "$MANIFEST" 2>/dev/null || true
 rm -f "$LOCAL" "$REMOTEF"
 
-# 5) Alert email se il mirror ha avuto errori (coerente con backup_offsite.sh)
+# 5) Alert email if the mirror had errors (consistent with backup_offsite.sh)
 if [ "$FAILED" -gt 0 ]; then
     log "Mirror Proton terminato con ${FAILED} errori -> invio alert email"
     send_alert_email "ERRORE mirror Proton Drive" \

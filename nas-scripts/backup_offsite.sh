@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ignora SIGHUP per sopravvivere alla chiusura del terminale
+# Ignore SIGHUP to survive the terminal being closed
 trap '' HUP
 
 # =============================================================================
-# BACKUP OFFSITE — Borg (mirror Proton via proton_cli_backup.sh + timer)
+# OFFSITE BACKUP — Borg (Proton mirror via proton_cli_backup.sh + timer)
 # =============================================================================
-# Backup incrementale con Borg. Mirror su Proton Drive via CLI ufficiale
+# Incremental backup with Borg. Mirror to Proton Drive through the official CLI
 # (proton_cli_backup.sh, systemd user timer).
-# Cron consigliato: 0 3 * * * /mnt/nas2/nas-scripts/backup_offsite.sh
+# Recommended cron: 0 3 * * * /mnt/nas2/nas-scripts/backup_offsite.sh
 #
-# Sorgenti backuppate:
+# Backed-up sources:
 #   docker/data/: certbot, icloud-photos, immich,
-#                 nginx, jellyfin, nextcloud (esc. db/),
+#                 nginx, jellyfin, nextcloud (excl. db/),
 #                 nextcloud-db-dumps, sqlite-snapshots, vaultwarden,
-#                 syncthing/obsidian (escluso com.whatsapp)
+#                 syncthing/obsidian (excl. com.whatsapp)
 #   docker/:      kickstart, scripts,
 #                 docker-compose.yml, .env, *.sh
 #   nas2/:        media (ebooks+music), nas-scripts,
 #
-# Dump DB pre-borg:
-#   - immich postgres -> data/immich/db_dump.sql.gz (overwrite ogni run)
-#   - nextcloud mariadb -> data/nextcloud-db-dumps/nextcloud-N.sql.gz (rotazione 7gg)
+# DB dumps before borg:
+#   - immich postgres -> data/immich/db_dump.sql.gz (overwritten every run)
+#   - nextcloud mariadb -> data/nextcloud-db-dumps/nextcloud-N.sql.gz (7-day rotation)
 #   - sqlite (vaultwarden, jellyfin) -> data/sqlite-snapshots/ (lock-safe)
 # =============================================================================
 
@@ -34,13 +34,13 @@ HOSTNAME="$(hostname -s)"
 DATE="$(date +%Y-%m-%d_%H-%M)"
 ARCHIVE="${HOSTNAME}-${DATE}"
 
-# Sorgenti
+# Sources
 DOCKER_DIR="/mnt/nas2/docker"
 MEDIA_DIR="/mnt/nas2/media"
 NAS_SCRIPTS="/mnt/nas2/nas-scripts"
-INCUS_CONFIG="/mnt/nas2/incus-config-backup"   # config leggera Incus (certificati + config, no VM)
+INCUS_CONFIG="/mnt/nas2/incus-config-backup"   # light Incus config (certificates + config, no VMs)
 
-# --- Funzioni ----------------------------------------------------------------
+# --- Functions ---------------------------------------------------------------
 
 log() { echo "$(date -Is) - $*" >> "$LOGFILE"; }
 
@@ -57,7 +57,7 @@ die() {
     exit 1
 }
 
-# Invia email di notifica (usa SMTP condiviso da .env, fallback SMART_*)
+# Send a notification email (uses the shared SMTP from .env, fallback SMART_*)
 send_backup_email() {
     local subject="$1" body="$2"
     local env_file="/mnt/nas2/docker/.env"
@@ -90,9 +90,9 @@ send_backup_email() {
     local curl_tls=()
     [ "$smtp_ssl" = "true" ] || [ "$smtp_tls" = "true" ] && curl_tls=(--ssl-reqd)
 
-    # Precalcola il from-name FUORI dall'heredoc: un default con apostrofo
-    # (es. "REDACTED_BRAND' Services") dentro ${var:-...} in un heredoc rompe il
-    # parsing bash ("bad substitution"). Qui l'apostrofo e' innocuo.
+    # Precompute the from-name OUTSIDE the heredoc: a default with an apostrophe
+    # (e.g. "REDACTED_BRAND' Services") inside ${var:-...} in a heredoc breaks bash
+    # parsing ("bad substitution"). Here the apostrophe is harmless.
     local from_name="${smtp_from_name:-REDACTED_BRAND Services}"
 
     curl -s --max-time 30 --url "$smtp_url" \
@@ -118,9 +118,9 @@ MAILEOF
     return $rc
 }
 
-# --- Pre-check ---------------------------------------------------------------
+# --- Pre-checks --------------------------------------------------------------
 
-# Lock: un solo backup alla volta
+# Lock: only one backup at a time
 if [ -f "$LOCKFILE" ]; then
     LOCK_PID=$(cat "$LOCKFILE" 2>/dev/null || true)
     if kill -0 "$LOCK_PID" 2>/dev/null; then
@@ -133,7 +133,7 @@ fi
 echo $$ > "$LOCKFILE"
 trap cleanup EXIT
 
-# Trap per crash imprevisti (set -e): invia email prima di uscire
+# Trap for unexpected crashes (set -e): send an email before exiting
 on_error() {
     local exit_code=$? lineno=${BASH_LINENO[0]}
     log "CRASH: script terminato inaspettatamente alla riga ${lineno} (exit ${exit_code})"
@@ -142,27 +142,27 @@ on_error() {
 }
 trap on_error ERR
 
-# Verifica mount
+# Check the mount
 mountpoint -q "/mnt/nas2" || die "/mnt/nas2 non montato"
 
-# Verifica passphrase
+# Check the passphrase
 [ -f "$PASSPHRASE_FILE" ] || die "File passphrase mancante: $PASSPHRASE_FILE"
 export BORG_PASSCOMMAND="cat $PASSPHRASE_FILE"
 
-# Verifica repo
+# Check the repo
 [ -d "$REPO/data" ] || die "Repo Borg non trovato: $REPO"
 
-# --- Step 1a: Dump PostgreSQL di Immich --------------------------------------
+# --- Step 1a: Immich PostgreSQL dump -----------------------------------------
 
 log "=== BACKUP OFFSITE START ==="
 
 IMMICH_DUMP="${DOCKER_DIR}/data/immich/db_dump.sql.gz"
 if docker ps --format '{{.Names}}' | grep -q '^immich_postgres$'; then
     log "Dump PostgreSQL immich..."
-    # Il superutente del DB e' POSTGRES_USER del compose (IMMICH_DB_USERNAME), non "postgres"
+    # The DB superuser is the compose POSTGRES_USER (IMMICH_DB_USERNAME), not "postgres"
     IMMICH_DB_USER=$(grep '^IMMICH_DB_USERNAME=' "${DOCKER_DIR}/.env" | tail -1 | cut -d= -f2- | tr -d "\"'")
     IMMICH_DB_USER=${IMMICH_DB_USER:-immich}
-    # Dump su file temporaneo: il dump precedente si sostituisce solo se il nuovo e' valido
+    # Dump to a temporary file: the previous dump is replaced only if the new one is valid
     if docker exec immich_postgres pg_dumpall -U "$IMMICH_DB_USER" 2>>"$LOGFILE" | gzip > "${IMMICH_DUMP}.tmp" \
         && [ "$(stat -c%s "${IMMICH_DUMP}.tmp")" -gt 1024 ]; then
         mv -f "${IMMICH_DUMP}.tmp" "$IMMICH_DUMP"
@@ -175,14 +175,14 @@ else
     log "WARN: container immich_postgres non attivo, skip dump DB"
 fi
 
-# --- Step 1b: Dump MariaDB di Nextcloud --------------------------------------
-# Il dump SQL è essenziale per restore consistente (i file binari MariaDB sotto
-# data/nextcloud/db copiati a caldo possono essere corrotti). Tiene 7 dump
-# rotanti per giorno della settimana (sovrascritti ogni settimana).
+# --- Step 1b: Nextcloud MariaDB dump -----------------------------------------
+# The SQL dump is essential for a consistent restore (the MariaDB binary files under
+# data/nextcloud/db copied while live can be corrupted). Keeps 7 rotating
+# dumps, one per day of the week (overwritten every week).
 
 NC_DUMP_DIR="${DOCKER_DIR}/data/nextcloud-db-dumps"
 mkdir -p "$NC_DUMP_DIR"
-NC_DUMP="${NC_DUMP_DIR}/nextcloud-$(date +%u).sql.gz"  # 1=lun .. 7=dom
+NC_DUMP="${NC_DUMP_DIR}/nextcloud-$(date +%u).sql.gz"  # 1=Mon .. 7=Sun
 if docker ps --format '{{.Names}}' | grep -q '^nextcloud_mariadb$'; then
     log "Dump MariaDB nextcloud..."
     NC_DB_PASS=$(grep '^NEXTCLOUD_DB_ROOT_PASSWORD=' "${DOCKER_DIR}/.env" | cut -d= -f2-)
@@ -200,10 +200,10 @@ else
     log "WARN: container nextcloud_mariadb non attivo, skip dump DB"
 fi
 
-# --- Step 1c: Snapshot consistenti SQLite ------------------------------------
-# vaultwarden, jellyfin usano SQLite (WAL mode con scritture vive).
-# Copiare il file a caldo può produrre DB corrotti. Usiamo `sqlite3 .backup`
-# (host-side, lock-safe via WAL checkpoint). Richiede pacchetto sqlite3.
+# --- Step 1c: Consistent SQLite snapshots ------------------------------------
+# vaultwarden and jellyfin use SQLite (WAL mode with live writes).
+# Copying the file while live can produce corrupted DBs. We use `sqlite3 .backup`
+# (host-side, lock-safe via WAL checkpoint). Requires the sqlite3 package.
 
 sqlite_snapshot() {
     local label="$1" src="$2" out="$3"
@@ -228,7 +228,7 @@ sqlite_snapshot vaultwarden    "${DOCKER_DIR}/data/vaultwarden/db.sqlite3"      
 sqlite_snapshot jellyfin       "${DOCKER_DIR}/data/jellyfin/config/data/jellyfin.db" "${SNAP_DIR}/jellyfin.db"
 sqlite_snapshot jellyfin-lib   "${DOCKER_DIR}/data/jellyfin/config/data/library.db"  "${SNAP_DIR}/jellyfin-library.db"
 
-# --- Step 2: Borg create (incrementale, deduplica) ---------------------------
+# --- Step 2: Borg create (incremental, deduplicated) -------------------------
 
 log "Borg create: ${ARCHIVE}..."
 
@@ -296,17 +296,17 @@ borg compact "${REPO}" >> "$LOGFILE" 2>&1 || true
 
 log "Borg prune + compact completato"
 
-# Mantieni il repo leggibile da REDACTED_HOSTNAME: borg gira come root e crea i segmenti
-# 0600 root; il mirror Proton via CLI ufficiale gira come REDACTED_HOSTNAME (keyring
-# per-utente) e deve poterli leggere. Il repo e' Borg-cifrato: ownership REDACTED_HOSTNAME OK.
+# Keep the repo readable by REDACTED_HOSTNAME: borg runs as root and creates the 0600 root
+# segments; the Proton mirror through the official CLI runs as REDACTED_HOSTNAME (per-user
+# keyring) and must be able to read them. The repo is Borg-encrypted: REDACTED_HOSTNAME ownership is OK.
 chown -R REDACTED_HOSTNAME:REDACTED_HOSTNAME "${REPO}" 2>/dev/null || true
 log "Repo offsite chown -> REDACTED_HOSTNAME (per mirror Proton CLI)"
 
-# --- Step 4: Mirror su Proton Drive -----------------------------------------
-# Gestito separatamente dal CLI ufficiale Proton (proton_cli_backup.sh) via
-# systemd USER timer "proton-cli-backup.timer" (03:30). Qui: solo borg + chown repo.
+# --- Step 4: Mirror to Proton Drive -----------------------------------------
+# Handled separately by the official Proton CLI (proton_cli_backup.sh) via the
+# systemd USER timer "proton-cli-backup.timer" (03:30). Here: only borg + repo chown.
 
-# --- Fine --------------------------------------------------------------------
+# --- End ---------------------------------------------------------------------
 
 REPO_SIZE=$(du -sh "$REPO" | cut -f1)
 log "=== BACKUP OFFSITE DONE === (repo: ${REPO_SIZE})"

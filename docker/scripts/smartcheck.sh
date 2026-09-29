@@ -12,20 +12,20 @@ set -eu
 : "${SMTP_FROM_NAME:=SMART Monitor}"
 : "${SMTP_SSL:=false}"
 : "${SMTP_EXPLICIT_TLS:=false}"
-# Soglie di allerta (configurabili via env)
-: "${SMART_TEMP_WARN:=45}"       # °C — warning temperatura (longevità degrada >40°C)
-: "${SMART_TEMP_CRIT:=50}"       # °C — critico temperatura
-: "${SMART_REALLOCATED_WARN:=1}" # settori ricollocati (qualsiasi = problema)
-: "${SMART_PENDING_WARN:=1}"     # settori pending (qualsiasi = problema)
-: "${SMART_CRC_WARN:=1}"         # errori UDMA CRC (indicano cavo/enclosure USB)
-: "${SMART_CMD_TIMEOUT_WARN:=1}" # command timeout (USB disconnect imminente)
-: "${SMART_SPIN_RETRY_WARN:=1}"  # spin retry (alimentazione/motore)
+# Alert thresholds (configurable via env)
+: "${SMART_TEMP_WARN:=45}"       # °C — temperature warning (longevity degrades above 40°C)
+: "${SMART_TEMP_CRIT:=50}"       # °C — temperature critical
+: "${SMART_REALLOCATED_WARN:=1}" # reallocated sectors (any = problem)
+: "${SMART_PENDING_WARN:=1}"     # pending sectors (any = problem)
+: "${SMART_CRC_WARN:=1}"         # UDMA CRC errors (point to the cable/USB enclosure)
+: "${SMART_CMD_TIMEOUT_WARN:=1}" # command timeout (imminent USB disconnect)
+: "${SMART_SPIN_RETRY_WARN:=1}"  # spin retry (power/motor)
 
 LOG_DIR=/var/log/smart
 LOG_FILE="$LOG_DIR/smartcheck.log"
 mkdir -p "$LOG_DIR"
 
-# Log su stderr (per docker logs) e su file persistente
+# Log to stderr (for docker logs) and to a persistent file
 log() {
     printf '%s\n' "$*" >> "$LOG_FILE"
     printf '%s\n' "$*" >&2
@@ -89,24 +89,24 @@ check_device() {
         return 0
     fi
 
-    # Legge tutti gli attributi SMART una volta sola
+    # Read all SMART attributes once
     full=$(smartctl -d sat -a "$dev" 2>&1)
 
-    # Helper: estrae il primo valore RAW (campo 10) per un attributo ID
-    # Filtra solo righe SMART (con flag hex in colonna 3) per evitare contaminazione da self-test
+    # Helper: extract the first RAW value (field 10) for an attribute ID
+    # Filter only SMART rows (with the hex flag in column 3) to avoid contamination from self-test
     get_raw() {
         echo "$full" | awk -v id="$1" '$1 == id && $3 ~ /^0x/ {print $10}'
     }
 
-    # --- Salute generale ---
+    # --- Overall health ---
     health=$(echo "$full" | grep "overall-health" | tr -d '\r')
     log "[$(date)] $dev: $health"
     if echo "$health" | grep -qi "FAILED"; then
         critical="$critical\n[CRITICO] Salute generale: FAILED"
     fi
 
-    # --- Temperatura (ID 194 preferito, fallback a 190) ---
-    # Il campo 10 contiene il valore numerico (es: "47" da "47 (0 19 0 0 0)")
+    # --- Temperature (ID 194 preferred, fallback to 190) ---
+    # Field 10 holds the numeric value (e.g. "47" from "47 (0 19 0 0 0)")
     temp=$(get_raw 194)
     if [ -z "$temp" ] || ! [ "$temp" -eq "$temp" ] 2>/dev/null; then
         temp=$(get_raw 190)
@@ -119,13 +119,13 @@ check_device() {
         fi
     fi
 
-    # --- Settori ricollocati (ID 5) ---
+    # --- Reallocated sectors (ID 5) ---
     val=$(get_raw 5)
     if [ -n "$val" ] && [ "$val" -ge "$SMART_REALLOCATED_WARN" ] 2>/dev/null; then
         critical="$critical\n[CRITICO] Reallocated sectors: $val"
     fi
 
-    # --- Spin Retry Count (ID 10) — alimentazione/motore ---
+    # --- Spin Retry Count (ID 10) — power/motor ---
     val=$(get_raw 10)
     if [ -n "$val" ] && [ "$val" -ge "$SMART_SPIN_RETRY_WARN" ] 2>/dev/null; then
         warnings="$warnings\n[WARNING] Spin retry count: $val — verificare alimentazione"
@@ -137,9 +137,9 @@ check_device() {
         critical="$critical\n[CRITICO] Reported uncorrectable errors: $val"
     fi
 
-    # --- Command Timeout (ID 188) — fondamentale per USB ---
-    # REDACTED_DISK_VENDOR raw è 64bit: bits 0-15 = timeout count. Usa awk per il masking
-    # (busybox sh potrebbe non gestire numeri >2^32)
+    # --- Command Timeout (ID 188) — essential for USB ---
+    # REDACTED_DISK_VENDOR raw is 64-bit: bits 0-15 = timeout count. Use awk for the masking
+    # (busybox sh may not handle numbers >2^32)
     raw188=$(get_raw 188)
     if [ -n "$raw188" ]; then
         val=$(echo "$raw188" | awk '{v=$1+0; if(v>65535){printf "%d",v%65536}else{print v}}')
@@ -148,19 +148,19 @@ check_device() {
         fi
     fi
 
-    # --- Settori pending (ID 197) ---
+    # --- Pending sectors (ID 197) ---
     val=$(get_raw 197)
     if [ -n "$val" ] && [ "$val" -ge "$SMART_PENDING_WARN" ] 2>/dev/null; then
         critical="$critical\n[CRITICO] Current pending sectors: $val"
     fi
 
-    # --- Settori uncorrectable offline (ID 198) ---
+    # --- Offline uncorrectable sectors (ID 198) ---
     val=$(get_raw 198)
     if [ -n "$val" ] && [ "$val" -gt 0 ] 2>/dev/null; then
         critical="$critical\n[CRITICO] Offline uncorrectable sectors: $val"
     fi
 
-    # --- UDMA CRC errors (ID 199) — cavo/enclosure USB ---
+    # --- UDMA CRC errors (ID 199) — cable/USB enclosure ---
     val=$(get_raw 199)
     if [ -n "$val" ] && [ "$val" -ge "$SMART_CRC_WARN" ] 2>/dev/null; then
         warnings="$warnings\n[WARNING] UDMA CRC errors: $val — verificare cavo/enclosure USB"
@@ -172,9 +172,9 @@ check_device() {
         warnings="$warnings\n[WARNING] Multi-zone error rate: $val"
     fi
 
-    # --- Power On Hours (informativo) + log riepilogo ---
+    # --- Power On Hours (informational) + summary log ---
     poh=$(get_raw 9)
-    # Ricalcola command timeout mascherato per il riepilogo
+    # Recompute the masked command timeout for the summary
     _ct_raw=$(get_raw 188)
     _ct=$(echo "${_ct_raw:-0}" | awk '{v=$1+0; if(v>65535){printf "%d",v%65536}else{print v}}')
     log "[$(date)] $dev: temp=${temp:-?}°C power_on=${poh:-?}h reallocated=$(get_raw 5) pending=$(get_raw 197) crc=$(get_raw 199) cmd_timeout=${_ct} uncorrect=$(get_raw 187) offline_uncorr=$(get_raw 198) spin_retry=$(get_raw 10) multizone=$(get_raw 200)"
@@ -187,7 +187,7 @@ check_device() {
         log "[$(date)] $dev WARNING: $(printf '%b' "$warnings" | tr '\n' ' ')"
     fi
 
-    # Restituisce messaggi per email
+    # Return messages for email
     printf '%b' "${critical}${warnings}"
 }
 
@@ -196,7 +196,7 @@ write_msmtp_config || true
 
 log "[$(date)] === smartcheck avviato (dispositivi: $SMART_DEVICES, intervallo: $SMART_CHECK_INTERVAL) ==="
 
-# Notifica avvio per verificare SMTP
+# Startup notification to verify SMTP
 send_alert "[SMART] Servizio avviato" "Il container smartcheck è stato avviato correttamente su $(hostname) alle $(date)."
 
 while true; do

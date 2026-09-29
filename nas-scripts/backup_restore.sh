@@ -2,18 +2,18 @@
 set -euo pipefail
 
 # =============================================================================
-# BACKUP OFFSITE — Script di ripristino
+# OFFSITE BACKUP — restore script
 # =============================================================================
-# Ripristina file dal repository Borg (locale o scaricato da Proton Drive).
+# Restores files from the Borg repository (local or downloaded from Proton Drive).
 #
-# Uso:
-#   ./backup_restore.sh list                       — Mostra tutti gli archivi
-#   ./backup_restore.sh info <archivio>            — Dettagli di un archivio
-#   ./backup_restore.sh ls <archivio> [percorso]   — Lista file in un archivio
-#   ./backup_restore.sh extract <archivio> <dest> [percorso...]
-#                                                  — Estrai file
-#   ./backup_restore.sh download                   — Scarica repo da Proton Drive
-#   ./backup_restore.sh restore-immich-db          — Ripristina DB Immich
+# Usage:
+#   ./backup_restore.sh list                       — Show all archives
+#   ./backup_restore.sh info <archive>             — Details of an archive
+#   ./backup_restore.sh ls <archive> [path]        — List files in an archive
+#   ./backup_restore.sh extract <archive> <dest> [path...]
+#                                                  — Extract files
+#   ./backup_restore.sh download                   — Download the repo from Proton Drive
+#   ./backup_restore.sh restore-immich-db          — Restore the Immich DB
 # =============================================================================
 
 RED='\033[0;31m'
@@ -30,7 +30,7 @@ warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 info() { echo -e "${CYAN}[i]${NC} $*"; }
 
-# Verifica passphrase
+# Check the passphrase
 check_passphrase() {
     if [ ! -f "$PASSPHRASE_FILE" ]; then
         err "File passphrase mancante: $PASSPHRASE_FILE
@@ -41,7 +41,7 @@ Inseriscila manualmente:
     export BORG_PASSCOMMAND="cat $PASSPHRASE_FILE"
 }
 
-# Verifica che il repo esista
+# Check that the repo exists
 check_repo() {
     if [ ! -d "$REPO/data" ]; then
         err "Repository Borg non trovato in $REPO
@@ -51,7 +51,7 @@ Se il disco è stato riformattato, scarica prima il repo da Proton Drive:
 }
 
 # =============================================================================
-# Comandi
+# Commands
 # =============================================================================
 
 cmd_list() {
@@ -129,7 +129,7 @@ cmd_download() {
     mkdir -p "$parent"
     info "Download ricorsivo $REMOTE -> $REPO (puo' richiedere molto tempo)..."
     PD filesystem download "$REMOTE" "$parent" || err "Download fallito"
-    # filesystem download crea "<parent>/tidepool": normalizza su $REPO
+    # filesystem download creates "<parent>/tidepool": normalize to $REPO
     if [ -d "$parent/tidepool/data" ] && [ "$parent/tidepool" != "$REPO" ]; then
         rm -rf "$REPO"; mv "$parent/tidepool" "$REPO"
     fi
@@ -187,7 +187,7 @@ cmd_restore_immich_db() {
 }
 
 # =============================================================================
-# Guida rapida
+# Quick guide
 # =============================================================================
 
 cmd_help() {

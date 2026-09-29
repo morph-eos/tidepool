@@ -4,16 +4,16 @@
 # SYSTEM CHECK - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
 # 
-# Script di verifica per controllare che tutto sia configurato correttamente
-# prima del deployment. Installa automaticamente i pacchetti mancanti su Ubuntu.
+# Verification script to check that everything is configured correctly
+# before deployment. Automatically installs missing packages on Ubuntu.
 #
 # Usage: ./check.sh [--install]
-#        --install: Installa automaticamente i pacchetti mancanti
+#        --install: automatically install missing packages
 # ============================================================================
 
 set -e
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -25,14 +25,14 @@ print_success() { echo -e "${GREEN}✅${NC} $1"; }
 print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
 print_error() { echo -e "${RED}❌${NC} $1"; }
 
-# Controlla se il flag --install è stato passato
+# Check whether the --install flag was passed
 AUTO_INSTALL=false
 if [ "$1" = "--install" ]; then
     AUTO_INSTALL=true
     print_info "Modalità auto-install attivata"
 fi
 
-# Funzione per installare pacchetti mancanti
+# Function to install missing packages
 install_package() {
     local package=$1
     local description=$2
@@ -54,7 +54,7 @@ echo "==========================================="
 
 ERRORS=0
 
-# Verifica Docker
+# Check Docker
 print_info "Controllo Docker..."
 if command -v docker > /dev/null 2>&1; then
     if docker info > /dev/null 2>&1; then
@@ -80,7 +80,7 @@ else
     fi
 fi
 
-# Verifica Docker Compose
+# Check Docker Compose
 print_info "Controllo Docker Compose..."
 if docker compose version > /dev/null 2>&1; then
     COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || docker compose version | awk '{print $NF}')
@@ -94,12 +94,12 @@ else
     fi
 fi
 
-# Verifica file .env
+# Check the .env file
 print_info "Controllo configurazione..."
 if [ -f ".env" ]; then
     source .env
     
-    # Controlla email
+    # Check email
     if [ -z "$EMAIL" ] || [ "$EMAIL" = "tua-email@example.com" ]; then
         print_error "EMAIL non configurata nel file .env"
         ERRORS=$((ERRORS+1))
@@ -107,7 +107,7 @@ if [ -f ".env" ]; then
         print_success "Email configurata: $EMAIL"
     fi
     
-    # Controlla password Immich
+    # Check the Immich password
     if [ -z "$IMMICH_DB_PASSWORD" ] || [ "$IMMICH_DB_PASSWORD" = "CAMBIA_QUESTA_PASSWORD_IMMICH" ]; then
         print_error "IMMICH_DB_PASSWORD non configurata nel file .env"
         ERRORS=$((ERRORS+1))
@@ -115,7 +115,7 @@ if [ -f ".env" ]; then
         print_success "Password Immich configurata"
     fi
     
-    # Controlla configurazione Jellyfin
+    # Check the Jellyfin configuration
     if [ -z "$JELLYFIN_MEDIA" ] || [ "$JELLYFIN_MEDIA" = "/path/to/your/media" ]; then
         print_warning "JELLYFIN_MEDIA non configurato nel file .env"
         print_info "Configura i percorsi reali dei tuoi file media"
@@ -132,15 +132,15 @@ else
     print_error "File .env non trovato"
     print_info "Creazione file .env template..."
     
-    # Crea il file .env template automaticamente
+    # Create the .env template automatically
     cat > .env << 'EOF'
 # REDACTED_HOSTNAME_TC Cloud Platform Environment Variables
-# Modifica questi valori con le tue configurazioni
+# Edit these values with your own settings
 
-# Email per certificati Let's Encrypt (OBBLIGATORIO)
+# Email for Let's Encrypt certificates (REQUIRED)
 EMAIL=tua-email@example.com
 
-# Configurazione Immich
+# Immich configuration
 IMMICH_VERSION=release
 IMMICH_TZ=Europe/Rome
 IMMICH_DATA=./data/immich/library
@@ -149,7 +149,7 @@ IMMICH_DB_PASSWORD=CAMBIA_QUESTA_PASSWORD_IMMICH
 IMMICH_DB_USERNAME=immich
 IMMICH_DB_DATABASE_NAME=immich
 
-# Configurazione Jellyfin (Media Server)
+# Jellyfin configuration (Media Server)
 JELLYFIN_TZ=Europe/Rome
 JELLYFIN_UID=1000
 JELLYFIN_GID=1000
@@ -169,7 +169,7 @@ EOF
     ERRORS=$((ERRORS+1))
 fi
 
-# Verifica file necessari
+# Check required files
 print_info "Controllo file configurazione..."
 for file in "docker-compose.yml" "data/nginx/nginx.conf" "kickstart/docker-compose.yaml" "kickstart/nginx.conf"; do
     if [ -f "$file" ]; then
@@ -180,7 +180,7 @@ for file in "docker-compose.yml" "data/nginx/nginx.conf" "kickstart/docker-compo
     fi
 done
 
-# Verifica script
+# Check scripts
 print_info "Controllo script..."
 for script in "deploy.sh" "utils.sh"; do
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -190,10 +190,10 @@ for script in "deploy.sh" "utils.sh"; do
     fi
 done
 
-# Verifica e installa strumenti aggiuntivi
+# Check and install additional tools
 print_info "Controllo strumenti aggiuntivi..."
 
-# Verifica curl
+# Check curl
 if ! command -v curl > /dev/null 2>&1; then
     print_warning "curl non installato"
     if install_package "curl" "curl"; then
@@ -201,7 +201,7 @@ if ! command -v curl > /dev/null 2>&1; then
     fi
 fi
 
-# Verifica netstat
+# Check netstat
 if ! command -v netstat > /dev/null 2>&1; then
     print_warning "netstat non installato"
     if install_package "net-tools" "net-tools (netstat)"; then
@@ -209,7 +209,7 @@ if ! command -v netstat > /dev/null 2>&1; then
     fi
 fi
 
-# Verifica nslookup
+# Check nslookup
 if ! command -v nslookup > /dev/null 2>&1; then
     print_warning "nslookup non installato"
     if install_package "dnsutils" "dnsutils (nslookup)"; then
@@ -217,7 +217,8 @@ if ! command -v nslookup > /dev/null 2>&1; then
     fi
 fi
 
-# Verifica regole udev per dischi
+
+# Check udev rules for disks
 print_info "Controllo regole udev..."
 UDEV_FILE="/etc/udev/rules.d/99-smartcheck-disks.rules"
 if [ -f "$UDEV_FILE" ]; then
@@ -231,7 +232,7 @@ else
     print_warning "Regole udev non trovate ($UDEV_FILE) — esegui kickstart o setup_disk.sh"
 fi
 
-# Verifica UFW
+# Check UFW
 print_info "Controllo UFW..."
 if command -v ufw > /dev/null 2>&1; then
     if sudo ufw status 2>/dev/null | grep -q "Status: active"; then
@@ -243,7 +244,7 @@ else
     print_warning "UFW non installato"
 fi
 
-# Verifica Avahi
+# Check Avahi
 print_info "Controllo Avahi..."
 if systemctl is-active avahi-daemon &>/dev/null; then
     if grep -q "allow-interfaces" /etc/avahi/avahi-daemon.conf 2>/dev/null; then
@@ -255,7 +256,7 @@ else
     print_info "Avahi non attivo"
 fi
 
-# Verifica porte
+# Check ports
 print_info "Controllo porte..."
 for port in 80 443; do
     if netstat -tuln 2>/dev/null | grep ":$port " > /dev/null; then
@@ -265,7 +266,7 @@ for port in 80 443; do
     fi
 done
 
-# Verifica spazio disco
+# Check disk space
 print_info "Controllo spazio disco..."
 DISK_USAGE=$(df . | awk 'NR==2 {print $5}' | sed 's/%//')
 if [ "$DISK_USAGE" -gt 90 ]; then
@@ -276,7 +277,7 @@ else
     print_success "Spazio disco: ${DISK_USAGE}% utilizzato"
 fi
 
-# Verifica DNS (se possibile)
+# Check DNS (if possible)
 print_info "Controllo DNS..."
 if command -v nslookup > /dev/null 2>&1; then
     for domain in "REDACTED_HOSTNAME.REDACTED_DDNS" "immich.REDACTED_HOSTNAME.REDACTED_DDNS" "jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS" "bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS" "webdav.REDACTED_HOSTNAME.REDACTED_DDNS" "syncthing.REDACTED_HOSTNAME.REDACTED_DDNS" "modem.REDACTED_HOSTNAME.REDACTED_DDNS" "cloud.REDACTED_HOSTNAME.REDACTED_DDNS" "www.REDACTED_DOMAIN" "incus.REDACTED_DOMAIN"; do

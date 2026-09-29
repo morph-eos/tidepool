@@ -3,7 +3,7 @@
 # ============================================================================
 # NAS INFO - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Mostra informazioni di sistema rilevando i dischi dinamicamente.
+# Shows system information, detecting the disks dynamically.
 # ============================================================================
 
 GREEN='\033[0;32m'
@@ -16,7 +16,7 @@ echo -e "${GREEN}           REDACTED_HOSTNAME_TC Cloud Platform — Info${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
 echo ""
 
-# === Sistema ===
+# === System ===
 echo -e "${BLUE}📋 Sistema${NC}"
 echo "  Hostname:  $(hostname)"
 echo "  OS:        $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"')"
@@ -26,7 +26,7 @@ echo "  CPU:       $(nproc) core(s)"
 echo "  RAM:       $(free -h | awk '/Mem:/ {printf "%s / %s (used %s)", $3, $2, $5}')"
 echo ""
 
-# === Storage (dinamico) ===
+# === Storage (dynamic) ===
 echo -e "${BLUE}💾 Storage${NC}"
 for mp in /mnt/nas /mnt/nas2 /mnt/timemachine; do
     if mountpoint -q "$mp" 2>/dev/null; then
@@ -39,13 +39,13 @@ for mp in /mnt/nas /mnt/nas2 /mnt/timemachine; do
 done
 echo ""
 
-# === Rete ===
+# === Network ===
 echo -e "${BLUE}🌐 Rete${NC}"
 echo "  IP LAN:    $(hostname -I | awk '{print $1}')"
 echo "  Interface: $(ip route | grep default | awk '{print $5}' | head -1)"
 echo ""
 
-# === Servizi ===
+# === Services ===
 echo -e "${BLUE}🐳 Docker${NC}"
 if docker compose version &>/dev/null; then
     (cd /mnt/nas2/docker && { docker compose ps --format 'table {{.Name}}\t{{.State}}' 2>/dev/null || docker compose ps 2>/dev/null; })

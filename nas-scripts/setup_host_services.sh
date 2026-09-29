@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SETUP HOST SERVICES — installa servizi systemd custom dell'host
+# SETUP HOST SERVICES — installs the host's custom systemd services
 # =============================================================================
-# Idempotente. Installa:
-#   1. wifi-watchdog.{service,timer}      → riconnette REDACTED_WIFI_IFACE se cade
-#   2. nas-scripts-fixperms.{service,timer} → riapplica chmod 0775 su *.sh di
-#      nas-scripts/ e docker/ (Samba/macOS azzera il bit +x)
-#   3. docker-ensure-containers.service   → riavvia container Docker rimasti
-#      exited/created dopo il boot (mount /mnt/nas2 non pronto quando parte
-#      dockerd), ESCLUSI quelli intenzionalmente fermi (certbot, icloud;
-#      vedi DOCKER_ENSURE_EXCLUDE)
+# Idempotent. Installs:
+#   1. wifi-watchdog.{service,timer}      → reconnects REDACTED_WIFI_IFACE if it drops
+#   2. nas-scripts-fixperms.{service,timer} → reapplies chmod 0775 on the *.sh of
+#      nas-scripts/ and docker/ (Samba/macOS clears the +x bit)
+#   3. docker-ensure-containers.service   → restarts Docker containers left
+#      exited/created after boot (/mnt/nas2 mount not ready when
+#      dockerd starts), EXCLUDING the ones intentionally stopped (certbot, icloud;
+#      see DOCKER_ENSURE_EXCLUDE)
 #
-# NON installa (gia' coperti da altri script):
+# Does NOT install (already covered by other scripts):
 #   - incus-* (setup_incus.sh)
 #   - cron jobs (setup_cron.sh)
-#   - kdump (setup_kdump.sh, on-demand)
+#   - kdump (setup_kdump.sh, on demand)
 #
-# Uso:
+# Usage:
 #   sudo bash setup_host_services.sh         # install/update
-#   sudo bash setup_host_services.sh status  # mostra stato
-#   sudo bash setup_host_services.sh remove  # disinstalla
+#   sudo bash setup_host_services.sh status  # show status
+#   sudo bash setup_host_services.sh remove  # uninstall
 # =============================================================================
 set -euo pipefail
 
@@ -29,19 +29,19 @@ ACTION="${1:-install}"
 SCRIPTS_DIR="/mnt/nas2/nas-scripts"
 SYSD="/etc/systemd/system"
 
-# Container che NON vanno mai auto-riavviati da docker-ensure-containers anche se
-# risultano exited/created al boot: run-once (certbot, icloud) o intenzionalmente
-# in pausa (vedi docker-compose.yml profiles). Aggiungere qui eventuali
-# nuovi servizi "activatable"/pausati manualmente.
+# Containers that must NEVER be auto-restarted by docker-ensure-containers even if
+# they are exited/created at boot: run-once (certbot, icloud) or intentionally
+# paused (see docker-compose.yml profiles). Add here any new
+# "activatable"/manually paused services.
 DOCKER_ENSURE_EXCLUDE='certbot\|icloud'
 
 log()  { echo "[host-services] $*"; }
 warn() { echo "[host-services] WARN: $*" >&2; }
 
 # ---------------------------------------------------------------------------
-# Genera il contenuto di un unit file in modo idempotente.
+# Generates the content of a unit file idempotently.
 # write_unit <path> <heredoc-content>
-# Riscrive solo se il contenuto e' cambiato (preserva mtime).
+# Rewrites only if the content changed (preserves mtime).
 # ---------------------------------------------------------------------------
 write_unit() {
     local path="$1"; shift
@@ -50,15 +50,15 @@ write_unit() {
     printf '%s' "$content" > "$tmp"
     if [[ -f "$path" ]] && cmp -s "$tmp" "$path"; then
         rm -f "$tmp"
-        return 1   # 1 = nessun cambiamento
+        return 1   # 1 = no change
     fi
     install -m 644 "$tmp" "$path"
     rm -f "$tmp"
-    return 0       # 0 = aggiornato
+    return 0       # 0 = updated
 }
 
 # ---------------------------------------------------------------------------
-# Cleanup: rimuove la vecchia .path unit (sostituita da .timer)
+# Cleanup: removes the old .path unit (replaced by .timer)
 # ---------------------------------------------------------------------------
 cleanup_legacy() {
     if [[ -f "$SYSD/nas-scripts-fixperms.path" ]]; then
@@ -112,7 +112,7 @@ UNIT
 }
 
 # ---------------------------------------------------------------------------
-# 2. nas-scripts-fixperms (riapplica +x ogni 5 min)
+# 2. nas-scripts-fixperms (reapplies +x every 5 min)
 # ---------------------------------------------------------------------------
 install_fixperms() {
     log "[2/3] nas-scripts-fixperms (timer ogni 5 min)"
@@ -143,15 +143,15 @@ UNIT
         log "  Unit aggiornate, daemon-reload"
         systemctl daemon-reload
     fi
-    # Esegui subito per fissare i permessi
+    # Run right away to fix the permissions
     systemctl start nas-scripts-fixperms.service >/dev/null
     systemctl enable --now nas-scripts-fixperms.timer >/dev/null
     log "  OK ($(systemctl is-active nas-scripts-fixperms.timer))"
 }
 
 # ---------------------------------------------------------------------------
-# 3. docker-ensure-containers (riavvia container exited/created dopo il boot,
-#    escludendo quelli in DOCKER_ENSURE_EXCLUDE)
+# 3. docker-ensure-containers (restarts exited/created containers after boot,
+#    excluding the ones in DOCKER_ENSURE_EXCLUDE)
 # ---------------------------------------------------------------------------
 install_docker_ensure_containers() {
     log "[3/3] docker-ensure-containers.service (esclude: $DOCKER_ENSURE_EXCLUDE)"
@@ -182,7 +182,7 @@ UNIT
 }
 
 # ---------------------------------------------------------------------------
-# Stato
+# Status
 # ---------------------------------------------------------------------------
 show_status() {
     echo "=== Host services custom (gestiti da setup_host_services.sh) ==="

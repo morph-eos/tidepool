@@ -3,11 +3,11 @@
 # ============================================================================
 # SETUP SAMBA + AVAHI - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Configura Samba (SMB) per NAS, NAS2 e Time Machine.
-# Configura Avahi per discovery, ristretto alla LAN.
-# Configura UFW con regole LAN-only per Samba.
+# Configures Samba (SMB) for NAS, NAS2 and Time Machine.
+# Configures Avahi for discovery, restricted to the LAN.
+# Configures UFW with LAN-only rules for Samba.
 #
-# Idempotente: può essere rieseguito senza danni.
+# Idempotent: can be rerun without damage.
 # ============================================================================
 
 set -e
@@ -29,7 +29,7 @@ print_error()   { echo -e "${RED}❌${NC} $1"; }
 echo "=== Configurazione Samba + Avahi ==="
 echo ""
 
-# === Dipendenze ===
+# === Dependencies ===
 print_info "Verifica dipendenze..."
 REQUIRED_PACKAGES="samba samba-vfs-modules attr avahi-daemon"
 MISSING_PACKAGES=""
@@ -58,7 +58,7 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'SAMBAEOF'
    map to guest = never
    dns proxy = no
 
-   # Sicurezza
+   # Security
    restrict anonymous = 2
 
    # Performance
@@ -68,13 +68,13 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'SAMBAEOF'
    dead time = 15
    getwd cache = yes
 
-   # Time Machine support globale
+   # Global Time Machine support
    fruit:aapl = yes
    fruit:nfs_aces = no
    fruit:copyfile = no
    fruit:model = MacSamba
 
-   # VFS modules globali
+   # Global VFS modules
    vfs objects = catia fruit streams_xattr
 
 [NAS]
@@ -91,7 +91,7 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'SAMBAEOF'
    force user = REDACTED_HOSTNAME
    force group = REDACTED_HOSTNAME
    valid users = REDACTED_HOSTNAME
-   # Disabilita mappatura DOS attrs su mode bits (no exec/readonly random)
+   # Disable mapping of DOS attrs to mode bits (no random exec/readonly)
    store dos attributes = no
    delete readonly = yes
    dos filemode = yes
@@ -135,15 +135,15 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'SAMBAEOF'
    force group = REDACTED_HOSTNAME
    valid users = REDACTED_HOSTNAME
 
-   # Time Machine specifico
+   # Time Machine specific
    fruit:time machine = yes
    fruit:time machine max size = 3T
    fruit:advertise_fullsync = true
 
-   # VFS modules per Time Machine
+   # VFS modules for Time Machine
    vfs objects = catia fruit streams_xattr
 
-   # Extended attributes per macOS
+   # Extended attributes for macOS
    ea support = yes
    store dos attributes = yes
    map acl inherit = yes
@@ -155,8 +155,8 @@ SAMBAEOF
 
 print_success "smb.conf scritto"
 
-# === Utente Samba ===
-# NON sovrascrive la password se l'utente Samba esiste già
+# === Samba user ===
+# Does NOT overwrite the password if the Samba user already exists
 if sudo pdbedit -L 2>/dev/null | grep -q "^REDACTED_HOSTNAME:"; then
     print_success "Utente Samba 'REDACTED_HOSTNAME' già esistente — password invariata"
 else
@@ -199,18 +199,18 @@ print_success "Avahi attivo (solo $LAN_INTERFACE)"
 # === UFW: Samba LAN-only ===
 print_info "Configurazione UFW per Samba (LAN only: $LAN_SUBNET)..."
 
-# Rimuovi regole "Samba" generiche (aperte a tutti) se esistono
+# Remove generic "Samba" rules (open to everyone) if they exist
 sudo ufw delete allow Samba 2>/dev/null || true
 sudo ufw delete allow samba 2>/dev/null || true
 
-# Aggiungi regole LAN-only (idempotente — ufw ignora duplicati)
+# Add LAN-only rules (idempotent — ufw ignores duplicates)
 sudo ufw allow from "$LAN_SUBNET" to any port 139 proto tcp comment "Samba LAN only" 2>/dev/null || true
 sudo ufw allow from "$LAN_SUBNET" to any port 445 proto tcp comment "Samba LAN only" 2>/dev/null || true
 sudo ufw allow from "$LAN_SUBNET" to any port 21027 proto udp comment "Syncthing discovery LAN" 2>/dev/null || true
 
 print_success "UFW configurato per Samba LAN-only"
 
-# === Riepilogo ===
+# === Summary ===
 echo ""
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
 print_success "=== Configurazione completata ==="

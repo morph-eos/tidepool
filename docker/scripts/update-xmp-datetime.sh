@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Modalità rigorosa compatibile con sh (niente pipefail)
+# Strict mode compatible with sh (no pipefail)
 set -eu
 
 usage() {
@@ -19,18 +19,18 @@ else
     exit 1
 fi
 
-# Fallback per funzione log se non definita altrove (sh-compat)
+# Fallback for the log function if not defined elsewhere (sh-compat)
 if ! command -v log >/dev/null 2>&1; then
     log() { echo "$(date '+%F %T') $*"; };
 fi
 
-# Debug mode: abilita con XMP_DEBUG=1/true/yes
+# Debug mode: enable with XMP_DEBUG=1/true/yes
 DEBUG_ON=0
 case "${XMP_DEBUG:-0}" in
     1|true|TRUE|yes|YES) DEBUG_ON=1 ;;
 esac
 
-# Util per validare numeri interi
+# Helper to validate integers
 is_digits() {
     case "$1" in
         ''|*[!0-9]*) return 1 ;;
@@ -48,7 +48,7 @@ produce_files() {
             -name '*.*' \
             -print0
     else
-        # Singolo file; escludi se tra quelli da ignorare
+        # Single file; exclude it if it is among those to ignore
         lc=$(echo "$INPUT" | tr '[:upper:]' '[:lower:]')
         case "$lc" in
             *.xmp|*.log|*.json|*.session)
@@ -62,8 +62,8 @@ produce_files | while IFS= read -r -d '' img; do
     xmp="${img}.xmp"
 
     if [ -f "$xmp" ]; then
-        # Sopprimi warning minori e output non necessario di exiftool (-m -q -q)
-        # Prova una serie di tag per la data originale (immagini e video)
+        # Suppress minor warnings and unnecessary exiftool output (-m -q -q)
+        # Try a series of tags for the original date (images and videos)
         orig_dt=$(exiftool -m -q -q -s -s -s -d %s -DateTimeOriginal "$img")
         create_dt=$(exiftool -m -q -q -s -s -s -d %s -CreateDate "$img")
         orig_epoch=""
@@ -88,13 +88,13 @@ produce_files | while IFS= read -r -d '' img; do
             fi
         fi
 
-        # Valida che siano numeri, altrimenti azzera per evitare "bad number"
+        # Validate that they are numbers, otherwise zero them to avoid "bad number"
         is_digits "$orig_epoch" || orig_epoch=""
         is_digits "$xmp_epoch" || xmp_epoch=""
 
-        # Ottieni la data stringa più vecchia dell'originale
+        # Get the oldest date string compared to the original
         if [ -n "$orig_epoch" ] && is_digits "$orig_epoch"; then
-            # date -d "@<epoch>" produce la data locale. Se fallisce lasciamo vuoto.
+            # date -d "@<epoch>" produces the local date. If it fails we leave it empty.
             orig_date_str=$(date -d "@$orig_epoch" '+%Y:%m:%d %H:%M:%S' 2>/dev/null || true)
         else
             orig_date_str=""
@@ -115,7 +115,7 @@ produce_files | while IFS= read -r -d '' img; do
             fi
         fi
 
-        # Se il valore xmp_epoch é ancora più vecchio dell'originale, correggilo (può succedere se la data originale è stata cambiata in avanti)
+        # If the xmp_epoch value is still older than the original, fix it (it can happen if the original date was moved forward)
         if [ -n "$xmp_epoch" ] && [ -n "$orig_epoch" ] && [ "$xmp_epoch" -lt "$orig_epoch" ]; then
             if [ -n "$orig_date_str" ]; then
                 orig_date_str_temp=$(date -d "@$xmp_epoch" '+%Y:%m:%d %H:%M:%S' 2>/dev/null || true)
@@ -128,7 +128,7 @@ produce_files | while IFS= read -r -d '' img; do
             fi
         fi
 
-        # Controlla e correggi photoshop:DateCreated se presente e più nuovo
+        # Check and fix photoshop:DateCreated if present and newer
         if [ -n "$orig_date_str" ]; then
             ps_date=$(exiftool -m -q -q -s -s -s -d %s -Photoshop:DateCreated "$xmp")
             if [ -n "$ps_date" ] && is_digits "$ps_date" && [ "$ps_date" -gt "$orig_epoch" ]; then
@@ -137,7 +137,7 @@ produce_files | while IFS= read -r -d '' img; do
             fi
         fi
 
-        # Controlla e correggi exif:GPSTimeStamp se presente e più nuovo
+        # Check and fix exif:GPSTimeStamp if present and newer
         if [ -n "$orig_date_str" ]; then
             gps_epoch=$(exiftool -m -q -q -s -s -s -d %s -GPSDateTime "$xmp")
             if [ -n "$gps_epoch" ] && is_digits "$gps_epoch" && [ "$gps_epoch" -gt "$orig_epoch" ]; then

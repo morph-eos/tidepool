@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # =============================================================================
-# BACKUP OFFSITE — Script di setup
+# OFFSITE BACKUP — setup script
 # =============================================================================
-# Configura il sistema di backup offsite: Borg + Proton Drive CLI (timer) + cron.
-# Eseguire come utente corrente (richiede sudo per alcune operazioni).
+# Configures the offsite backup system: Borg + Proton Drive CLI (timer) + cron.
+# Run as the current user (needs sudo for some operations).
 #
-# Uso: ./backup_setup.sh
+# Usage: ./backup_setup.sh
 # =============================================================================
 
 RED='\033[0;31m'
@@ -25,7 +25,7 @@ err()  { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 info() { echo -e "${CYAN}[i]${NC} $*"; }
 
 # =============================================================================
-# Step 1: Dipendenze
+# Step 1: Dependencies
 # =============================================================================
 setup_dependencies() {
     echo ""
@@ -53,7 +53,7 @@ setup_dependencies() {
 }
 
 # =============================================================================
-# Step 2: Credenziali
+# Step 2: Credentials
 # =============================================================================
 setup_credentials() {
     echo ""
@@ -61,7 +61,7 @@ setup_credentials() {
     echo "  Step 2: Configura credenziali"
     echo "============================================"
 
-    # Passphrase Borg
+    # Borg passphrase
     local borg_file="$HOME/.borg-offsite-passphrase"
     if [ -f "$borg_file" ]; then
         log "Passphrase Borg già presente: $borg_file"
@@ -74,12 +74,12 @@ setup_credentials() {
         warn "SALVA QUESTA PASSPHRASE IN UN LUOGO SICURO! Senza non puoi ripristinare."
     fi
 
-    # Proton: nessuna password/OTP da salvare — il CLI ufficiale usa login via
-    # browser una-tantum ("proton-drive auth login"), sessione in libsecret.
+    # Proton: no password/OTP to store — the official CLI uses a one-time login via
+    # browser ("proton-drive auth login"), session kept in libsecret.
 }
 
 # =============================================================================
-# Step 3: Repository Borg
+# Step 3: Borg repository
 # =============================================================================
 setup_borg_repo() {
     echo ""
@@ -102,7 +102,7 @@ setup_borg_repo() {
 }
 
 # =============================================================================
-# Step 4: Proton Drive CLI (mirror offsite) + systemd timer
+# Step 4: Proton Drive CLI (offsite mirror) + systemd timer
 # =============================================================================
 setup_proton_cli() {
     echo ""
@@ -144,7 +144,7 @@ setup_cron() {
 }
 
 # =============================================================================
-# Riepilogo
+# Summary
 # =============================================================================
 print_summary() {
     echo ""

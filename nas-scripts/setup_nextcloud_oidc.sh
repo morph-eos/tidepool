@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP NEXTCLOUD OIDC — Redirect URI client OIDC gestiti da Nextcloud
+# SETUP NEXTCLOUD OIDC — OIDC client redirect URIs managed by Nextcloud
 # =============================================================================
-# Nextcloud oidc:create non espone update; per aggiungere redirect URI senza
-# rigenerare client_id/secret usiamo insert idempotenti sulla tabella app OIDC.
+# Nextcloud oidc:create does not expose update; to add redirect URIs without
+# regenerating client_id/secret we use idempotent inserts on the OIDC app table.
 # =============================================================================
 
 DOCKER_DIR="/mnt/nas2/docker"

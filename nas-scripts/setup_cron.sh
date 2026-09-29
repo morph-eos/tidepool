@@ -2,22 +2,22 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP CRON — Configura cron jobs in modo idempotente
+# SETUP CRON — configures cron jobs idempotently
 # =============================================================================
-# Ogni job è identificato da un tag univoco nel commento.
-# Lo script aggiunge/aggiorna solo i job con il proprio tag,
-# senza toccare gli altri cronjob esistenti.
+# Each job is identified by a unique tag in the comment.
+# The script adds/updates only the jobs with its own tag,
+# without touching the other existing cron jobs.
 #
-# Uso:
-#   sudo bash /mnt/nas2/nas-scripts/setup_cron.sh          # installa/aggiorna
-#   sudo bash /mnt/nas2/nas-scripts/setup_cron.sh remove    # rimuove solo i job gestiti
-#   sudo bash /mnt/nas2/nas-scripts/setup_cron.sh status    # mostra stato
+# Usage:
+#   sudo bash /mnt/nas2/nas-scripts/setup_cron.sh          # install/update
+#   sudo bash /mnt/nas2/nas-scripts/setup_cron.sh remove    # remove only the managed jobs
+#   sudo bash /mnt/nas2/nas-scripts/setup_cron.sh status    # show status
 # =============================================================================
 
 TAG="# [managed:nas-scripts]"
 DOCKER_DIR="/mnt/nas2/docker"
 
-# Colori
+# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -28,27 +28,27 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 # --- Job definitions ---
-# Formato: LABEL|SCHEDULE|COMMAND|USER (root o user)
-# SCHEDULE usa crontab syntax
+# Format: LABEL|SCHEDULE|COMMAND|USER (root or user)
+# SCHEDULE uses crontab syntax
 JOBS=(
-    # Restart certbot settimanale (ogni 7 giorni, offset 3 per non collidere con cleanup)
+    # Weekly certbot restart (every 7 days, offset 3 so it does not collide with cleanup)
     "certbot-restart|0 5 */7 * *|cd ${DOCKER_DIR} && docker compose restart certbot 2>/dev/null|user"
-    # Reload cert LE in Incus (symlink, basta restart — 30 min dopo certbot)
+    # Reload LE cert in Incus (symlink, a restart is enough — 30 min after certbot)
     "incus-cert-sync|30 5 */7 * *|systemctl restart incus|root"
-    # Log cleanup settimanale (offset diverso)
+    # Weekly log cleanup (different offset)
     "log-cleanup|0 4 */7 * *|/mnt/nas2/nas-scripts/cleanup_logs.sh|root"
-    # Backup quotidiano: offsite alle 03:00 (dump+borg create, ~1min), poi Proton
-    # Drive mirror via timer utente (03:30, vedi setup_proton_cli_backup.sh).
-    # borg_backup_nas2.sh e' STACCATO alle 04:00 (non piu' incatenato con ';'):
-    # scansiona tutto /mnt/nas2 (piu' pesante, durata non garantita <30min) e
-    # sovrapporsi al mirror Proton (stesso disco /mnt/nas) ha causato contesa
-    # I/O -> soft lockup ext4 il 2026-07-04 (vedi README, sezione Pitfall). REDACTED_DRIVE_TC gira
-    # comunque ogni notte a prescindere dall'esito di backup_offsite.sh.
+    # Daily backup: offsite at 03:00 (dump+borg create, ~1min), then Proton
+    # Drive mirror via user timer (03:30, see setup_proton_cli_backup.sh).
+    # borg_backup_nas2.sh is DETACHED at 04:00 (no longer chained with ';'):
+    # it scans all of /mnt/nas2 (heavier, duration not guaranteed <30min) and
+    # overlapping with the Proton mirror (same /mnt/nas disk) caused I/O contention
+    # -> ext4 soft lockup on 2026-07-04 (see the README, Lessons learned). REDACTED_DRIVE_TC runs
+    # every night anyway, regardless of the outcome of backup_offsite.sh.
     "backup-offsite|0 3 * * *|sudo /mnt/nas2/nas-scripts/backup_offsite.sh|user"
     "backup-nas2-REDACTED_DRIVE|0 4 * * *|sudo /mnt/nas2/nas-scripts/borg_backup_nas2.sh|user"
 )
 
-# --- Funzioni ---
+# --- Functions ---
 
 install_managed_job() {
     local label="$1" schedule="$2" command="$3" target_user="$4"
@@ -61,14 +61,14 @@ install_managed_job() {
         current_crontab=$(crontab -u REDACTED_HOSTNAME -l 2>/dev/null || true)
     fi
 
-    # Rimuovi vecchia entry con stesso label (se esiste)
+    # Remove the old entry with the same label (if it exists)
     local filtered
     filtered=$(echo "$current_crontab" | grep -Fv "${TAG} ${label}" || true)
 
-    # Rimuovi anche entry non-taggate che matchano lo stesso comando (migrazione)
+    # Also remove untagged entries that match the same command (migration)
     filtered=$(echo "$filtered" | grep -v "$(echo "$command" | sed 's/[.*+?^${}()|[\]/\\&/g')" || true)
 
-    # Aggiungi la nuova entry
+    # Add the new entry
     local new_crontab
     if [ -n "$filtered" ]; then
         new_crontab="${filtered}"$'\n'"${cron_line}"
@@ -76,7 +76,7 @@ install_managed_job() {
         new_crontab="${cron_line}"
     fi
 
-    # Rimuovi righe vuote in eccesso e commenti orfani
+    # Remove excess blank lines and orphan comments
     new_crontab=$(echo "$new_crontab" | sed '/^$/d')
 
     if [ "$target_user" = "root" ]; then
@@ -132,12 +132,12 @@ show_status() {
     done
 }
 
-# --- Crea lo script di cleanup log ---
+# --- Create the log cleanup script ---
 create_cleanup_script() {
     cat > /mnt/nas2/nas-scripts/cleanup_logs.sh << 'CLEANUP'
 #!/usr/bin/env bash
 # =============================================================================
-# CLEANUP LOGS — Pulizia settimanale log
+# CLEANUP LOGS — weekly log cleanup
 # =============================================================================
 
 LOG="/var/log/cleanup.log"
@@ -145,25 +145,25 @@ log() { echo "$(date -Is) - $*" >> "$LOG"; }
 
 log "Inizio pulizia log"
 
-# Journald: limita a 200MB
+# Journald: limit to 200MB
 journalctl --vacuum-size=200M >> "$LOG" 2>&1 || true
 
-# Ruota e comprimi log vecchi
+# Rotate and compress old logs
 find /var/log -name "*.log" -size +10M -exec truncate -s 0 {} \; 2>/dev/null
 find /var/log -name "*.gz" -mtime +30 -delete 2>/dev/null
 find /var/log -name "*.1" -mtime +14 -delete 2>/dev/null
 find /var/log -name "*.old" -mtime +14 -delete 2>/dev/null
 
-# Docker: prune log container
+# Docker: prune container logs
 docker system prune -f --volumes --filter "until=168h" >> "$LOG" 2>&1 || true
 
-# Incus DNS log: ruota se > 1MB
+# Incus DNS log: rotate if > 1MB
 if [ -f /var/log/incus-dns.log ] && [ "$(stat -f%z /var/log/incus-dns.log 2>/dev/null || stat -c%s /var/log/incus-dns.log 2>/dev/null)" -gt 1048576 ]; then
     mv /var/log/incus-dns.log /var/log/incus-dns.log.old
     log "Ruotato incus-dns.log"
 fi
 
-# Pulizia apt
+# apt cleanup
 apt-get clean -y >> "$LOG" 2>&1 || true
 
 log "Pulizia completata"

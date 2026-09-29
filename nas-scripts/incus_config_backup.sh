@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Backup LEGGERO della configurazione Incus (NESSUN contenuto delle VM).
+# LIGHT backup of the Incus configuration (NO VM content).
 #
-# Esporta in /mnt/nas2/incus-config-backup/ (output NON versionato in git, coperto
-# dai backup Borg):
-#   - global-db-dump.sql : dump SQL LIVE del DB globale (profili, reti, storage,
-#                          config istanze, e i CERTIFICATI trusted dashboard/API)
-#   - local-db-dump.sql  : dump SQL LIVE del DB locale del nodo
-#   - certs/*.crt        : i certificati client trusted estratti in PEM
-#   - server.crt         : cert pubblico del server (la chiave privata sta nei
-#                          dati certbot, gia' inclusi nei backup)
-#   - yaml/*.yaml        : export leggibili (trust, profili, reti managed,
-#                          storage, config istanze) per ripristino rapido
+# Exports to /mnt/nas2/incus-config-backup/ (output NOT versioned in git, covered
+# by the Borg backups):
+#   - global-db-dump.sql : LIVE SQL dump of the global DB (profiles, networks, storage,
+#                          instance config, and the trusted dashboard/API CERTIFICATES)
+#   - local-db-dump.sql  : LIVE SQL dump of the node's local DB
+#   - certs/*.crt        : the trusted client certificates extracted as PEM
+#   - server.crt         : the server's public cert (the private key lives in the
+#                          certbot data, already included in the backups)
+#   - yaml/*.yaml        : readable exports (trust, profiles, managed networks,
+#                          storage, instance config) for quick restore
 #
-# Usa "incus admin sql ... .dump" per leggere lo stato LIVE (i db.bin su disco
-# sono checkpoint in ritardo rispetto al log raft e perderebbero scritture
-# recenti, es. nuovi certificati).
+# Uses "incus admin sql ... .dump" to read the LIVE state (the db.bin files on disk
+# are checkpoints lagging behind the raft log and would lose recent writes,
+# e.g. new certificates).
 #
-# La cartella sta sotto /mnt/nas2 -> inclusa automaticamente nel backup "REDACTED_DRIVE"
-# (nas2 -> nas, HDD->HDD) e aggiunta alle sorgenti del backup "offsite"
-# (-> Proton Drive). NON include immagini disco VM / storage-pools / images.
+# The folder lives under /mnt/nas2 -> automatically included in the "REDACTED_DRIVE" backup
+# (nas2 -> nas, HDD->HDD) and added to the "offsite" backup sources
+# (-> Proton Drive). Does NOT include VM disk images / storage-pools / images.
 # =============================================================================
 set -uo pipefail
 
@@ -40,7 +40,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 log "Avvio backup config Incus -> $OUT"
 
-# --- 1) Dump SQL LIVE dei DB globale e locale -------------------------------
+# --- 1) LIVE SQL dump of the global and local DBs ---------------------------
 "$INCUS" admin sql global .dump > "$OUT/global-db-dump.sql.new" 2>>"$LOG" \
     || die "dump global fallito"
 [ -s "$OUT/global-db-dump.sql.new" ] || die "dump global vuoto"
@@ -51,7 +51,7 @@ mv -f "$OUT/global-db-dump.sql.new" "$OUT/global-db-dump.sql"
     && mv -f "$OUT/local-db-dump.sql.new" "$OUT/local-db-dump.sql" \
     || log "WARN: dump local non riuscito (non critico)"
 
-# --- 2) Estrai i certificati trusted in PEM (da una copia temp del dump) -----
+# --- 2) Extract the trusted certificates as PEM (from a temp copy of the dump) -----
 rm -f "$OUT"/certs/*.crt 2>/dev/null || true
 if sqlite3 "$TMP/g.db" < "$OUT/global-db-dump.sql" 2>>"$LOG"; then
     while IFS='|' read -r name fp; do
@@ -66,10 +66,10 @@ else
     log "WARN: impossibile estrarre i PEM dal dump"
 fi
 
-# --- 3) Cert pubblico del server --------------------------------------------
+# --- 3) Server public cert --------------------------------------------
 [ -e /var/lib/incus/server.crt ] && cp -L /var/lib/incus/server.crt "$OUT/server.crt" 2>/dev/null || true
 
-# --- 4) Export YAML leggibili (best-effort) ---------------------------------
+# --- 4) Readable YAML exports (best-effort) ---------------------------
 rm -f "$OUT"/yaml/*.yaml 2>/dev/null || true
 "$INCUS" config trust list -f yaml > "$OUT/yaml/trust.yaml" 2>/dev/null || true
 while read -r p; do [ -n "$p" ] && "$INCUS" profile show "$p" > "$OUT/yaml/profile-$p.yaml" 2>/dev/null; done \

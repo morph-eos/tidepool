@@ -3,10 +3,10 @@
 # ============================================================================
 # FIX NAS - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Ripara fstab e rimonta i dischi NAS usando UUID.
-# Rileva i dischi via serial number — sicuro anche se /dev/sdX cambia.
+# Repairs fstab and remounts the NAS disks using UUIDs.
+# Detects the disks by serial number — safe even if /dev/sdX changes.
 #
-# Uso: sudo ./fix_nas.sh
+# Usage: sudo ./fix_nas.sh
 # ============================================================================
 
 set -e
@@ -43,7 +43,7 @@ find_disk_by_serial() {
 echo "=== Riparazione configurazione NAS ==="
 echo ""
 
-# Rileva dischi
+# Detect disks
 DISK1=$(find_disk_by_serial "$NAS_SERIAL")
 DISK2=$(find_disk_by_serial "$NAS2_SERIAL")
 
@@ -67,14 +67,14 @@ sudo umount "$TIMEMACHINE_MOUNT" 2>/dev/null || true
 sudo umount "$NAS_MOUNT" 2>/dev/null || true
 sudo umount "$NAS2_MOUNT" 2>/dev/null || true
 
-# Verifica partizioni disco 1
+# Check the partitions of disk 1
 if [ ! -e "${DISK1}1" ] || [ ! -e "${DISK1}2" ]; then
     print_error "Partizioni ${DISK1}1 / ${DISK1}2 non trovate!"
     sudo fdisk -l "$DISK1"
     exit 1
 fi
 
-# Determina device NAS2 (partizione o disco intero)
+# Determine the NAS2 device (partition or whole disk)
 NAS2_DEV=""
 if [ -e "${DISK2}1" ] && sudo blkid "${DISK2}1" 2>/dev/null | grep -q 'TYPE='; then
     NAS2_DEV="${DISK2}1"

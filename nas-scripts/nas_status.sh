@@ -3,7 +3,7 @@
 # ============================================================================
 # NAS STATUS - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Quick status check — mount, servizi, spazio disco, SMART.
+# Quick status check — mounts, services, disk space, SMART.
 # ============================================================================
 
 GREEN='\033[0;32m'
@@ -18,7 +18,7 @@ warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 echo "=== REDACTED_HOSTNAME_TC Quick Status ==="
 echo ""
 
-# Mount
+# Mounts
 echo "📦 Mount:"
 for mp in /mnt/nas /mnt/nas2 /mnt/timemachine; do
     if mountpoint -q "$mp" 2>/dev/null; then
@@ -32,7 +32,7 @@ echo ""
 
 # Docker
 echo "🐳 Container:"
-for c in nginx immich_server immich_postgres immich_redis immich_machine_learning jellyfin nextcloud nextcloud_mariadb nextcloud_redis vaultwarden syncthing webdav smartcheck  ; do
+for c in nginx immich_server immich_postgres immich_redis immich_machine_learning jellyfin nextcloud nextcloud_mariadb nextcloud_redis vaultwarden syncthing webdav smartcheck; do
     if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
         ok "$c"
     else
@@ -45,7 +45,7 @@ for c in nginx immich_server immich_postgres immich_redis immich_machine_learnin
 done
 echo ""
 
-# Servizi sistema
+# System services
 echo "🔧 Servizi:"
 for svc in smbd avahi-daemon sshd; do
     if systemctl is-active "$svc" &>/dev/null; then
@@ -63,7 +63,7 @@ else
 fi
 echo ""
 
-# SMART (se smartcheck container attivo)
+# SMART (if the smartcheck container is running)
 echo "💽 SMART:"
 if docker ps --format '{{.Names}}' | grep -q smartcheck; then
     for dev in /dev/smartcheck-nas2 /dev/smartcheck-nas; do

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Repo REDACTED_DRIVE non cifrato: consenti accesso senza prompt (era ereditato dal cron.d)
+# Unencrypted REDACTED_DRIVE repo: allow access without a prompt (it was inherited from cron.d)
 export BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes
 
 REPO="/mnt/nas/backup/REDACTED_DRIVE"
@@ -27,8 +27,8 @@ fi
 
 echo "$(date -Is) - Backup start: ${SOURCE} -> ${REPO} (${ARCHIVE})"
 
-# rc 1 = warning (es. file cambiati durante la copia, normale su dati vivi): non e' un errore.
-# Solo rc >= 2 interrompe, cosi' prune e compact girano comunque.
+# rc 1 = warning (e.g. files changed during the copy, normal on live data): not an error.
+# Only rc >= 2 aborts, so prune and compact still run.
 BORG_RC=0
 borg create --progress --stats --compression lz4 --checkpoint-interval 300 "${REPO}::${ARCHIVE}" "${SOURCE}" || BORG_RC=$?
 if [ "$BORG_RC" -ge 2 ]; then

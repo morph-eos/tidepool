@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Setup idempotente del backup via CLI UFFICIALE Proton Drive (sostituto bridge FTP).
-# ESEGUIRE COME REDACTED_HOSTNAME (sessione Proton per-utente, in libsecret).
-#  - installa/aggiorna /usr/local/bin/proton-drive (ultima versione)
-#  - crea il log scrivibile da REDACTED_HOSTNAME
-#  - installa e abilita il systemd USER timer (mirror giornaliero 03:30)
-# LOGIN una-tantum (monitor collegato):  proton-drive auth login
-# Il timer USER eredita D-Bus+keyring dalla sessione autologin di REDACTED_HOSTNAME.
+# Idempotent setup of the backup via the OFFICIAL Proton Drive CLI (replacement for the FTP bridge).
+# RUN AS REDACTED_HOSTNAME (per-user Proton session, in libsecret).
+#  - installs/updates /usr/local/bin/proton-drive (latest version)
+#  - creates the log writable by REDACTED_HOSTNAME
+#  - installs and enables the systemd USER timer (daily mirror 03:30)
+# One-time LOGIN (monitor attached):  proton-drive auth login
+# The USER timer inherits D-Bus+keyring from REDACTED_HOSTNAME's autologin session.
 # =============================================================================
 set -uo pipefail
 TARGET_USER=REDACTED_HOSTNAME
@@ -35,7 +35,7 @@ else
     sudo install -m 0755 "$tmp" "$BIN"; rm -f "$tmp"; echo "$VER" | sudo tee "$MARKER" >/dev/null
     echo "[1] proton-drive installato/aggiornato a $VER (era: ${CUR:-assente})"
 fi
-# Log scrivibile da REDACTED_HOSTNAME
+# Log writable by REDACTED_HOSTNAME
 if [ ! -w "$LOG" ]; then sudo touch "$LOG" && sudo chown "$TARGET_USER":"$TARGET_USER" "$LOG" && echo "[2] log pronto"; else echo "[2] log gia' pronto"; fi
 # systemd USER timer
 mkdir -p "$UDIR"

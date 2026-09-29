@@ -2,22 +2,22 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP NGINX TLS ECDSA — abilita TLS 1.2 realmente utilizzabile su tutti i vhost
+# SETUP NGINX TLS ECDSA — makes TLS 1.2 really usable on all vhosts
 # =============================================================================
-# Il certificato Let's Encrypt condiviso da tutti i vhost e' ECDSA (prime256v1),
-# non RSA. Le liste ssl_ciphers configurate su quasi tutti i vhost pero'
-# contenevano SOLO suite "ECDHE-RSA-*"/"DHE-RSA-*"/AES*-SHA* (nessuna richiede
-# un certificato ECDSA), quindi anche con ssl_protocols che elenca TLSv1.2,
-# nessun cifrario e' mai davvero negoziabile per quel certificato: qualunque
-# client TLS1.2-only (Android <10, player che usano il TLS di sistema come
-# ExoPlayer/DAVx5-OAuth) fallisce l'handshake, mentre TLS1.3 funziona perche'
-# li' la firma e' negoziata separatamente dalla cipher suite.
-# Confermato: il vhost `modem`, che NON sovrascrivono ssl_ciphers con
-# quella lista (usano i default nginx o "HIGH:!aNULL:!MD5"), negoziano TLS1.2
-# senza problemi con ECDHE-ECDSA-AES256-GCM-SHA384.
+# The Let's Encrypt certificate shared by all vhosts is ECDSA (prime256v1),
+# not RSA. However, the ssl_ciphers lists configured on almost all vhosts
+# contained ONLY "ECDHE-RSA-*"/"DHE-RSA-*"/AES*-SHA* suites (none requires
+# an ECDSA certificate), so even with ssl_protocols listing TLSv1.2,
+# no cipher was ever really negotiable for that certificate: any
+# TLS1.2-only client (Android <10, players that use the system TLS such as
+# ExoPlayer/DAVx5-OAuth) fails the handshake, while TLS1.3 works because
+# there the signature is negotiated separately from the cipher suite.
+# Confirmed: the `modem` vhost, which does NOT override ssl_ciphers with
+# that list (they use the nginx defaults or "HIGH:!aNULL:!MD5"), negotiate TLS1.2
+# without problems with ECDHE-ECDSA-AES256-GCM-SHA384.
 #
-# Fix: aggiungere le suite ECDHE-ECDSA-* equivalenti davanti alle liste
-# esistenti (mantenute per fallback RSA se in futuro cambia il certificato).
+# Fix: add the equivalent ECDHE-ECDSA-* suites in front of the
+# existing lists (kept as an RSA fallback in case the certificate changes in the future).
 # =============================================================================
 
 NGINX_CONF="/mnt/nas2/docker/data/nginx/nginx.conf"

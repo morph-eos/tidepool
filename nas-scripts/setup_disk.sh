@@ -3,23 +3,23 @@
 # ============================================================================
 # SETUP DISK - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Configura i dischi NAS in modo sicuro usando i serial number dei dischi.
-# NON usa /dev/sdX hardcoded — rileva dinamicamente via udevadm.
+# Configures the NAS disks safely using the disks' serial numbers.
+# Does NOT use a hardcoded /dev/sdX — detects dynamically via udevadm.
 #
-# Dischi attesi:
-#   - REDACTED_DISK_MODEL (serial REDACTED_DISK_SERIAL): NAS (part1 ~13TB ext4) + TimeMachine (part2 ~3TB HFS+)
-#   - REDACTED_DISK_MODEL (serial REDACTED_DISK_SERIAL): NAS2 (intera ext4)
+# Expected disks:
+#   - REDACTED_DISK_MODEL (serial REDACTED_DISK_SERIAL): NAS (part1 ext4) + TimeMachine (part2 HFS+)
+#   - REDACTED_DISK_MODEL (serial REDACTED_DISK_SERIAL): NAS2 (whole disk, ext4)
 #
-# Uso: ./setup_disk.sh [--force]
-#      --force: salta le conferme interattive
+# Usage: ./setup_disk.sh [--force]
+#      --force: skip the interactive confirmations
 #
-# Lo script è idempotente: se i dischi sono già montati e OK, non fa nulla.
+# The script is idempotent: if the disks are already mounted and OK, it does nothing.
 # ============================================================================
 
 set -e
 
-# === Identificazione dischi via serial number ===
-# Questi sono i serial number fisici dei dischi, NON cambiano mai.
+# === Disk identification via serial number ===
+# These are the disks' physical serial numbers, they NEVER change.
 NAS_SERIAL="REDACTED_DISK_SERIAL"        # REDACTED_DISK_MODEL (NAS + TimeMachine)
 NAS2_SERIAL="REDACTED_DISK_SERIAL"   # REDACTED_DISK_MODEL (NAS2)
 
@@ -28,7 +28,7 @@ TIMEMACHINE_MOUNT="$MOUNT_BASE/timemachine"
 NAS_MOUNT="$MOUNT_BASE/nas"
 NAS2_MOUNT="$MOUNT_BASE/nas2"
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -40,7 +40,7 @@ print_success() { echo -e "${GREEN}✅${NC} $1"; }
 print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
 print_error()   { echo -e "${RED}❌${NC} $1"; }
 
-# Controlla --force
+# Check --force
 AUTO_MODE=false
 [ "${1:-}" = "--force" ] && AUTO_MODE=true
 
@@ -50,7 +50,7 @@ confirm_or_skip() {
     read -p "Premi INVIO per continuare o CTRL+C per annullare... "
 }
 
-# === Funzione: trova device da serial ===
+# === Function: find device from serial ===
 find_disk_by_serial() {
     local serial="$1"
     local found=""
@@ -65,7 +65,7 @@ find_disk_by_serial() {
     echo "$found"
 }
 
-# === Funzione: installa dipendenze ===
+# === Function: install dependencies ===
 install_dependencies() {
     print_info "Verifica dipendenze..."
     REQUIRED_PACKAGES="parted hfsprogs samba avahi-daemon"
@@ -83,7 +83,7 @@ install_dependencies() {
     fi
 }
 
-# === Funzione: crea regole udev per symlink stabili ===
+# === Function: create udev rules for stable symlinks ===
 setup_udev_rules() {
     local UDEV_FILE="/etc/udev/rules.d/99-smartcheck-disks.rules"
     if [ -f "$UDEV_FILE" ]; then
@@ -91,10 +91,10 @@ setup_udev_rules() {
     else
         print_info "Creazione regole udev per symlink stabili..."
         sudo tee "$UDEV_FILE" > /dev/null << 'UDEV'
-# Symlink stabili per smartcheck e identificazione dischi
-# NAS2 (USB, serial REDACTED_DISK_SERIAL) - solo disco intero
+# Stable symlinks for smartcheck and disk identification
+# NAS2 (USB, serial REDACTED_DISK_SERIAL) - whole disk only
 SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL_SHORT}=="REDACTED_DISK_SERIAL", SYMLINK+="smartcheck-nas2"
-# NAS (USB, serial REDACTED_DISK_SERIAL) - solo disco intero
+# NAS (USB, serial REDACTED_DISK_SERIAL) - whole disk only
 SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL_SHORT}=="REDACTED_DISK_SERIAL", SYMLINK+="smartcheck-nas"
 UDEV
         sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=block
@@ -108,8 +108,8 @@ UDEV
     else
         print_info "Creazione regola udev per disabilitare USB autosuspend..."
         sudo tee "$AUTOSUSPEND_FILE" > /dev/null << 'UDEV'
-# Disabilita USB autosuspend per tutti i dispositivi storage USB
-# Previene freeze del sistema causati da disconnessioni random dei dischi USB
+# Disable USB autosuspend for all USB storage devices
+# Prevents system freezes caused by random disconnections of the USB disks
 ACTION=="add", SUBSYSTEM=="usb", DRIVER=="usb", ATTR{idVendor}=="REDACTED_USB_VENDOR_ID", ATTR{idProduct}=="REDACTED_USB_PRODUCT_ID", ATTR{power/control}="on"
 ACTION=="add", SUBSYSTEM=="usb", ATTR{bInterfaceClass}=="08", ATTR{power/control}="on"
 ACTION=="add", SUBSYSTEM=="usb", ATTR{bDeviceClass}=="08", ATTR{power/control}="on"
@@ -119,7 +119,7 @@ UDEV
     fi
 }
 
-# === Rilevamento dischi ===
+# === Disk detection ===
 print_info "Rilevamento dischi via serial number..."
 
 DISK1=$(find_disk_by_serial "$NAS_SERIAL")
@@ -140,19 +140,19 @@ fi
 print_success "NAS trovato: $DISK1 (serial $NAS_SERIAL)"
 print_success "NAS2 trovato: $DISK2 (serial $NAS2_SERIAL)"
 
-# === Installazione dipendenze ===
+# === Dependency installation ===
 install_dependencies
 
-# === Regole udev ===
+# === udev rules ===
 setup_udev_rules
 
-# === Verifica stato attuale ===
+# === Check current state ===
 print_info "Verifica stato mount corrente..."
 
 DISK1_OK=true
 DISK2_OK=true
 
-# Disco 1: verifica NAS e TimeMachine
+# Disk 1: check NAS and TimeMachine
 if mountpoint -q "$NAS_MOUNT" 2>/dev/null; then
     print_success "NAS già montato: $NAS_MOUNT"
 else
@@ -167,7 +167,7 @@ else
     DISK1_OK=false
 fi
 
-# Disco 2: verifica NAS2
+# Disk 2: check NAS2
 if mountpoint -q "$NAS2_MOUNT" 2>/dev/null; then
     print_success "NAS2 già montato: $NAS2_MOUNT"
 else
@@ -175,7 +175,7 @@ else
     DISK2_OK=false
 fi
 
-# Se tutto montato, verifica che fstab usi UUID (non /dev/sdX)
+# If everything is mounted, check that fstab uses UUIDs (not /dev/sdX)
 if [ "$DISK1_OK" = true ] && [ "$DISK2_OK" = true ]; then
     FSTAB_OK=true
     if grep -q "/dev/sd.*$NAS_MOUNT" /etc/fstab 2>/dev/null; then
@@ -192,9 +192,9 @@ if [ "$DISK1_OK" = true ] && [ "$DISK2_OK" = true ]; then
     fi
 fi
 
-# === Configurazione Disco 1 (NAS) ===
+# === Disk 1 configuration (NAS) ===
 if [ "$DISK1_OK" = false ]; then
-    # Verifica se ha già partizioni valide
+    # Check whether it already has valid partitions
     if sudo blkid "${DISK1}1" 2>/dev/null | grep -q 'TYPE="ext4"' && \
        sudo blkid "${DISK1}2" 2>/dev/null | grep -q 'TYPE="hfsplus"'; then
         print_info "Disco 1 ha partizioni valide, serve solo il mount..."
@@ -230,10 +230,10 @@ if [ "$DISK1_OK" = false ]; then
     NAS_UUID=$(sudo blkid -s UUID -o value "${DISK1}1")
     TM_UUID=$(sudo blkid -s UUID -o value "${DISK1}2")
     
-    # Aggiorna fstab (rimuove vecchie entry, aggiunge con UUID)
+    # Update fstab (removes old entries, adds with UUID)
     sudo sed -i '\|/mnt/timemachine|d' /etc/fstab
     sudo sed -i '\|/mnt/nas[^2]|d' /etc/fstab
-    # Rimuovi anche entry esatte /mnt/nas (senza /mnt/nas2)
+    # Also remove exact /mnt/nas entries (without /mnt/nas2)
     sudo sed -i '\| /mnt/nas |d' /etc/fstab
     
     echo "UUID=$NAS_UUID $NAS_MOUNT ext4 defaults 0 2" | sudo tee -a /etc/fstab
@@ -248,10 +248,10 @@ if [ "$DISK1_OK" = false ]; then
     print_success "Disco 1 configurato: NAS=$NAS_MOUNT, TimeMachine=$TIMEMACHINE_MOUNT"
 fi
 
-# === Configurazione Disco 2 (NAS2) ===
+# === Disk 2 configuration (NAS2) ===
 if [ "$DISK2_OK" = false ]; then
-    # Il disco USB non ha partizioni numerate — può essere formattato direttamente
-    # o avere una partizione ${DISK2}1
+    # The USB disk has no numbered partitions — it can be formatted directly
+    # or have a ${DISK2}1 partition
     NAS2_DEV=""
     if sudo blkid "${DISK2}1" 2>/dev/null | grep -q 'TYPE="ext4"'; then
         NAS2_DEV="${DISK2}1"

@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # =============================================================================
-# INCUS VM HOOK — Sistema proxy unificato
-# Gestisce socat proxy via systemd per TUTTE le porte delle VM Incus
-# Chiamato da: incus-dns-sync.timer (ogni 30 secondi)
+# INCUS VM HOOK — unified proxy system
+# Manages socat proxies via systemd for ALL the ports of the Incus VMs
+# Called by: incus-dns-sync.timer (every 30 seconds)
 # =============================================================================
 #
-# Tutti i proxy sono chiavi user.proxy.<nome>=<host_port>:<vm_port> sulla VM:
+# All proxies are user.proxy.<name>=<host_port>:<vm_port> keys on the VM:
 #
-#   user.proxy.ssh      = 2201:22    (auto-assegnato al provisioning)
-#   user.proxy.web      = 8080:80    (configurato dall'utente via UI/CLI)
-#   user.proxy.cockpit  = 3001:9090  (configurato dall'utente via UI/CLI)
+#   user.proxy.ssh      = 2201:22    (auto-assigned at provisioning)
+#   user.proxy.web      = 8080:80    (configured by the user via UI/CLI)
+#   user.proxy.cockpit  = 3001:9090  (configured by the user via UI/CLI)
 #
-# Visibili e modificabili nella UI Incus: Configuration > Advanced
-# Il hook rileva le modifiche e aggiorna i servizi entro 30 secondi.
+# Visible and editable in the Incus UI: Configuration > Advanced
+# The hook detects the changes and updates the services within 30 seconds.
 #
-# SSH auto-assignment: range 2201-2299 (skip 2222)
-# Porte bannate: < 1000, Docker, 22, 80, 443, 2222
-# Servizi: incus-port-proxy@<vm>--<nome>.service
+# SSH auto-assignment: range 2201-2299 (skip 2222, the host's own sshd)
+# Banned ports: < 1000, Docker, 22, 2222, 80, 443
+# Services: incus-port-proxy@<vm>--<name>.service
 # =============================================================================
 
 # --- Config ---
@@ -33,7 +33,7 @@ log() { echo "$(date -Is) - $*" >> "$LOG"; }
 mkdir -p "$PROXY_ENV_DIR"
 [ -f "$PROXY_STATE" ] || touch "$PROXY_STATE"
 
-# --- Migrazione una tantum dal vecchio sistema separato ssh-proxy ---
+# --- One-time migration from the old separate ssh-proxy system ---
 MIGRATION_FLAG="/mnt/nas2/incus-vms/.proxy-unified"
 if [ ! -f "$MIGRATION_FLAG" ]; then
     OLD_SSH_DIR="/mnt/nas2/incus-vms/ssh-proxy"
@@ -48,7 +48,7 @@ if [ ! -f "$MIGRATION_FLAG" ]; then
         done
         rm -rf "$OLD_SSH_DIR"
     fi
-    # Pulizia vecchie chiavi user.ssh-port
+    # Clean up old user.ssh-port keys
     while IFS=',' read -r name _ _; do
         name=$(echo "$name" | xargs)
         [ -z "$name" ] && continue
@@ -58,7 +58,7 @@ if [ ! -f "$MIGRATION_FLAG" ]; then
     log "Migrazione a proxy unificato completata"
 fi
 
-# --- Porte bannate ---
+# --- Banned ports ---
 get_banned_ports() {
     local banned="2222 22 80 443"
     local docker_ports
@@ -79,19 +79,19 @@ is_port_banned() {
     return 1
 }
 
-# --- Helper: lista VM RUNNING con IP raggiungibile ---
-# Output: <name>|<ipv4>  (ipv4 vuoto se non disponibile)
-# Strategia: preferisci IP del bridge Incus (10.100.x.x), fallback su qualsiasi
-# IP globale non-loopback/non-link-local raggiungibile dall'host.
-# Questo rende il proxy resiliente a errori nmcli/dhcp dentro la VM.
+# --- Helper: list RUNNING VMs with a reachable IP ---
+# Output: <name>|<ipv4>  (ipv4 empty if unavailable)
+# Strategy: prefer the Incus bridge IP (10.100.x.x), fall back to any
+# global non-loopback/non-link-local IP reachable from the host.
+# This makes the proxy resilient to nmcli/dhcp errors inside the VM.
 list_running_vms_with_ip() {
     incus list -f json 2>/dev/null | jq -r '
         .[] | select(.status=="Running") |
         .name as $n |
-        # Raccogli tutti gli IP globali della VM (esclude loopback, link-local, docker/podman bridges)
+        # Collect all the global IPs of the VM (excludes loopback, link-local, docker/podman bridges)
         [ (.state.network // {}) | to_entries[]?.value.addresses[]? |
             select(.family=="inet" and .scope=="global") | .address ] as $all |
-        # Preferisci 10.100.x.x (bridge Incus), poi qualsiasi IP non-172.x/10.88.x (docker interni)
+        # Prefer 10.100.x.x (Incus bridge), then any non-172.x/10.88.x IP (internal docker)
         ( ($all | map(select(startswith("10.100."))) | first // null) //
           ($all | map(select(startswith("10.100.") or startswith("172.") or startswith("10.88.")) | not) | first // null) //
           ($all | first // null)
@@ -101,16 +101,16 @@ list_running_vms_with_ip() {
     ' 2>/dev/null
 }
 
-# --- Helper: lista TUTTE le VM (anche STOPPED) con stato ---
+# --- Helper: list ALL VMs (also STOPPED) with their state ---
 # Output: <name>|<state>
 list_all_vms() {
     incus list -f json 2>/dev/null | jq -r '.[] | "\(.name)|\(.status | ascii_upcase)"' 2>/dev/null
 }
 
 # =============================================================================
-# SEZIONE 1: Auto-assign user.proxy.ssh per VM RUNNING senza SSH proxy
+# SECTION 1: Auto-assign user.proxy.ssh for RUNNING VMs without an SSH proxy
 # =============================================================================
-# Raccogli porte SSH già assegnate (anche da VM ferme, per evitare conflitti)
+# Collect the SSH ports already assigned (also from stopped VMs, to avoid conflicts)
 USED_SSH_PORTS="$SSH_PORT_SKIP"
 for f in "$PROXY_ENV_DIR"/*--ssh.env; do
     [ -f "$f" ] || continue
@@ -150,20 +150,20 @@ for name in $VMS_NEEDING_SSH; do
 done
 
 # =============================================================================
-# SEZIONE 1.5: Auto-discover servizi in listen (range 3000-3099)
+# SECTION 1.5: Auto-discover listening services (range 3000-3099)
 # =============================================================================
-# Per ogni VM RUNNING scopre le porte TCP in listen (escluso 22 + loopback).
-# Strategia di mapping:
-#   - se vm_port è 3000-3099 e libera sull'host → host_port = vm_port (stessa porta)
-#   - altrimenti → prima porta libera nel range 3000-3099
-# Le chiavi proxy create hanno prefisso "user.proxy.auto-<vmport>" per essere
-# distinguibili (e ricreabili/rimovibili). La SEZIONE 2 le instanzia come socat.
-# Cattura anche docker-proxy/podman rootless-port (visibili a ss come listener).
+# For each RUNNING VM, discover the listening TCP ports (excluding 22 + loopback).
+# Mapping strategy:
+#   - if vm_port is 3000-3099 and free on the host → host_port = vm_port (same port)
+#   - otherwise → first free port in the 3000-3099 range
+# The proxy keys created have the prefix "user.proxy.auto-<vmport>" so they are
+# distinguishable (and recreatable/removable). SECTION 2 instantiates them as socat.
+# Also catches docker-proxy/podman rootless-port (visible to ss as listeners).
 
 AUTO_PORT_MIN=3000
 AUTO_PORT_MAX=3099
 
-# Lista porte 3000-3099 in uso sull'host: proxy esistenti di TUTTE le VM + bind di sistema
+# List the 3000-3099 ports in use on the host: existing proxies of ALL VMs + system binds
 collect_used_auto_ports() {
     local used=""
     while IFS='|' read -r vname _; do
@@ -189,21 +189,21 @@ _in_list() {
 while IFS='|' read -r name ipv4; do
     [ -z "$name" ] || [ -z "$ipv4" ] && continue
 
-    # Porte in listen dentro la VM, esclusi loopback (127.x, ::1) e porta 22
-    # NB: </dev/null per evitare che incus exec consumi lo stdin del while-loop
+    # Listening ports inside the VM, excluding loopback (127.x, ::1) and port 22
+    # NB: </dev/null to prevent incus exec from consuming the while-loop's stdin
     LISTEN_PORTS=$(incus exec "$name" -- ss -tlnH </dev/null 2>/dev/null | awk '{
         addr=$4; n=split(addr, parts, ":"); port=parts[n]; ip="";
         for (i=1; i<n; i++) { ip=ip parts[i]; if (i<n-1) ip=ip":" }
-        # Strip trailing %iface (es. 127.0.0.53%lo)
+        # Strip trailing %iface (e.g. 127.0.0.53%lo)
         sub(/%.*/, "", ip)
         if (ip != "" && ip !~ /^127\./ && ip != "[::1]" && ip != "::1") print port
     }' | sort -un | grep -v '^22$')
 
-    # Auto-* esistenti su questa VM (estrai numeri vm_port dopo "auto-")
+    # Existing auto-* on this VM (extract the vm_port numbers after "auto-")
     EXISTING_AUTO=$(incus config show "$name" </dev/null 2>/dev/null | \
         grep -oE '^[[:space:]]*user\.proxy\.auto-[0-9]+' | sed 's/.*auto-//' | sort -un)
 
-    # Rimuovi auto-* per porte non più in listen
+    # Remove auto-* for ports no longer listening
     for old_vp in $EXISTING_AUTO; do
         if ! echo "$LISTEN_PORTS" | grep -q "^${old_vp}$"; then
             incus config unset "$name" "user.proxy.auto-${old_vp}" </dev/null 2>/dev/null
@@ -211,10 +211,10 @@ while IFS='|' read -r name ipv4; do
         fi
     done
 
-    # Aggiungi auto-* per nuove porte in listen
+    # Add auto-* for new listening ports
     USED_AUTO=$(collect_used_auto_ports)
     for vp in $LISTEN_PORTS; do
-        # Skip se già coperta da QUALUNQUE user.proxy.* (verifica vm_port esistente)
+        # Skip if already covered by ANY user.proxy.* (check the existing vm_port)
         already=$(incus config show "$name" </dev/null 2>/dev/null | grep "^[[:space:]]*user\.proxy\." | \
             sed -E 's/^[^:]+:[[:space:]]*//' | tr -d '"'"'" | awk -F: -v vp="$vp" '$2==vp' | head -1)
         [ -n "$already" ] && continue
@@ -241,7 +241,7 @@ while IFS='|' read -r name ipv4; do
 done < <(list_running_vms_with_ip)
 
 # =============================================================================
-# SEZIONE 2: Processa TUTTI i user.proxy.* (SSH + custom) uniformemente
+# SECTION 2: Process ALL user.proxy.* (SSH + custom) uniformly
 # =============================================================================
 ACTIVE_PROXIES=$(mktemp)
 
@@ -249,7 +249,7 @@ while IFS='|' read -r name ipv4; do
     [ -z "$name" ] || [ -z "$ipv4" ] && continue
 
     while IFS= read -r config_line; do
-        # Parsing robusto: "  user.proxy.ssh: \"2202:22\""
+        # Robust parsing: "  user.proxy.ssh: \"2202:22\""
         key=$(echo "$config_line" | sed -E 's/^[[:space:]]*([^:]+):.*/\1/')
         value=$(echo "$config_line" | sed -E 's/^[^:]+:[[:space:]]*//' | tr -d '"'"'")
         [ -z "$key" ] || [ -z "$value" ] && continue
@@ -260,7 +260,7 @@ while IFS='|' read -r name ipv4; do
 
         svc_id="${name}--${svc_name}"
 
-        # Verifica porta bannata
+        # Check for a banned port
         if is_port_banned "$host_port"; then
             log "BLOCCATO: ${name}/user.proxy.${svc_name} porta ${host_port} non consentita — rimossa"
             incus config unset "$name" "user.proxy.${svc_name}" 2>/dev/null
@@ -271,7 +271,7 @@ while IFS='|' read -r name ipv4; do
 
         echo "$svc_id" >> "$ACTIVE_PROXIES"
 
-        # Già attivo e corretto?
+        # Already active and correct?
         if [ -f "${PROXY_ENV_DIR}/${svc_id}.env" ] && systemctl is-active --quiet "incus-port-proxy@${svc_id}.service"; then
             current_hp=$(grep "^HOST_PORT=" "${PROXY_ENV_DIR}/${svc_id}.env" 2>/dev/null | cut -d= -f2)
             current_vp=$(grep "^VM_PORT=" "${PROXY_ENV_DIR}/${svc_id}.env" 2>/dev/null | cut -d= -f2)
@@ -298,7 +298,7 @@ EOF
 done < <(list_running_vms_with_ip)
 
 # =============================================================================
-# SEZIONE 3: Pulizia proxy rimossi o VM ferme/cancellate
+# SECTION 3: Clean up removed proxies or stopped/deleted VMs
 # =============================================================================
 if [ -f "$PROXY_STATE" ]; then
     while read -r old_svc_id; do
@@ -316,7 +316,7 @@ chmod 644 "$PROXY_STATE"
 rm -f "$ACTIVE_PROXIES"
 
 # =============================================================================
-# SEZIONE 4: Ricostruisci port-map.txt (compatibilità vm-ssh)
+# SECTION 4: Rebuild port-map.txt (vm-ssh compatibility)
 # =============================================================================
 TEMP_MAP=$(mktemp)
 while IFS='|' read -r name state; do
@@ -330,22 +330,22 @@ mv "$TEMP_MAP" "$PORT_MAP"
 chmod 644 "$PORT_MAP"
 
 # =============================================================================
-# SEZIONE 5: MOTD dinamico + comando vm-proxies nelle VM
+# SECTION 5: Dynamic MOTD + vm-proxies command in the VMs
 # =============================================================================
-# Per ogni VM RUNNING:
-#   1. Scrive /usr/local/bin/vm-proxies (script standalone con dati embedded
-#      raccolti dall'host: hostname, OS info, lista proxy)
-#   2. Scrive /etc/motd con l'output dello script (mostrato al login interattivo)
-# Aggiornato ogni 30s dal hook. L'utente puo' rilanciare `vm-proxies` in
-# qualsiasi momento per rivedere lo stato (snapshot dell'ultimo refresh).
-# Funziona su Rocky/RHEL/Debian/Ubuntu (PAM motd legge /etc/motd di default).
+# For each RUNNING VM:
+#   1. Writes /usr/local/bin/vm-proxies (standalone script with data embedded
+#      collected from the host: hostname, OS info, proxy list)
+#   2. Writes /etc/motd with the script's output (shown at interactive login)
+# Updated every 30s by the hook. The user can rerun `vm-proxies` at
+# any time to review the state (snapshot of the last refresh).
+# Works on Rocky/RHEL/Debian/Ubuntu (PAM motd reads /etc/motd by default).
 
 PUBLIC_HOST="vm.REDACTED_HOSTNAME.REDACTED_DDNS"
 
 while IFS='|' read -r name ipv4; do
     [ -z "$name" ] && continue
 
-    # Raccogli proxy ordinati per host_port (numerico)
+    # Collect proxies sorted by host_port (numeric)
     proxies_data=""
     while IFS= read -r line; do
         key=$(echo "$line" | sed -E 's/^[[:space:]]*([^:]+):.*/\1/')
@@ -362,10 +362,10 @@ while IFS='|' read -r name ipv4; do
         proxies_data="${proxies_data}${hp}|${svc}|${vp}|${kind}"$'\n'
     done < <(incus config show "$name" </dev/null 2>/dev/null | grep "^[[:space:]]*user\.proxy\.")
 
-    # Ordina per host_port numerico
+    # Sort by numeric host_port
     proxies_sorted=$(echo "$proxies_data" | grep -v '^$' | sort -t'|' -k1,1n)
 
-    # Costruisci tabella formattata. Marca con * i proxy raggiungibili da Internet (3000-3099).
+    # Build a formatted table. Mark with * the proxies reachable from the Internet (3000-3099).
     if [ -n "$proxies_sorted" ]; then
         rows=$(echo "$proxies_sorted" | awk -F'|' '{
             mark = ($1 >= 3000 && $1 <= 3099) ? "*" : " "
@@ -375,7 +375,7 @@ while IFS='|' read -r name ipv4; do
         rows="    (no proxies currently active)"
     fi
 
-    # Genera lo script /usr/local/bin/vm-proxies (dati embedded come heredoc)
+    # Generate the /usr/local/bin/vm-proxies script (data embedded as a heredoc)
     script=$(cat <<SCRIPT
 #!/usr/bin/env bash
 # vm-proxies — show NAS host proxies forwarding traffic to this VM.
@@ -498,7 +498,7 @@ SCRIPT
     cur_md5=$(incus exec "$name" -- md5sum /usr/local/bin/vm-proxies </dev/null 2>/dev/null | awk '{print $1}')
     if [ "$cur_md5" != "$new_md5" ]; then
         if incus file push --quiet --mode 0755 --uid 0 --gid 0 "$tmpf" "${name}/usr/local/bin/vm-proxies" </dev/null 2>/dev/null; then
-            # /etc/motd = output di "vm-proxies --motd" (banner sintetico)
+            # /etc/motd = output of "vm-proxies --motd" (synthetic banner)
             motd=$(incus exec "$name" -- /usr/local/bin/vm-proxies --motd </dev/null 2>/dev/null)
             if [ -n "$motd" ]; then
                 tmpm=$(mktemp)

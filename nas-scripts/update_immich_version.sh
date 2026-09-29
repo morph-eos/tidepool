@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # =============================================================================
-# UPDATE IMMICH VERSION — Aggiorna tag Immich in .env e ricrea i container
+# UPDATE IMMICH VERSION — updates the Immich tag in .env and recreates the containers
 # =============================================================================
-# Uso:
+# Usage:
 #   sudo /mnt/nas2/nas-scripts/update_immich_version.sh v2.7.5
-#   sudo /mnt/nas2/nas-scripts/update_immich_version.sh status   # default senza argomenti
+#   sudo /mnt/nas2/nas-scripts/update_immich_version.sh status   # default without arguments
 # =============================================================================
 
 DOCKER_DIR="/mnt/nas2/docker"

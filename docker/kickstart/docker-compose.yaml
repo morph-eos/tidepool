@@ -1,17 +1,17 @@
 # ============================================================================
 # KICKSTART COMPOSE - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Compose temporaneo per ottenere i certificati SSL la prima volta.
-# Avvia SOLO nginx HTTP-only + certbot.
+# Temporary compose to obtain the SSL certificates the first time.
+# Starts ONLY nginx HTTP-only + certbot.
 #
-# PREREQUISITO: lo stack principale NON deve essere attivo (conflitto porta 80).
-# ESEGUIRE dalla directory /mnt/nas2/docker/ (non da kickstart/).
+# PREREQUISITE: the main stack must NOT be running (port 80 conflict).
+# RUN from the /mnt/nas2/docker/ directory (not from kickstart/).
 #
-# Flusso:
+# Flow:
 #   1. docker-compose -f kickstart/docker-compose.yaml up -d nginx
 #   2. docker-compose -f kickstart/docker-compose.yaml run --rm certbot
 #   3. docker-compose -f kickstart/docker-compose.yaml down
-#   4. docker-compose up -d   (stack principale)
+#   4. docker-compose up -d   (main stack)
 # ============================================================================
 
 version: '3.8'
@@ -24,9 +24,9 @@ services:
     ports:
       - "80:80"
     volumes:
-      # Config HTTP-only (path relativo alla dir da cui si lancia: /mnt/nas2/docker/)
+      # HTTP-only config (path relative to the directory it is launched from: /mnt/nas2/docker/)
       - ./kickstart/nginx.conf:/etc/nginx/nginx.conf:ro
-      # Webroot ACME challenge — stesso volume del compose principale
+      # ACME challenge webroot — same volume as the main compose
       - docker_certbot-www:/var/www/certbot
     restart: "no"
 
@@ -34,9 +34,9 @@ services:
     container_name: kickstart-certbot
     image: certbot/certbot
     volumes:
-      # Storage certificati — stesso path del compose principale
+      # Certificate storage — same path as the main compose
       - ./data/certbot/conf:/etc/letsencrypt
-      # Webroot ACME challenge — stesso volume del compose principale
+      # ACME challenge webroot — same volume as the main compose
       - docker_certbot-www:/var/www/certbot
     command: >
       certonly --webroot -w /var/www/certbot
@@ -66,8 +66,8 @@ services:
       --no-eff-email
     restart: "no"
 
-# Usa il volume named già creato dal compose principale.
-# Se il compose principale non è mai stato avviato, creare prima il volume:
+# Uses the named volume already created by the main compose.
+# If the main compose has never been started, create the volume first:
 #   docker volume create docker_certbot-www
 volumes:
   docker_certbot-www:

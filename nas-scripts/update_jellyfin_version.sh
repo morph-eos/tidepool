@@ -2,23 +2,22 @@
 set -euo pipefail
 
 # =============================================================================
-# UPDATE JELLYFIN VERSION — Aggiorna tag+digest Jellyfin in docker-compose.yml,
-# backup config pre-migrazione DB, ricrea il container, verifica.
+# UPDATE JELLYFIN VERSION — updates the Jellyfin tag+digest in docker-compose.yml,
+# backs up the config before the DB migration, recreates the container, verifies.
 # =============================================================================
-# Uso:
+# Usage:
 #   sudo /mnt/nas2/nas-scripts/update_jellyfin_version.sh 12.1
 #   sudo /mnt/nas2/nas-scripts/update_jellyfin_version.sh status
 # =============================================================================
-# Nota: a differenza di Immich (tag in .env), Jellyfin è pinnato per
-# tag@sha256 direttamente in docker-compose.yml — lo script risolve il digest
-# corrente dell'immagine pullata e lo scrive nel compose, come da convenzione
-# del resto dello stack.
+# Note: unlike Immich (tag in .env), Jellyfin is pinned by
+# tag@sha256 directly in docker-compose.yml — the script resolves the current
+# digest of the pulled image and writes it into the compose, as per the convention
+# of the rest of the stack.
 #
-# Le migrazioni del DB Jellyfin (EF Core, dalla 12.0 in poi) sono a senso
-# unico: un semplice downgrade del tag NON basta a tornare indietro. Per
-# questo lo script prende sempre un backup completo di docker/data/jellyfin/config
-# PRIMA di toccare il container, a fianco del backup interno che Jellyfin
-# stesso fa del proprio jellyfin.db.
+# The Jellyfin DB migrations (EF Core, from 12.0 onwards) are one-way:
+# a simple tag downgrade is NOT enough to go back. For this reason the script always
+# takes a full backup of docker/data/jellyfin/config BEFORE touching the container,
+# alongside the internal backup that Jellyfin makes of its own jellyfin.db.
 
 DOCKER_DIR="/mnt/nas2/docker"
 COMPOSE_FILE="${DOCKER_DIR}/docker-compose.yml"

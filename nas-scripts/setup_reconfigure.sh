@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP RECONFIGURE — Orchestratore comodo per riconfigurazione REDACTED_BRAND
+# SETUP RECONFIGURE — convenient orchestrator to reconfigure REDACTED_BRAND
 # =============================================================================
 
 SCRIPTS_DIR="/mnt/nas2/nas-scripts"

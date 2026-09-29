@@ -2,14 +2,14 @@
 # REDACTED_HOSTNAME_UC CLOUD PLATFORM - DOCKER COMPOSE CONFIGURATION
 # ============================================================================
 #
-# Stack completo per piattaforma cloud self-hosted che include:
-# - Immich: Gestione foto e video con AI
-# - Jellyfin/Plex: Media server per streaming
-# - Nginx: Reverse proxy con SSL termination
-# - Certbot: Gestione automatica certificati SSL
+# Complete stack for a self-hosted cloud platform that includes:
+# - Immich: photo and video management with AI
+# - Jellyfin/Plex: media servers for streaming
+# - Nginx: reverse proxy with SSL termination
+# - Certbot: automatic management of SSL certificates
 #
-# Per configurazione iniziale vedere: .env.example
-# Per deployment automatico eseguire: ./deploy.sh
+# For initial configuration see: .env.example
+# For automatic deployment run: ./deploy.sh
 #
 # ============================================================================
 
@@ -19,42 +19,42 @@ services:
   # IMMICH PHOTO MANAGEMENT SERVICES
   # ==========================================================================
 
-  # Immich Server - Servizio principale per gestione foto/video
-  # Transcoding video accelerato via VA-API (REDACTED_GPU_MODEL)
+  # Immich Server - main service for photo/video management
+  # Hardware-accelerated video transcoding via VA-API (REDACTED_GPU_MODEL)
   immich-server:
     container_name: immich_server
     ports:
-      # Localhost: usato da tooling locale / deploy check. L'accesso "pubblico"
-      # passa comunque da nginx via rete docker (non da questa porta host).
+      # Localhost: used by local tooling / deploy check. "Public" access
+      # still goes through nginx over the docker network (not through this host port).
       - "127.0.0.1:${IMMICH_PORT:-2283}:2283"
-      # LAN diretta: i client in rete locale colpiscono Immich senza il giro
-      # DNS->WAN->hairpin-NAT->nginx (ottimizzazione connettivita' su WiFi
-      # instabile). Bind sull'IP LAN -> NON esposto su WAN (router forwarda solo
-      # 80/443); Immich ha comunque autenticazione propria.
+      # Direct LAN: clients on the local network reach Immich without the
+      # DNS->WAN->hairpin-NAT->nginx round trip (connectivity optimization on an
+      # unstable WiFi). Bound to the LAN IP -> NOT exposed on the WAN (the router only forwards
+      # 80/443); Immich has its own authentication anyway.
       - "${IMMICH_LAN_IP:-REDACTED_LAN_IP}:${IMMICH_PORT:-2283}:2283"
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
     devices:
       - /dev/dri:/dev/dri
     group_add:
-      - "992"   # render — accesso GPU REDACTED_GPU_MODEL (VA-API transcoding)
+      - "992"   # render — GPU access for REDACTED_GPU_MODEL (VA-API transcoding)
       - "44"    # video
     volumes:
-      # Script di inizializzazione personalizzato
+      # Custom initialization script
       # - ./scripts/immich-init.sh:/usr/local/bin/immich-init.sh:ro
-      # Storage principale per foto, video e metadati
+      # Main storage for photos, videos and metadata
       - ${IMMICH_DATA}:/data
-      # Sincronizzazione timezone con host
+      # Time zone synchronization with the host
       - /etc/localtime:/etc/localtime:ro
-      # Sincronizzazione con iCloud
+      # Synchronization with iCloud
       - ${ICLOUD_PHOTOS_DIR:-./data/icloud-photos}:/import
     environment:
       TZ: ${IMMICH_TZ:-Etc/UTC}
-      # Configurazione database PostgreSQL
+      # PostgreSQL database configuration
       DB_HOSTNAME: immich-database
       DB_PASSWORD: ${IMMICH_DB_PASSWORD}
       DB_USERNAME: ${IMMICH_DB_USERNAME}
       DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME}
-      # Configurazione cache Redis
+      # Redis cache configuration
       REDIS_HOSTNAME: immich-redis
       IMMICH_API_KEY: ${IMMICH_API_KEY}
     extra_hosts:
@@ -66,22 +66,22 @@ services:
     healthcheck:
       disable: false
 
-  # Immich Machine Learning - Servizio AI per riconoscimento oggetti/volti
-  # Usa OpenVINO per accelerazione REDACTED_GPU_MODEL GPU
+  # Immich Machine Learning - AI service for object/face recognition
+  # Uses OpenVINO for REDACTED_GPU_MODEL GPU acceleration
   immich-machine-learning:
     container_name: immich_machine_learning
     image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-openvino
     devices:
       - /dev/dri:/dev/dri
     group_add:
-      - "992"   # render — accesso GPU REDACTED_GPU_MODEL (OpenVINO)
+      - "992"   # render — GPU access for REDACTED_GPU_MODEL (OpenVINO)
       - "44"    # video
     volumes:
-      # Cache per modelli AI (downloading automatico al primo avvio)
+      # Cache for AI models (automatic download on first start)
       - model-cache:/cache
     environment:
       TZ: ${IMMICH_TZ:-Etc/UTC}
-      # Connessione al database condiviso con immich-server
+      # Connection to the database shared with immich-server
       DB_HOSTNAME: immich-database
       DB_PASSWORD: ${IMMICH_DB_PASSWORD}
       DB_USERNAME: ${IMMICH_DB_USERNAME}
@@ -91,7 +91,7 @@ services:
     healthcheck:
       disable: false
 
-  # Redis Cache - Cache in-memory per Immich (sessioni, thumbnails, etc.)
+  # Redis Cache - in-memory cache for Immich (sessions, thumbnails, etc.)
   immich-redis:
     container_name: immich_redis
     image: docker.io/valkey/valkey:8-bookworm@sha256:4a7d243f2890e13198440dcfc8d24c9adf9d4fc4092389c89c12a6fda43d3704
@@ -101,7 +101,7 @@ services:
       test: redis-cli ping || exit 1
     restart: always
 
-  # PostgreSQL Database - Database principale per metadati Immich
+  # PostgreSQL Database - main database for Immich metadata
   immich-database:
     container_name: immich_postgres
     image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
@@ -111,12 +111,12 @@ services:
       POSTGRES_USER: ${IMMICH_DB_USERNAME}
       POSTGRES_DB: ${IMMICH_DB_DATABASE_NAME}
       POSTGRES_INITDB_ARGS: '--data-checksums'
-      # Ottimizzazione per storage HDD (decommentare se usi SSD)
+      # Optimization for HDD storage (uncomment if you use an SSD)
       DB_STORAGE_TYPE: 'HDD'
     volumes:
-      # Storage persistente per database PostgreSQL
+      # Persistent storage for the PostgreSQL database
       - ${IMMICH_DB_DATA}:/var/lib/postgresql/data
-    # Memoria condivisa per PostgreSQL (ottimizzazione performance)
+    # Shared memory for PostgreSQL (performance optimization)
     shm_size: 128mb
     restart: always
 
@@ -124,49 +124,49 @@ services:
   # JELLYFIN MEDIA SERVER
   # ==========================================================================
 
-  # Jellyfin - Server media per streaming video, audio e foto
+  # Jellyfin - media server for video, audio and photo streaming
   jellyfin:
     image: jellyfin/jellyfin:12.1@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e
     container_name: jellyfin
     user: ${JELLYFIN_UID:-1000}:${JELLYFIN_GID:-1000}
     group_add:
-      - "992"   # render — accesso GPU REDACTED_GPU_MODEL (VA-API)
+      - "992"   # render — GPU access for REDACTED_GPU_MODEL (VA-API)
       - "44"    # video
     environment:
       - TZ=${JELLYFIN_TZ:-Europe/Rome}
-      # URL pubblico per autodiscovery (opzionale)
+      # Public URL for autodiscovery (optional)
       - JELLYFIN_PublishedServerUrl=${JELLYFIN_PUBLIC_URL:-https://jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS}
     volumes:
-      # Configurazione e metadati Jellyfin
+      # Jellyfin configuration and metadata
       - ${JELLYFIN_CONFIG}:/config
-      # Cache per transcoding e thumbnails
+      # Cache for transcoding and thumbnails
       - ${JELLYFIN_CACHE}:/cache
-      # Directory media (film, serie TV, musica, foto)
+      # Media directory (movies, TV series, music, photos)
       - type: bind
         source: ${JELLYFIN_MEDIA}
         target: /media
         read_only: ${JELLYFIN_MEDIA_READONLY:-true}
-      # Directory media secondaria (opzionale)
+      # Secondary media directory (optional)
       - type: bind
         source: ${JELLYFIN_MEDIA2:-/dev/null}
         target: /media2
         read_only: ${JELLYFIN_MEDIA_READONLY:-true}
-      # Font personalizzati per subtitle burn-in durante transcoding (opzionale)
+      # Custom fonts for subtitle burn-in during transcoding (optional)
       - type: bind
         source: ${JELLYFIN_FONTS:-/usr/share/fonts}
         target: /usr/local/share/fonts/custom
         read_only: true
     ports:
-      # Porta per accesso diretto (opzionale, usato principalmente per autodiscovery).
-      # Bind a localhost: l'accesso pubblico passa da nginx (jellyfin-backend via
-      # rete docker). NB: cosi' si disabilita l'autodiscovery/accesso diretto :8096
-      # dai client sulla LAN (DLNA). Per riabilitarlo rimuovere "127.0.0.1:".
+      # Port for direct access (optional, mainly used for autodiscovery).
+      # Bound to localhost: public access goes through nginx (jellyfin-backend over the
+      # docker network). NB: this disables autodiscovery/direct access on :8096
+      # from LAN clients (DLNA). To re-enable it, remove "127.0.0.1:".
       - "127.0.0.1:${JELLYFIN_PORT:-8096}:8096"
     restart: unless-stopped
-    # Necessario per hardware transcoding REDACTED_GPU_MODEL (VA-API)
+    # Required for REDACTED_GPU_MODEL hardware transcoding (VA-API)
     devices:
       - /dev/dri:/dev/dri
-    # Necessario per Docker healthcheck in modalità host network
+    # Required for the Docker healthcheck in host network mode
     extra_hosts:
       - 'host.docker.internal:host-gateway'
       - 'cloud.REDACTED_DOMAIN:host-gateway'
@@ -180,7 +180,7 @@ services:
   # PLEX MEDIA SERVER
   # ==========================================================================
 
-  # Plex - Server media alternativo per streaming video, audio e foto
+  # Plex - alternative media server for video, audio and photo streaming
   plex:
     image: plexinc/pms-docker:1.43.0.10492-121068a07@sha256:b59f6e65a3ec5fad1f5ad417f9911340b71f34efe333338429eeb2dbac5e524e
     container_name: plex
@@ -193,23 +193,23 @@ services:
       - PLEX_UID=${PLEX_UID:-1000}
       - PLEX_GID=${PLEX_GID:-1000}
       - PLEX_MEDIA_SERVER_DISABLE_USB=1
-      # URL pubblico per accesso esterno
+      # Public URL for external access
       - ADVERTISE_IP=${PLEX_ADVERTISE_IP:-https://plex.REDACTED_HOSTNAME.REDACTED_DDNS:443}
     volumes:
-      # Configurazione e metadati Plex
+      # Plex configuration and metadata
       - ${PLEX_CONFIG}:/config
-      # Directory media condivise con Jellyfin
+      # Media directories shared with Jellyfin
       - type: bind
         source: ${JELLYFIN_MEDIA}
         target: /media
         read_only: ${JELLYFIN_MEDIA_READONLY:-true}
-      # Directory media secondaria (opzionale)
+      # Secondary media directory (optional)
       - type: bind
         source: ${JELLYFIN_MEDIA2:-/dev/null}
         target: /media2
         read_only: true
     restart: unless-stopped
-    # Necessario per hardware transcoding (se disponibile)
+    # Required for hardware transcoding (if available)
     devices:
       - /dev/dri:/dev/dri
       - /dev/bus/usb:/dev/bus/usb
@@ -223,7 +223,7 @@ services:
   # JELLYPLEX-WATCHED - SYNC MEDIA WATCH STATUS
   # ==========================================================================
 
-  # JellyPlex-Watched - Sincronizza stato visualizzazione tra Jellyfin e Plex
+  # JellyPlex-Watched - syncs watch status between Jellyfin and Plex
   jellyplex-watched:
     image: luigi311/jellyplex-watched:sha-cebff13@sha256:5989cff75e8cc4da00b2dc4bd7afa917ec88f1097bd5b5145ff311ecb5d4c37f
     container_name: jellyplex-watched
@@ -243,7 +243,7 @@ services:
         condition: service_healthy
       plex:
         condition: service_healthy
-    # Sincronizzazione ogni ora
+    # Sync every hour
     healthcheck:
       test: ["CMD", "pgrep", "-f", "python.*main.py"]
       interval: 300s
@@ -337,7 +337,7 @@ services:
   # ICLOUD PHOTO SYNC SERVICES
   # ==========================================================================
 
-  # iCloudPD - Sincronizzazione foto da iCloud a Immich
+  # iCloudPD - photo sync from iCloud to Immich
   icloudpd:
     image: icloudpd/icloudpd:1.32.2@sha256:fb659bf9f8c2069d1a0585010046a0ef709f7f5915daa522b8bdcda17f28ada2
     container_name: icloud-sync
@@ -354,9 +354,9 @@ services:
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
     volumes:
-      # Directory dove scaricare le foto (configurazione aggiornata dopo autenticazione)
+      # Directory where photos are downloaded (configuration updated after authentication)
       - ${ICLOUD_PHOTOS_DIR:-./data/icloud-photos}:/app/photos
-      # Script per gestione automatica dei crash e fix XMP
+      # Script for automatic crash handling and XMP fixes
       - ./scripts/icloudpd-wrapper.sh:/app/scripts/icloudpd-wrapper.sh:ro
       - ./scripts/update-xmp-datetime.sh:/app/scripts/update-xmp-datetime.sh:ro
       - ./scripts/fix-missing-xmp.sh:/app/scripts/fix-missing-xmp.sh:ro
@@ -364,10 +364,10 @@ services:
       - immich-server
 
   # ==========================================================================
-  # REVERSE PROXY E SSL SERVICES
+  # REVERSE PROXY AND SSL SERVICES
   # ==========================================================================
 
-  # Nginx Reverse Proxy - Gestisce routing, SSL termination e sicurezza
+  # Nginx Reverse Proxy - handles routing, SSL termination and security
   nginx:
     container_name: nginx
     restart: always
@@ -375,15 +375,15 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      # Porte esposte per accesso esterno
-      - "80:80"   # HTTP (redirect a HTTPS)
-      - "443:443"  # HTTPS (traffico principale)
+      # Ports exposed for external access
+      - "80:80"   # HTTP (redirect to HTTPS)
+      - "443:443"  # HTTPS (main traffic)
     volumes:
-      # Configurazione nginx principale
+      # Main nginx configuration
       - ./data/nginx:/etc/nginx/
-      # Certificati SSL Let's Encrypt
+      # Let's Encrypt SSL certificates
       - ./data/certbot/conf:/etc/letsencrypt
-      # Directory per ACME challenges
+      # Directory for ACME challenges
       - certbot-www:/var/www/certbot
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"]
@@ -391,7 +391,7 @@ services:
       timeout: 5s
       retries: 3
     depends_on:
-      # Attende che tutti i servizi backend siano pronti
+      # Wait until all backend services are ready
       - immich-server
       - immich-machine-learning
       - immich-redis
@@ -402,22 +402,21 @@ services:
       - syncthing
       - nextcloud
 
-  # Certbot - Gestione automatica certificati SSL Let's Encrypt
+  # Certbot - automatic management of Let's Encrypt SSL certificates
   certbot:
     container_name: private-certbot
     image: certbot/certbot@sha256:878bf5fe090724a2a839cf765b847252386a3782d1e36f6299c4e59ec7d2067e
     volumes:
-      # Storage persistente per certificati
+      # Persistent storage for certificates
       - ./data/certbot/conf:/etc/letsencrypt
-      # Directory per ACME challenges
+      # Directory for ACME challenges
       - certbot-www:/var/www/certbot
-    # Comando per ottenere certificati per tutti i domini
+    # Command to obtain certificates for all domains
+    # add them with -d if you enable that vhost in nginx.conf.
     command: certonly --cert-name REDACTED_HOSTNAME.REDACTED_DDNS --webroot -w /var/www/certbot --email "$EMAIL" -d "REDACTED_HOSTNAME.REDACTED_DDNS" -d "www.REDACTED_DOMAIN" -d "immich.REDACTED_HOSTNAME.REDACTED_DDNS" -d "immich.REDACTED_DOMAIN" -d "jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS" -d "jellyfin.REDACTED_DOMAIN" -d "plex.REDACTED_HOSTNAME.REDACTED_DDNS" -d "plex.REDACTED_DOMAIN" -d "bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS" -d "bitwarden.REDACTED_DOMAIN" -d "webdav.REDACTED_HOSTNAME.REDACTED_DDNS" -d "webdav.REDACTED_DOMAIN" -d "syncthing.REDACTED_HOSTNAME.REDACTED_DDNS" -d "syncthing.REDACTED_DOMAIN" -d "modem.REDACTED_HOSTNAME.REDACTED_DDNS" -d "modem.REDACTED_DOMAIN" -d "REDACTED_NAME.REDACTED_DOMAIN" -d "cloud.REDACTED_HOSTNAME.REDACTED_DDNS" -d "cloud.REDACTED_DOMAIN" -d "incus.REDACTED_DOMAIN" --rsa-key-size 4096 --agree-tos --no-eff-email --force-renewal
     depends_on:
       - nginx
 
-  # ========================================================================
-  # ========================================================================
   # ==========================================================================
   # SMART DISK HEALTH CHECKER
   # ==========================================================================
@@ -459,7 +458,7 @@ services:
   # ==========================================================================
 
 # =============================================================================
-# DOCKER VOLUMES - Storage persistente per i servizi
+# DOCKER VOLUMES - persistent storage for the services
 # =============================================================================
 
   # ==========================================================================
@@ -538,7 +537,7 @@ services:
       retries: 3
 
 volumes:
-  # Cache condivisa per modelli AI di Immich
+  # Shared cache for Immich AI models
   model-cache:
   # Shared ACME webroot for certbot and nginx
   certbot-www:

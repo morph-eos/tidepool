@@ -3,9 +3,9 @@
 # ============================================================================
 # UTILITY SCRIPT - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Operazioni comuni di manutenzione per lo stack Docker.
+# Common maintenance operations for the Docker stack.
 #
-# Usage: ./utils.sh [comando]
+# Usage: ./utils.sh [command]
 # ============================================================================
 
 set -e
@@ -59,7 +59,7 @@ cmd_status() {
     docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" 2>/dev/null | head -20
     echo ""
     
-    # Certificati SSL
+    # SSL certificates
     CERT_PATH="data/certbot/conf/live/REDACTED_HOSTNAME.REDACTED_DDNS/fullchain.pem"
     if [ -f "$CERT_PATH" ]; then
         EXPIRY=$(openssl x509 -enddate -noout -in "$CERT_PATH" | cut -d= -f2)
@@ -117,8 +117,8 @@ cmd_update() {
     print_info "Aggiornamento immagini Docker..."
     docker compose pull
     print_info "Riavvio con nuove immagini..."
-    # Se up -d fallisce, ricrea i container servizio per servizio (compose risolve
-    # il nome del servizio nel relativo container_name)
+    # If up -d fails, recreate the containers service by service (compose resolves
+    # the service name to its container_name)
     if ! docker compose up -d 2>/dev/null; then
         print_warning "docker compose up -d fallito"
         print_info "Ricreo i container uno per uno..."
@@ -142,7 +142,7 @@ cmd_backup() {
         BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
         print_success "Backup completato: $BACKUP_FILE ($BACKUP_SIZE)"
         
-        # Mantieni ultimi 7 backup
+        # Keep the last 7 backups
         ls -t "$BACKUP_DIR"/immich-backup-*.sql.gz 2>/dev/null | tail -n +8 | xargs -r rm
         print_info "Backup disponibili:"
         ls -lh "$BACKUP_DIR"/immich-backup-*.sql.gz 2>/dev/null
@@ -170,7 +170,7 @@ cmd_renew() {
     
     if [ $DAYS_LEFT -lt 30 ]; then
         print_info "Rinnovo necessario..."
-        # Usa il servizio certbot dal docker-compose.yml — contiene la lista domini aggiornata
+        # Use the certbot service from docker-compose.yml — it holds the up-to-date domain list
         if docker compose run --rm certbot; then
             print_success "Certificati rinnovati!"
             print_info "Ricarico nginx..."

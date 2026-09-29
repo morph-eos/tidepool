@@ -4,17 +4,17 @@ set -euo pipefail
 # =============================================================================
 # SETUP FAIL2BAN + SSH HARDENING
 # =============================================================================
-# - Disabilita autenticazione SSH con password (solo chiavi)
-# - Installa e configura fail2ban: ban dopo 3 tentativi falliti
-# - Idempotente: può essere rieseguito senza problemi
+# - Disables SSH password authentication (keys only)
+# - Installs and configures fail2ban: ban after 3 failed attempts
+# - Idempotent: can be rerun without problems
 #
-# Uso:
+# Usage:
 #   sudo bash /mnt/nas2/nas-scripts/setup_fail2ban.sh install
 #   sudo bash /mnt/nas2/nas-scripts/setup_fail2ban.sh uninstall
 #   sudo bash /mnt/nas2/nas-scripts/setup_fail2ban.sh status
 # =============================================================================
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -25,12 +25,12 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 die()  { err "$*"; exit 1; }
 
-# Prefisso 01-: in sshd_config.d per ogni direttiva vince la PRIMA occorrenza (ordine alfabetico)
+# 01- prefix: in sshd_config.d the FIRST occurrence of each directive wins (alphabetical order)
 SSH_HARDENING_CONF="/etc/ssh/sshd_config.d/01-hardening.conf"
 SSH_HARDENING_LEGACY="/etc/ssh/sshd_config.d/99-hardening.conf"
 FAIL2BAN_JAIL="/etc/fail2ban/jail.d/sshd.conf"
-# Porta su cui ascolta sshd (impostata fuori da questo script). Con Ubuntu 24.04 e
-# ssh.socket va cambiata nel drop-in del socket, non solo con "Port" in sshd_config.
+# Port sshd listens on (set outside this script). With Ubuntu 24.04 and
+# ssh.socket it must be changed in the socket drop-in, not only with "Port" in sshd_config.
 SSH_PORT="${SSH_PORT:-2222}"
 
 # --- SSH Hardening -----------------------------------------------------------
@@ -40,13 +40,13 @@ harden_ssh() {
 
     rm -f "$SSH_HARDENING_LEGACY"
     cat > "$SSH_HARDENING_CONF" <<'SSHCONF'
-# SSH Hardening — gestito da setup_fail2ban.sh
+# SSH Hardening — managed by setup_fail2ban.sh
 PasswordAuthentication no
 PermitRootLogin prohibit-password
 MaxAuthTries 3
 SSHCONF
 
-    # Verifica config valida prima di ricaricare
+    # Check the config is valid before reloading
     if sshd -t 2>/dev/null; then
         systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
         log "SSH: password disabilitata, solo chiavi, max 3 tentativi"
@@ -69,10 +69,10 @@ install_fail2ban() {
         log "fail2ban già installato"
     fi
 
-    # Jail SSH: ban dopo 3 tentativi in 10 minuti, ban 1 ora, recidivi 1 settimana
+    # SSH jail: ban after 3 attempts in 10 minutes, ban 1 hour, repeat offenders 1 week
     cat > "$FAIL2BAN_JAIL" <<JAIL
-# SSH jail — gestito da setup_fail2ban.sh
-# Ban dopo 3 tentativi falliti in 10 minuti
+# SSH jail — managed by setup_fail2ban.sh
+# Ban after 3 failed attempts in 10 minutes
 [sshd]
 enabled  = true
 mode     = aggressive
@@ -84,7 +84,7 @@ findtime = 600
 bantime  = 3600
 banaction = iptables-multiport
 
-# Recidivi: chi viene bannato 3+ volte in 12 ore → ban 1 settimana
+# Repeat offenders: banned 3+ times in 12 hours → 1 week ban
 [recidive]
 enabled  = true
 filter   = recidive
@@ -132,14 +132,14 @@ show_status() {
 do_uninstall() {
     warn "Rimozione fail2ban e ripristino SSH..."
 
-    # Rimuovi hardening SSH
+    # Remove SSH hardening
     rm -f "$SSH_HARDENING_CONF" "$SSH_HARDENING_LEGACY"
     if sshd -t 2>/dev/null; then
         systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
     fi
     log "SSH: config hardening rimossa (default ripristinato)"
 
-    # Rimuovi fail2ban
+    # Remove fail2ban
     rm -f "$FAIL2BAN_JAIL"
     systemctl disable --now fail2ban 2>/dev/null || true
     apt-get remove -y fail2ban 2>/dev/null || true

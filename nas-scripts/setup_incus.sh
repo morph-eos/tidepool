@@ -2,26 +2,26 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP INCUS — VM Manager con UI Web + SSH proxy automatico
+# SETUP INCUS — VM Manager with Web UI + automatic SSH proxy
 # =============================================================================
-# Installa e configura Incus + UI Canonical per gestione VM via browser.
-# Pensato per Ubuntu 24.04, compatibile con Docker coesistente.
+# Installs and configures Incus + Canonical UI to manage VMs from the browser.
+# Designed for Ubuntu 24.04, compatible with a coexisting Docker.
 #
-# Funzionalità:
-#   - Incus con storage LVM thin loop-backed (quote rigide, zero repartition)
-#   - UI web su incus.REDACTED_DOMAIN (via nginx reverse proxy)
-#   - SSH proxy automatico: porta 2201-2299 per VM via socat + systemd
-#   - Cloud-init: SSH + chiave host iniettata automaticamente nelle VM
-#   - iptables persistence per coesistenza Docker/Incus
-#   - Swap ampliato a 16 GB su SSD per supportare più VM
-#   - zram per compressione RAM
+# Features:
+#   - Incus with LVM thin loop-backed storage (hard quotas, zero repartitioning)
+#   - Web UI on incus.REDACTED_DOMAIN (via nginx reverse proxy)
+#   - Automatic SSH proxy: ports 2201-2299 per VM via socat + systemd
+#   - Cloud-init: SSH + host key automatically injected into the VMs
+#   - iptables persistence for Docker/Incus coexistence
+#   - Swap enlarged to 16 GB on SSD to support more VMs
+#   - zram for RAM compression
 #
-# Uso:
+# Usage:
 #   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh install
 #   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh uninstall
 #   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh status
-#   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh export   # esporta config per restore
-#   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh restore  # ripristina su nuovo server
+#   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh export   # export config for restore
+#   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh restore  # restore on a new server
 #   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh trust-certs
 #   sudo bash /mnt/nas2/nas-scripts/setup_incus.sh migrate-storage
 # =============================================================================
@@ -32,12 +32,12 @@ INCUS_POOL="vmquota"
 INCUS_POOL_DRIVER="lvm"
 INCUS_POOL_SIZE="200GiB"
 INCUS_LEGACY_POOLS=("default" "vmpool")
-# Backing file del pool LVM thin loop-backed. Di default Incus lo crea su
-# /var/lib/incus/disks/ (disco di SISTEMA, /). Poiche' il thin pool annuncia
-# 200GiB ma fisicamente vive sul file, una crescita oltre lo spazio reale di /
-# riempie il disco di sistema -> I/O error/corruzione dqlite. Lo rilocchiamo sul
-# disco dati da 16TB (/mnt/nas) tenendo un symlink al path originale: la config
-# Incus (source:) resta invariata, nessuna modifica al DB. Vedi relocate-pool.
+# Backing file of the loop-backed LVM thin pool. By default Incus creates it in
+# /var/lib/incus/disks/ (SYSTEM disk, /). Since the thin pool advertises
+# 200GiB but physically lives on the file, growth beyond the real space of /
+# fills the system disk -> I/O error/dqlite corruption. We relocate it to the
+# data disk (/mnt/nas) keeping a symlink at the original path: the Incus config
+# (source:) stays unchanged, no change to the DB. See relocate-pool.
 INCUS_POOL_IMG_DEFAULT="/var/lib/incus/disks/vmquota.img"
 INCUS_POOL_IMG_DIR="/mnt/nas/incus"
 INCUS_POOL_IMG="${INCUS_POOL_IMG_DIR}/vmquota.img"
@@ -54,7 +54,7 @@ INCUS_USER="REDACTED_HOSTNAME"
 SSH_KEY_FILE="/home/${INCUS_USER}/.ssh/id_ed25519.pub"
 INCUS_TRUST_DIR="${SCRIPT_DIR}/incus-trust"
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -212,12 +212,12 @@ quota_pool_migration_needed() {
     return 1
 }
 
-# --- Funzioni di installazione -----------------------------------------------
+# --- Installation functions --------------------------------------------------
 
 install_incus() {
     log "Installazione Incus..."
 
-    # Repo ufficiale Incus (zabbly)
+    # Official Incus repo (zabbly)
     if ! command -v incus &>/dev/null; then
         log "Aggiunta repository zabbly/incus..."
         curl -fsSL https://pkgs.zabbly.com/key.asc | gpg --dearmor -o /etc/apt/keyrings/zabbly.gpg
@@ -236,7 +236,7 @@ REPO
         log "Incus già installato: $(incus --version)"
     fi
 
-    # Aggiungi utente al gruppo incus-admin
+    # Add the user to the incus-admin group
     if ! groups "$INCUS_USER" | grep -q incus-admin; then
         usermod -aG incus-admin "$INCUS_USER"
         log "Utente $INCUS_USER aggiunto a incus-admin"
@@ -265,7 +265,7 @@ setup_swap() {
         chmod 600 "$SWAP_FILE"
         mkswap "$SWAP_FILE"
         swapon "$SWAP_FILE"
-        # Assicura fstab
+        # Ensure fstab
         if ! grep -q "$SWAP_FILE" /etc/fstab; then
             echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
         fi
@@ -289,7 +289,7 @@ ZRAM
         log "zram già attivo"
     fi
 
-    # Swappiness più bassa — preferisci RAM, usa swap solo sotto pressione
+    # Lower swappiness — prefer RAM, use swap only under pressure
     sysctl -w vm.swappiness=30 >/dev/null
     grep -q "vm.swappiness" /etc/sysctl.d/99-vm.conf 2>/dev/null || \
         echo "vm.swappiness=30" > /etc/sysctl.d/99-vm.conf
@@ -302,7 +302,7 @@ configure_incus() {
     mkdir -p "$INCUS_STORAGE"
     setup_quota_storage_deps
 
-    # Preseed config (non-interattivo)
+    # Preseed config (non-interactive)
     cat <<PRESEED | incus admin init --preseed
 config:
   core.https_address: 0.0.0.0:8443
@@ -336,7 +336,7 @@ profiles:
         type: nic
 PRESEED
 
-    # Cloud-init: crea utente vm-admin uniforme (funziona su Ubuntu, Rocky, Debian, etc.)
+    # Cloud-init: create a uniform vm-admin user (works on Ubuntu, Rocky, Debian, etc.)
     if [ -f "$SSH_KEY_FILE" ]; then
         local pubkey
         pubkey=$(cat "$SSH_KEY_FILE")
@@ -353,24 +353,24 @@ packages:
   - openssh-server
 runcmd:
   - systemctl enable --now sshd 2>/dev/null || systemctl enable --now ssh
-  # Su Rocky/RHEL sshd_config non ha "Include /etc/ssh/sshd_config.d/*.conf" di default
-  # e ha PasswordAuthentication=no hardcoded: bisogna fixarlo a mano.
+  # On Rocky/RHEL sshd_config does not have "Include /etc/ssh/sshd_config.d/*.conf" by default
+  # and has PasswordAuthentication=no hardcoded: it must be fixed by hand.
   - grep -q "^Include /etc/ssh/sshd_config.d" /etc/ssh/sshd_config || sed -i "1iInclude /etc/ssh/sshd_config.d/*.conf" /etc/ssh/sshd_config
   - sed -i "/^PasswordAuthentication /d" /etc/ssh/sshd_config
   - sed -i "/^PermitRootLogin /d" /etc/ssh/sshd_config
   - systemctl restart sshd 2>/dev/null || systemctl restart ssh
 write_files:
-  # Prefisso 01- per vincere su 50-cloud-init.conf (Rocky/RHEL forza
-  # PasswordAuthentication=no nel file di cloud-init): sshd_config.d e' caricato
-  # in ordine alfabetico e per ogni direttiva vince la PRIMA occorrenza.
+  # 01- prefix to win over 50-cloud-init.conf (Rocky/RHEL forces
+  # PasswordAuthentication=no in the cloud-init file): sshd_config.d is loaded
+  # in alphabetical order and the FIRST occurrence of each directive wins.
   - path: /etc/ssh/sshd_config.d/01-REDACTED_BRAND_lc-defaults.conf
     content: |
-      # Policy REDACTED_BRAND: SSH password auth ABILITATA, ma per default NESSUN utente
-      # ha una password (vm-admin e altri utenti cloud-init sono creati con
-      # password locked). L'amministratore della VM puo' creare utenti con
-      # password ad-hoc:
+      # REDACTED_BRAND policy: SSH password auth ENABLED, but by default NO user
+      # has a password (vm-admin and other cloud-init users are created with
+      # a locked password). The VM administrator can create users with
+      # ad-hoc passwords:
       #   incus exec <vm> -- useradd -m <user> && incus exec <vm> -- passwd <user>
-      # Oppure assegnare una password a un utente esistente:
+      # Or assign a password to an existing user:
       #   incus exec <vm> -- passwd <user>
       PasswordAuthentication yes
       KbdInteractiveAuthentication yes
@@ -390,14 +390,14 @@ CLOUDINIT
 setup_incus_auth() {
     log "Configurazione autenticazione UI..."
 
-    # Genera certificato client per l'utente
+    # Generate a client certificate for the user
     local cert_dir="/home/${INCUS_USER}/.config/incus"
     if [ ! -f "$cert_dir/client.crt" ]; then
-        # Il primo comando incus da utente genera automaticamente il cert
+        # The first incus command by the user automatically generates the cert
         su - "$INCUS_USER" -c "incus list" >/dev/null 2>&1 || true
     fi
 
-    # Crea trust token per la UI
+    # Create a trust token for the UI
     local token
     token=$(incus config trust add incus-ui --quiet 2>/dev/null || true)
     if [ -n "$token" ]; then
@@ -443,28 +443,28 @@ TRUST
 setup_nginx_stream() {
     log "Configurazione nginx stream SNI per Incus UI..."
 
-    # Architettura: nginx stream block legge SNI ClientHello senza decriptare.
-    # incus.REDACTED_DOMAIN → TCP passthrough a Incus (mTLS intatto per login cert)
-    # tutti gli altri   → blocco HTTP interno su porta 8442
+    # Architecture: the nginx stream block reads the SNI ClientHello without decrypting.
+    # incus.REDACTED_DOMAIN → TCP passthrough to Incus (mTLS intact for cert login)
+    # all the others   → internal HTTP block on port 8442
 
     cp "$NGINX_CONF" "${NGINX_CONF}.bak.$(date +%Y%m%d%H%M%S)"
 
-    # 1. Rimuovi eventuale blocco server HTTP per incus (setup precedente)
+    # 1. Remove any HTTP server block for incus (previous setup)
     if grep -q "server_name ${UI_DOMAIN}" "$NGINX_CONF"; then
-        # Rimuovi il blocco server che contiene incus.REDACTED_DOMAIN
+        # Remove the server block that contains incus.REDACTED_DOMAIN
         sed -i "/# --- Incus UI/,/^    }/d" "$NGINX_CONF"
         log "Rimosso vecchio blocco HTTP per Incus UI"
     fi
 
-    # 2. Rimuovi incus dal redirect HTTP (porta 80) se presente
+    # 2. Remove incus from the HTTP redirect (port 80) if present
     if grep -q "listen 80" "$NGINX_CONF" && grep -q "${UI_DOMAIN}" "$NGINX_CONF"; then
         sed -i "s/ ${UI_DOMAIN}//g" "$NGINX_CONF"
     fi
 
-    # 3. Cambia tutti i 'listen 443' in 'listen 8442' nel blocco http (idempotente)
+    # 3. Change every 'listen 443' to 'listen 8442' in the http block (idempotent)
     sed -i 's/listen 443 ssl http2;/listen 8442 ssl http2;/g; s/listen 443 ssl;/listen 8442 ssl;/g; s/listen \[::\]:443 ssl http2;/listen [::]:8442 ssl http2;/g; s/listen \[::\]:443 ssl;/listen [::]:8442 ssl;/g' "$NGINX_CONF"
 
-    # 3b. Assicura HTTP/80 per ACME challenge e redirect generico.
+    # 3b. Ensure HTTP/80 for the ACME challenge and the generic redirect.
     if ! grep -q "HTTP ACME CHALLENGE" "$NGINX_CONF"; then
         sed -i '/set_real_ip_from 10\.0\.0\.0\/8;/a\
 \
@@ -489,9 +489,9 @@ setup_nginx_stream() {
         log "Blocco HTTP/80 per ACME già presente"
     fi
 
-    # 4. Aggiungi blocco stream (se non presente)
+    # 4. Add the stream block (if not present)
     if ! grep -q "^stream {" "$NGINX_CONF"; then
-        # Ricava IP di host.docker.internal dal container nginx
+        # Get the IP of host.docker.internal from the nginx container
         local host_ip
         host_ip=$(docker exec nginx grep host.docker.internal /etc/hosts 2>/dev/null | awk '{print $1}')
         [ -z "$host_ip" ] && host_ip="172.17.0.1"  # fallback
@@ -499,9 +499,9 @@ setup_nginx_stream() {
         cat >> "$NGINX_CONF" <<STREAM
 
 # =============================================================================
-# STREAM: SNI-based routing su porta 443
-# - incus.REDACTED_DOMAIN → TCP passthrough verso Incus (mTLS intatto)
-# - tutti gli altri → blocco HTTP interno su 8442
+# STREAM: SNI-based routing on port 443
+# - incus.REDACTED_DOMAIN → TCP passthrough to Incus (mTLS intact)
+# - all the others → internal HTTP block on 8442
 # =============================================================================
 stream {
     map \$ssl_preread_server_name \$upstream_443 {
@@ -543,13 +543,13 @@ setup_le_certs() {
         warn "Il certificato unico non contiene ${UI_DOMAIN}. Rigenera certbot includendo -d ${UI_DOMAIN}."
     fi
 
-    # Verifica se sono già symlink corretti
+    # Check whether they are already correct symlinks
     if [ -L "$incus_cert" ] && [ "$(readlink -f "$incus_cert")" = "$(readlink -f "$le_cert")" ]; then
         log "Symlink certificato LE già configurato"
         return
     fi
 
-    # Backup self-signed se presente
+    # Self-signed backup if present
     [ -f "$incus_cert" ] && [ ! -L "$incus_cert" ] && mv "$incus_cert" "${incus_cert}.selfsigned"
     [ -f "$incus_key" ] && [ ! -L "$incus_key" ] && mv "$incus_key" "${incus_key}.selfsigned"
 
@@ -593,7 +593,7 @@ setup_socat_template() {
     touch "$PORT_MAP" "$PROXY_STATE"
     chmod 644 "$PORT_MAP" "$PROXY_STATE"
 
-    # Systemd template unit per socat port proxy (usato per TUTTI i proxy: SSH + custom)
+    # Systemd template unit for the socat port proxy (used for ALL proxies: SSH + custom)
     cat > /etc/systemd/system/incus-port-proxy@.service <<'PORTUNIT'
 [Unit]
 Description=Port proxy for Incus VM: %i
@@ -612,7 +612,7 @@ ExecStart=/usr/bin/socat TCP-LISTEN:${HOST_PORT},fork,reuseaddr TCP:${VM_IP}:${V
 WantedBy=multi-user.target
 PORTUNIT
 
-    # Assicura socat installato
+    # Ensure socat is installed
     command -v socat &>/dev/null || apt-get install -y socat
 
     systemctl daemon-reload
@@ -622,11 +622,11 @@ PORTUNIT
 setup_vm_ssh_hook() {
     log "Configurazione hook SSH automatico..."
 
-    # Copia l'hook aggiornato (se non esiste già la versione corrente)
+    # Copy the updated hook (if the current version does not already exist)
     cp "${SCRIPT_DIR}/incus_vm_hook.sh" /mnt/nas2/nas-scripts/incus_vm_hook.sh 2>/dev/null || true
     chmod +x /mnt/nas2/nas-scripts/incus_vm_hook.sh
 
-    # Systemd timer per eseguire l'hook ogni 30 secondi
+    # Systemd timer to run the hook every 30 seconds
     cat > /etc/systemd/system/incus-dns-sync.service <<SERVICE
 [Unit]
 Description=Sync Incus VM SSH proxies
@@ -659,8 +659,8 @@ setup_ssh_helper() {
 
     cat > /usr/local/bin/vm-ssh <<'VMSSH'
 #!/usr/bin/env bash
-# Scorciatoia SSH verso VM Incus (via socat port forwarding)
-# Uso: vm-ssh nomevm [comandi...]
+# SSH shortcut to Incus VMs (via socat port forwarding)
+# Usage: vm-ssh vmname [commands...]
 PORT_MAP="/mnt/nas2/incus-vms/port-map.txt"
 VM_NAME="${1:?Uso: vm-ssh <nome-vm> [comandi...]}"
 shift
@@ -685,36 +685,36 @@ export_config() {
     local storage_pool
     storage_pool=$(active_storage_pool)
 
-    # Dump configurazione incus
+    # Dump the incus configuration
     incus admin sql global "SELECT * FROM config" > "$INCUS_BACKUP_DIR/incus-config.sql" 2>/dev/null || true
 
-    # Esporta profili
+    # Export profiles
     incus profile show default > "$INCUS_BACKUP_DIR/profile-default.yaml" 2>/dev/null || true
 
-    # Esporta rete
+    # Export network
     incus network show incusbr0 > "$INCUS_BACKUP_DIR/network-incusbr0.yaml" 2>/dev/null || true
 
-    # Esporta storage
+    # Export storage
     if [ -n "$storage_pool" ]; then
         incus storage show "$storage_pool" > "$INCUS_BACKUP_DIR/storage-${storage_pool}.yaml" 2>/dev/null || true
     fi
 
-    # Lista VM con config
+    # List VMs with config
     for vm in $(incus list -f csv -c n 2>/dev/null); do
         incus config show "$vm" --expanded > "$INCUS_BACKUP_DIR/vm-${vm}.yaml"
         log "  Esportata config di $vm"
     done
 
-    # Copia questo script e gli hook
+    # Copy this script and the hooks
     cp "$0" "$INCUS_BACKUP_DIR/setup_incus.sh"
     cp /mnt/nas2/nas-scripts/incus_vm_hook.sh "$INCUS_BACKUP_DIR/" 2>/dev/null || true
 
-    # Esporta systemd units
+    # Export systemd units
     cp /etc/systemd/system/incus-dns-sync.* "$INCUS_BACKUP_DIR/" 2>/dev/null || true
     cp /etc/systemd/system/incus-iptables.service "$INCUS_BACKUP_DIR/" 2>/dev/null || true
     cp /etc/systemd/system/incus-port-proxy@.service "$INCUS_BACKUP_DIR/" 2>/dev/null || true
 
-    # Esporta port-map e env files
+    # Export port-map and env files
     cp "$PORT_MAP" "$INCUS_BACKUP_DIR/" 2>/dev/null || true
     cp "$PROXY_STATE" "$INCUS_BACKUP_DIR/" 2>/dev/null || true
     cp -r "$PROXY_DIR" "$INCUS_BACKUP_DIR/" 2>/dev/null || true
@@ -728,22 +728,22 @@ restore_config() {
 
     [ -d "$INCUS_BACKUP_DIR" ] || die "Directory backup non trovata: $INCUS_BACKUP_DIR"
 
-    # Reinstalla se necessario
+    # Reinstall if needed
     install_incus
     setup_swap
 
-    # Ripristina da preseed se il profilo è presente
+    # Restore from preseed if the profile is present
     if [ -f "$INCUS_BACKUP_DIR/profile-default.yaml" ]; then
         configure_incus
     fi
 
-    # Ripristina hook
+    # Restore hooks
     if [ -f "$INCUS_BACKUP_DIR/incus_vm_hook.sh" ]; then
         cp "$INCUS_BACKUP_DIR/incus_vm_hook.sh" /mnt/nas2/nas-scripts/
         chmod +x /mnt/nas2/nas-scripts/incus_vm_hook.sh
     fi
 
-    # Ripristina systemd units
+    # Restore systemd units
     cp "$INCUS_BACKUP_DIR"/incus-dns-sync.* /etc/systemd/system/ 2>/dev/null || true
     cp "$INCUS_BACKUP_DIR"/incus-iptables.service /etc/systemd/system/ 2>/dev/null || true
     cp "$INCUS_BACKUP_DIR"/incus-port-proxy@.service /etc/systemd/system/ 2>/dev/null || true
@@ -751,7 +751,7 @@ restore_config() {
     systemctl enable --now incus-dns-sync.timer 2>/dev/null || true
     systemctl enable --now incus-iptables.service 2>/dev/null || true
 
-    # Ripristina port-map e env files
+    # Restore port-map and env files
     cp "$INCUS_BACKUP_DIR/port-map.txt" "$PORT_MAP" 2>/dev/null || true
     cp "$INCUS_BACKUP_DIR/port-proxy-state.txt" "$PROXY_STATE" 2>/dev/null || true
     mkdir -p "$PROXY_DIR"
@@ -762,7 +762,7 @@ restore_config() {
     setup_trusted_client_certs
     setup_ssh_helper
 
-    # Ripristina VM da export (se presenti)
+    # Restore VMs from the export (if present)
     for backup in "$INCUS_BACKUP_DIR"/*.tar.gz; do
         [ -f "$backup" ] || continue
         local vm_name
@@ -851,7 +851,7 @@ show_status() {
     fi
     if [ -f "$PROXY_STATE" ] && [ -s "$PROXY_STATE" ]; then
         while read -r svc_id; do
-            [[ "$svc_id" == *--ssh ]] && continue  # già mostrato sopra
+            [[ "$svc_id" == *--ssh ]] && continue  # already shown above
             [ -z "$svc_id" ] && continue
             local svc_state hp vp
             if systemctl is-active --quiet "incus-port-proxy@${svc_id}.service" 2>/dev/null; then
@@ -878,7 +878,7 @@ show_status() {
     fi
 }
 
-# --- Migrazione storage: pool con quote rigide (LVM thin, idempotente) --------
+# --- Storage migration: pool with hard quotas (LVM thin, idempotent) ----------
 
 migrate_to_quota_pool() {
     log "=== Migrazione storage a pool con quote rigide (${INCUS_POOL_DRIVER}: ${INCUS_POOL}) ==="
@@ -946,11 +946,11 @@ migrate_to_quota_pool() {
     log "Per ridimensionare il pool: incus storage set ${INCUS_POOL} size=<new_size>"
 }
 
-# --- Relocazione backing file del pool sul disco dati (idempotente) -----------
-# Sposta il file loop-backing del pool LVM da / (disco di sistema) a /mnt/nas
-# (disco dati 16TB) e lascia un symlink al path originale, cosi' la config Incus
-# (source:) resta invariata e non si tocca il DB. Idempotente: se il source e'
-# gia' un symlink che risolve a INCUS_POOL_IMG, e' un no-op.
+# --- Relocation of the pool backing file to the data disk (idempotent) --------
+# Moves the loop-backing file of the LVM pool from / (system disk) to /mnt/nas
+# (data disk) and leaves a symlink at the original path, so the Incus config
+# (source:) stays unchanged and the DB is not touched. Idempotent: if the source is
+# already a symlink resolving to INCUS_POOL_IMG, it is a no-op.
 pool_backing_relocated() {
     local src resolved_target
     src=$(incus storage get "$INCUS_POOL" source 2>/dev/null || true)
@@ -970,7 +970,7 @@ relocate_pool_backing_file() {
     src=$(incus storage get "$INCUS_POOL" source 2>/dev/null || true)
     [ -n "$src" ] || die "Pool ${INCUS_POOL}: campo source vuoto (non loop-backed?)"
 
-    # source deve essere un file/symlink (loop-backed), non un block device dedicato
+    # source must be a file/symlink (loop-backed), not a dedicated block device
     if [ -b "$src" ]; then
         die "source ${src} e' un block device, non un file loop-backed: relocazione non applicabile"
     fi
@@ -993,19 +993,19 @@ relocate_pool_backing_file() {
 
     mkdir -p "$INCUS_POOL_IMG_DIR"
 
-    # 1) Stop VM attive (le rimettiamo su dopo)
+    # 1) Stop active VMs (we bring them back up afterwards)
     local running_vms=()
     log "Stop istanze attive..."
     stop_running_instances running_vms
 
-    # 2) Stop daemon Incus per liberare il loop device
+    # 2) Stop the Incus daemon to free the loop device
     log "Stop daemon Incus..."
     incus admin shutdown 2>/dev/null || true
     systemctl stop incus.service 2>/dev/null || true
     systemctl stop incus.socket 2>/dev/null || true
     sleep 3
 
-    # 3) Disattiva VG e stacca il loop device sul file sorgente
+    # 3) Deactivate the VG and detach the loop device from the source file
     local loopdev
     loopdev=$(losetup -j "$realsrc" 2>/dev/null | cut -d: -f1)
     vgchange -an "$INCUS_POOL" 2>/dev/null || true
@@ -1014,7 +1014,7 @@ relocate_pool_backing_file() {
         log "Loop ${loopdev} staccato da ${realsrc}"
     fi
 
-    # 4) Copia sparse-aware sul disco dati (preserva i buchi: non gonfia a 200G)
+    # 4) Sparse-aware copy to the data disk (preserves the holes: does not inflate to 200G)
     if [ -f "$INCUS_POOL_IMG" ]; then
         warn "Destinazione ${INCUS_POOL_IMG} gia' presente: la riutilizzo senza sovrascrivere"
     else
@@ -1025,15 +1025,15 @@ relocate_pool_backing_file() {
         log "Copiato: $(du -h "$INCUS_POOL_IMG" | cut -f1) reali su /mnt/nas"
     fi
 
-    # 5) Sostituisci l'originale con un symlink al nuovo path
-    #    (mantieni un backup di sicurezza del file originale finche' non validato)
+    # 5) Replace the original with a symlink to the new path
+    #    (keep a safety backup of the original file until validated)
     if [ ! -L "$src" ]; then
         mv "$realsrc" "${realsrc}.pre-relocate.bak"
         ln -s "$INCUS_POOL_IMG" "$src"
         log "Symlink creato: ${src} -> ${INCUS_POOL_IMG}"
     fi
 
-    # 6) Riavvia il daemon Incus (ricrea il loop sul symlink, riattiva il VG)
+    # 6) Restart the Incus daemon (recreates the loop on the symlink, reactivates the VG)
     log "Avvio daemon Incus..."
     systemctl start incus.socket 2>/dev/null || true
     systemctl start incus.service 2>/dev/null || true
@@ -1043,13 +1043,13 @@ relocate_pool_backing_file() {
         [ "$wait" -ge 60 ] && die "Timeout: Incus non risponde dopo la relocazione (backup originale: ${realsrc}.pre-relocate.bak)"
     done
 
-    # 7) Verifica che il loop ora punti al nuovo file
+    # 7) Check that the loop now points to the new file
     local newloop
     newloop=$(losetup -j "$INCUS_POOL_IMG" 2>/dev/null | cut -d: -f1)
     [ -n "$newloop" ] || warn "Loop sul nuovo file non rilevato (Incus potrebbe attivarlo on-demand)"
     [ -n "$newloop" ] && log "Loop attivo sul nuovo file: ${newloop} -> ${INCUS_POOL_IMG}"
 
-    # 8) Riavvia le VM precedentemente attive
+    # 8) Restart the previously active VMs
     log "Riavvio istanze..."
     restart_instances "${running_vms[@]}"
 
@@ -1064,15 +1064,15 @@ migrate_to_btrfs() {
     migrate_to_quota_pool
 }
 
-# --- Migrazione volumi custom: filesystem → block (idempotente) ---------------
-# I volumi block espongono la dimensione corretta a df nella VM (no quirk virtiofs).
+# --- Custom volume migration: filesystem → block (idempotent) -----------------
+# Block volumes expose the correct size to df in the VM (no virtiofs quirk).
 
 migrate_volumes_to_block() {
     log "=== Migrazione volumi custom a content-type=block ==="
 
     local pool="$INCUS_POOL"
 
-    # Elenca volumi custom di tipo filesystem
+    # List custom volumes of type filesystem
     local vols
     vols=$(incus storage volume list "$pool" --format csv -c t,n,d 2>/dev/null | awk -F, '$1=="custom" {print $2}')
 
@@ -1092,7 +1092,7 @@ migrate_volumes_to_block() {
 
         log "  ${vol}: conversione filesystem → block..."
 
-        # Trova la VM che usa questo volume e il path
+        # Find the VM that uses this volume and the path
         local attached_vm="" device_name=""
         for vm in $(incus list -f csv -c n 2>/dev/null); do
             local dev
@@ -1104,12 +1104,12 @@ migrate_volumes_to_block() {
             fi
         done
 
-        # Recupera dimensione attuale
+        # Get the current size
         local vol_size
         vol_size=$(incus storage volume get "$pool" "custom/${vol}" size 2>/dev/null || echo "")
         [ -z "$vol_size" ] && vol_size="20GiB"
 
-        # Stop VM se necessario
+        # Stop the VM if needed
         local was_running=false
         if [ -n "$attached_vm" ]; then
             local vm_state
@@ -1124,26 +1124,26 @@ migrate_volumes_to_block() {
                     [ $wait -ge 60 ] && die "Timeout stop $attached_vm"
                 done
             fi
-            # Rimuovi device dalla VM
+            # Remove the device from the VM
             log "    Rimuovo device '${device_name}' da ${attached_vm}..."
             incus config device remove "$attached_vm" "$device_name"
         fi
 
-        # Elimina vecchio volume filesystem
+        # Delete the old filesystem volume
         log "    Elimino volume filesystem '${vol}'..."
         incus storage volume delete "$pool" "custom/${vol}"
 
-        # Crea nuovo volume block con stessa dimensione
+        # Create the new block volume with the same size
         log "    Creo volume block '${vol}' (${vol_size})..."
         incus storage volume create "$pool" "${vol}" --type block size="${vol_size}"
 
-        # Ri-collega alla VM
+        # Re-attach to the VM
         if [ -n "$attached_vm" ]; then
             log "    Collego a ${attached_vm} come /dev/sdX..."
             incus config device add "$attached_vm" "$device_name" disk pool="$pool" source="${vol}"
         fi
 
-        # Riavvia VM
+        # Restart the VM
         if $was_running; then
             log "    Riavvio ${attached_vm}..."
             incus start "$attached_vm"
@@ -1166,8 +1166,8 @@ do_uninstall() {
     read -rp "Sei sicuro? Le VM verranno distrutte! (yes/no): " confirm
     [ "$confirm" = "yes" ] || die "Annullato"
 
-    # Stop e rimuovi
-    # Ferma tutti i proxy
+    # Stop and remove
+    # Stop all proxies
     for svc in /etc/systemd/system/multi-user.target.wants/incus-port-proxy@*.service; do
         [ -f "$svc" ] && systemctl disable --now "$(basename "$svc")" 2>/dev/null || true
     done
@@ -1186,7 +1186,7 @@ do_uninstall() {
     rm -f /etc/apt/keyrings/zabbly.gpg
     rm -f /usr/local/bin/vm-ssh
 
-    # Ripristina cert self-signed se presenti i backup
+    # Restore self-signed certs if the backups exist
     if [ -f /var/lib/incus/server.crt.selfsigned ] && [ -f /var/lib/incus/server.key.selfsigned ]; then
         rm -f /var/lib/incus/server.crt /var/lib/incus/server.key
         mv /var/lib/incus/server.crt.selfsigned /var/lib/incus/server.crt
@@ -1200,26 +1200,26 @@ do_uninstall() {
 
 # --- Main ---------------------------------------------------------------------
 
-# Applica la policy SSH REDACTED_BRAND a tutte le VM RUNNING (idempotente).
+# Apply the REDACTED_BRAND SSH policy to all RUNNING VMs (idempotent).
 # Policy: PasswordAuthentication=yes, PermitRootLogin=no, MaxAuthTries=3.
-# Vince su /etc/ssh/sshd_config.d/50-cloud-init.conf grazie al prefisso 01-.
-# Non assegna password ad alcun utente: l'admin sceglie a chi crearne una.
+# Wins over /etc/ssh/sshd_config.d/50-cloud-init.conf thanks to the 01- prefix.
+# Assigns no password to any user: the admin chooses who gets one.
 fix_vm_ssh_policy() {
     local vm changed total=0 ok=0
     log "Applico policy SSH REDACTED_BRAND a tutte le VM RUNNING..."
     for vm in $(incus list --format csv -c n,s 2>/dev/null | awk -F, '$2=="RUNNING"{print $1}'); do
         total=$((total+1))
-        # Push del file di policy + cleanup legacy + reload sshd, tutto idempotente.
+        # Push the policy file + legacy cleanup + sshd reload, all idempotent.
         if incus exec "$vm" -- bash -s <<'BASH'; then
 set -e
 mkdir -p /etc/ssh/sshd_config.d
 desired_path=/etc/ssh/sshd_config.d/01-REDACTED_BRAND_lc-defaults.conf
-desired_content='# Policy REDACTED_BRAND: SSH password auth ABILITATA, ma per default NESSUN utente
-# ha una password (vm-admin e altri utenti cloud-init sono creati con
-# password locked). L'"'"'amministratore della VM puo'"'"' creare utenti con
-# password ad-hoc:
+desired_content='# REDACTED_BRAND policy: SSH password auth ENABLED, but by default NO user
+# has a password (vm-admin and other cloud-init users are created with
+# a locked password). The VM administrator can create users with
+# ad-hoc passwords:
 #   incus exec <vm> -- useradd -m <user> && incus exec <vm> -- passwd <user>
-# Oppure assegnare una password a un utente esistente:
+# Or assign a password to an existing user:
 #   incus exec <vm> -- passwd <user>
 PasswordAuthentication yes
 KbdInteractiveAuthentication yes
@@ -1231,18 +1231,18 @@ if ! [ -f "$desired_path" ] || ! diff -q <(printf '%s\n' "$desired_content") "$d
     chmod 0644 "$desired_path"
     changed=1
 fi
-# Assicurati che sshd_config includa la dir (Rocky/RHEL non lo fa di default)
+# Make sure sshd_config includes the dir (Rocky/RHEL does not by default)
 if ! grep -q "^Include /etc/ssh/sshd_config.d" /etc/ssh/sshd_config; then
     sed -i "1iInclude /etc/ssh/sshd_config.d/*.conf" /etc/ssh/sshd_config
     changed=1
 fi
-# Pulisci direttive duplicate nel main config che potrebbero mascherare gli include
+# Clean up duplicate directives in the main config that could mask the includes
 sed -i "/^PasswordAuthentication /d;/^PermitRootLogin /d" /etc/ssh/sshd_config && true
 if [ "$changed" -eq 1 ]; then
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || \
         systemctl restart sshd 2>/dev/null || systemctl restart ssh
 fi
-# Verifica effettiva
+# Actual check
 sshd -T 2>/dev/null | grep -E "^(passwordauthentication|permitrootlogin)" | head -2
 BASH
             ok=$((ok+1))

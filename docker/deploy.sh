@@ -3,11 +3,11 @@
 # ============================================================================
 # DEPLOY SCRIPT - REDACTED_HOSTNAME_TC Cloud Platform
 # ============================================================================
-# Script intelligente:
-# - Se non ci sono certificati SSL → kickstart per ottenerli
-# - Se i certificati esistono → avvia lo stack completo
-# - Crea tutte le directory necessarie
-# - Verifica servizi dopo l'avvio
+# Smart script:
+# - If there are no SSL certificates → kickstart to obtain them
+# - If the certificates exist → start the full stack
+# - Create all the necessary directories
+# - Check the services after startup
 #
 # Usage: ./deploy.sh
 # ============================================================================
@@ -28,7 +28,7 @@ print_error()   { echo -e "${RED}❌${NC} $1"; }
 echo "🚀 REDACTED_HOSTNAME_TC Cloud Platform - Deploy Script"
 echo "=============================================="
 
-# Verifica prerequisiti
+# Check prerequisites
 if [ ! -f "docker-compose.yml" ]; then
     print_error "docker-compose.yml non trovato. Esegui dalla directory /mnt/nas2/docker/"
     exit 1
@@ -43,7 +43,7 @@ fi
 print_info "Caricamento configurazione..."
 set -a; source .env; set +a
 
-# Validazione
+# Validation
 if [ -z "$EMAIL" ] || [ "$EMAIL" = "tua-email@example.com" ]; then
     print_error "Configura una EMAIL valida nel file .env (necessaria per Let's Encrypt)"
     exit 1
@@ -56,7 +56,7 @@ fi
 
 print_success "Configurazione validata!"
 
-# === Directory dati ===
+# === Data directories ===
 print_info "Creazione directory dati..."
 mkdir -p data/certbot/{conf,www}
 mkdir -p data/nginx/htpasswd
@@ -70,7 +70,7 @@ mkdir -p data/icloud-photos
 mkdir -p scripts
 print_success "Directory create!"
 
-# === Certificati SSL ===
+# === SSL certificates ===
 CERT_PATH="data/certbot/conf/live/REDACTED_HOSTNAME.REDACTED_DDNS/fullchain.pem"
 
 if [ ! -f "$CERT_PATH" ]; then
@@ -101,14 +101,14 @@ else
     print_success "Certificati SSL esistenti trovati"
 fi
 
-# === Avvio stack ===
+# === Start the stack ===
 print_info "Avvio stack completo..."
 docker compose up -d
 
 print_info "Attendo avvio servizi..."
 sleep 10
 
-# === Verifica servizi ===
+# === Check services ===
 print_info "Verifica servizi..."
 
 check_service() {

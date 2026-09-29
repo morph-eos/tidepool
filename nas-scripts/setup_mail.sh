@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP MAIL — Configurazione SMTP condivisa per servizi REDACTED_BRAND
+# SETUP MAIL — shared SMTP configuration for REDACTED_BRAND services
 # =============================================================================
 
 DOCKER_DIR="/mnt/nas2/docker"

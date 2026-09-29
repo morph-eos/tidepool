@@ -2,32 +2,32 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP NGINX REAL-IP — propaga l'IP client reale attraverso il router SNI
+# SETUP NGINX REAL-IP — propagates the real client IP through the SNI router
 # =============================================================================
-# nginx smista tutto l'HTTPS in ingresso su 443 con un blocco `stream`
-# (ssl_preread sul SNI) che fa da hairpin verso 127.0.0.1:8442, dove vivono
-# i vhost http reali (Nextcloud, Immich, Jellyfin, Plex, Vaultwarden, WebDAV,
-# Syncthing, REDACTED_NAME, modem). Quell'hairpin e' una NUOVA connessione TCP
-# aperta da nginx verso se stesso: senza PROXY protocol, ogni vhost su 8442
-# vede sempre $remote_addr=127.0.0.1, quindi X-Real-IP/X-Forwarded-For inviati
-# ai container sono sempre 127.0.0.1 — bruteforce-protection, log e
-# rate-limit per-IP (es. Nextcloud) finiscono condivisi da TUTTI i client.
+# nginx routes all incoming HTTPS on 443 with a `stream` block
+# (ssl_preread on the SNI) that hairpins to 127.0.0.1:8442, where the real
+# http vhosts live (Nextcloud, Immich, Jellyfin, Plex, Vaultwarden, WebDAV,
+# Syncthing, REDACTED_NAME, modem). That hairpin is a NEW TCP connection
+# opened by nginx to itself: without PROXY protocol, every vhost on 8442
+# always sees $remote_addr=127.0.0.1, so the X-Real-IP/X-Forwarded-For sent
+# to the containers are always 127.0.0.1 — brute-force protection, logs and
+# per-IP rate limits (e.g. Nextcloud) end up shared by ALL the clients.
 #
-# Fix: abilitiamo PROXY protocol sull'hop stream->8442 e lo accettiamo sui
-# listener 8442 con ngx_http_realip_module. incus.REDACTED_DOMAIN condivide lo
-# stesso proxy_pass ma NON supporta PROXY protocol (romperebbe l'mTLS): gli
-# aggiungiamo un piccolo hop interno dedicato (127.0.0.1:18443) che accetta
-# e RIMUOVE l'header PROXY protocol prima di inoltrare il TLS/mTLS originale
-# intatto verso Incus, cosi' quel percorso resta bit-per-bit invariato.
+# Fix: we enable PROXY protocol on the stream->8442 hop and accept it on the
+# 8442 listeners with ngx_http_realip_module. incus.REDACTED_DOMAIN shares the
+# same proxy_pass but does NOT support PROXY protocol (it would break mTLS): we
+# add a small dedicated internal hop (127.0.0.1:18443) that accepts
+# and STRIPS the PROXY protocol header before forwarding the original TLS/mTLS
+# intact to Incus, so that path stays bit-for-bit unchanged.
 #
-# Poi allineiamo Nextcloud (trusted_proxies + forwarded_for_headers) cosi'
-# da fidarsi dell'header e usare l'IP reale per bruteforce-protection e log.
+# Then we align Nextcloud (trusted_proxies + forwarded_for_headers) so that
+# it trusts the header and uses the real IP for brute-force protection and logs.
 # =============================================================================
 
 NGINX_CONF="/mnt/nas2/docker/data/nginx/nginx.conf"
 NGINX_CONTAINER="nginx"
 NC_CONTAINER="nextcloud"
-NC_TRUSTED_PROXIES_CIDR="172.18.0.0/16"   # subnet docker_default (IP nginx/nextcloud cambiano, la subnet no)
+NC_TRUSTED_PROXIES_CIDR="172.18.0.0/16"   # docker_default subnet (nginx/nextcloud IPs change, the subnet does not)
 
 log() { echo "[nginx-realip] $*"; }
 die() { echo "[nginx-realip] ERRORE: $*" >&2; exit 1; }

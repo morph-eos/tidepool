@@ -2,23 +2,23 @@
 # =============================================================================
 # SYSTEMD HEALTH WATCHDOG
 # =============================================================================
-# Esegue ogni 5 min via systemd timer (systemd-health-watchdog.timer).
-# Rileva PID1 "wedged" (vivo ma non risponde piu' a systemctl/D-Bus) — vedi
-# Pitfall del README 2026-09-11: un Oops kernel durante lo start/stop di un
-# container puo' lasciare systemd bloccato senza far panicare il kernel
-# (quindi senza kdump/reboot automatico) e senza alcun alert per giorni
-# (successo cosi' dall'11 al 14/09, scoperto solo da un 502 su Immich).
+# Runs every 5 min via systemd timer (systemd-health-watchdog.timer).
+# Detects a "wedged" PID1 (alive but no longer answering systemctl/D-Bus) — see
+# the README pitfall 2026-09-11: a kernel Oops during a container
+# start/stop can leave systemd stuck without panicking the kernel
+# (hence without kdump/automatic reboot) and without any alert for days
+# (it happened like that from 11 to 14/09, discovered only from a 502 on Immich).
 #
-# Invia UNA email all'insorgere del problema, poi al massimo una ogni ora
-# finche' persiste, e una di "risolto" quando torna normale.
+# Sends ONE email when the problem starts, then at most one every hour
+# while it persists, and a "resolved" one when it returns to normal.
 #
-# NON riavvia da solo: un riavvio forzato (reboot -f, l'unica via quando
-# systemd e' wedged: 'sudo reboot' normale passa anch'esso da PID1 e va in
-# timeout) salta la sync/stop ordinato dei DB nei container (Postgres/
-# MariaDB/SQLite) — la decisione di farlo resta manuale.
+# Does NOT reboot by itself: a forced reboot (reboot -f, the only way when
+# systemd is wedged: a normal 'sudo reboot' also goes through PID1 and times
+# out) skips the orderly sync/stop of the DBs in the containers (Postgres/
+# MariaDB/SQLite) — the decision to do it stays manual.
 #
 # Log: journalctl -u systemd-health-watchdog / logger -t systemd-health-watchdog
-# Stato: /var/lib/systemd-health-watchdog/
+# State: /var/lib/systemd-health-watchdog/
 # =============================================================================
 set -u
 
@@ -27,14 +27,14 @@ STATE_FILE="$STATE_DIR/wedged-since"
 LAST_ALERT_FILE="$STATE_DIR/last-alert"
 ENV_FILE="/mnt/nas2/docker/.env"
 LOG_TAG="systemd-health-watchdog"
-REALERT_INTERVAL=3600   # ri-alert ogni 1h finche' persiste
+REALERT_INTERVAL=3600   # re-alert every 1h while it persists
 
 log() { logger -t "$LOG_TAG" -- "$*"; echo "[$(date +%H:%M:%S)] $*"; }
 
 mkdir -p "$STATE_DIR"
 
-# Invia email di notifica (usa SMTP condiviso da .env, fallback SMART_*;
-# stesso schema di backup_offsite.sh/proton_cli_backup.sh)
+# Send a notification email (uses the shared SMTP from .env, fallback SMART_*;
+# same scheme as backup_offsite.sh/proton_cli_backup.sh)
 send_alert_email() {
     local subject="$1" body="$2"
     [ -f "$ENV_FILE" ] || { log "WARN: .env non trovato, email non inviata"; return 1; }
@@ -66,8 +66,8 @@ send_alert_email() {
     local curl_tls=()
     [ "$smtp_ssl" = "true" ] || [ "$smtp_tls" = "true" ] && curl_tls=(--ssl-reqd)
 
-    # Precalcola FUORI dall'heredoc: un default con apostrofo dentro
-    # ${var:-...} in un heredoc rompe il parsing bash (vedi README, sezione Pitfall).
+    # Precompute OUTSIDE the heredoc: a default with an apostrophe inside
+    # ${var:-...} in a heredoc breaks bash parsing (see the README, Lessons learned).
     local from_name="${smtp_from_name:-REDACTED_BRAND Services}"
 
     curl -s --max-time 30 --url "$smtp_url" \
@@ -94,9 +94,9 @@ MAILEOF
 }
 
 # --- Check -------------------------------------------------------------------
-# systemctl is-system-running ritorna gia' exit!=0 per "degraded" (normale,
-# es. un unit oneshot fallito una tantum) — quello NON e' wedged. Il segnale
-# specifico di PID1 bloccato e' il timeout/errore di attivazione del bus.
+# systemctl is-system-running already returns exit!=0 for "degraded" (normal,
+# e.g. a oneshot unit that failed once) — that is NOT wedged. The specific
+# signal of a stuck PID1 is the bus activation timeout/error.
 OUT=$(timeout 8 systemctl is-system-running 2>&1)
 RC=$?
 

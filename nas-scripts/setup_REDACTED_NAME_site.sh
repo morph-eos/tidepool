@@ -2,19 +2,19 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP REDACTED_NAME SITE — riorganizza REDACTED_NAME.REDACTED_DOMAIN in due sottopagine
+# SETUP REDACTED_NAME SITE — reorganizes REDACTED_NAME.REDACTED_DOMAIN into two subpages
 # =============================================================================
-# REDACTED_NAME.REDACTED_DOMAIN era un unico sito statico (root vhost = index.html), protetto
-# da auth_basic a livello di server con /etc/nginx/htpasswd/REDACTED_NAME.
+# REDACTED_NAME.REDACTED_DOMAIN was a single static site (root vhost = index.html), protected
+# by auth_basic at server level with /etc/nginx/htpasswd/REDACTED_NAME.
 #
-# Nuova struttura:
-#   /            -> pagina di landing con 2 link, STESSA password del vecchio sito
-#   /quotes/     -> vecchio sito (contenuto originale), password invariata
-#   /festa-ruolo/ -> "Invito REDACTED_NAME" (ex file standalone in /mnt/nas2), LIBERO
-#                    (auth_basic off esplicito sulla location, uniche eccezione
-#                    al server-level auth_basic ereditato da tutto il resto)
+# New structure:
+#   /            -> landing page with 2 links, SAME password as the old site
+#   /quotes/     -> old site (original content), password unchanged
+#   /festa-ruolo/ -> "REDACTED_NAME invitation" (former standalone file in /mnt/nas2), FREE
+#                    (explicit auth_basic off on the location, the only exception
+#                    to the server-level auth_basic inherited by everything else)
 #
-# Idempotente: rieseguibile, la seconda esecuzione e' no-op.
+# Idempotent: can be rerun, the second run is a no-op.
 # =============================================================================
 
 NGINX_CONF="/mnt/nas2/docker/data/nginx/nginx.conf"

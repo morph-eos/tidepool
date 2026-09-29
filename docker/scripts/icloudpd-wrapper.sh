@@ -1,14 +1,14 @@
 #!/bin/sh
 
 # ============================================================================
-# ICLOUDPD WRAPPER SCRIPT - Gestione automatica crash XMP
+# ICLOUDPD WRAPPER SCRIPT - automatic XMP crash handling
 # ============================================================================
 #
-# Questo script wrapper:
-# 1. Esegue il fix degli XMP mancanti all'avvio
-# 2. Monitora iCloudPD per i crash
-# 3. Quando rileva un crash, esegue il fix XMP e riavvia
-# 4. Mantiene il normale comportamento di iCloudPD
+# This wrapper script:
+# 1. Runs the missing-XMP fix at startup
+# 2. Monitors iCloudPD for crashes
+# 3. When it detects a crash, runs the XMP fix and restarts
+# 4. Keeps the normal iCloudPD behavior
 #
 # ============================================================================
 
@@ -17,15 +17,15 @@ LOG_FILE="/app/photos/icloudpd-wrapper.log"
 CRASH_LOG="/app/photos/crash-recovery.log"
 DOWNLOAD_LOG="/app/photos/latest-downloads.log"
 
-# Comando opzionale per mettere on hold il container all'avvio per autenticazione
+# Optional command to put the container on hold at startup for authentication
 # sleep 3600
 
-# Funzione di logging
+# Logging function
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
 
-# Funzione per eseguire il fix XMP
+# Function to run the XMP fix
 run_xmp_fix() {
     log "Running XMP fix for missing sidecars..."
     if [ -x "/app/scripts/fix-missing-xmp.sh" ]; then
@@ -36,7 +36,7 @@ run_xmp_fix() {
     fi
 }
 
-# Funzione per eseguire l'update XMP
+# Function to run the XMP update
 run_xmp_update() {
     log "Updating XMP date/time for downloaded files listed in latest-downloads.log..."
     if [ ! -x "/app/scripts/update-xmp-datetime.sh" ]; then
@@ -49,7 +49,7 @@ run_xmp_update() {
         return
     fi
 
-    # Estrai i file scaricati dal log dedicato; supporta sia righe "Downloaded <path>" che righe contenenti solo il path
+    # Extract the downloaded files from the dedicated log; supports both "Downloaded <path>" lines and lines containing only the path
     files=$(sed -E 's/^.*Downloaded[[:space:]]+//; s/[[:space:]]+$//' "$DOWNLOAD_LOG" \
         | awk 'BEGIN{RS="\n"} /^\// {print}' \
         | sort -u)
@@ -80,12 +80,12 @@ run_xmp_update() {
         fi
     done
 
-    # Se tutti aggiornati, cancella il log; altrimenti mantieni solo i rimanenti
+    # If all are updated, delete the log; otherwise keep only the remaining ones
     if [ "$success_all" = true ] && [ ! -s "$pending_tmp" ]; then
         log "XMP updates completed for all downloaded files. Cleaning up $DOWNLOAD_LOG."
         rm -f "$DOWNLOAD_LOG" || log "WARNING: could not remove $DOWNLOAD_LOG"
     else
-        # Sostituisci il log con la lista dei pendenti, deduplicata (come plain path, gestiti al prossimo run)
+        # Replace the log with the deduplicated list of pending files (as plain paths, handled on the next run)
         sort -u "$pending_tmp" > "$DOWNLOAD_LOG"
         left=$(wc -l < "$DOWNLOAD_LOG" | tr -d ' ')
         log "Some files could not be updated. Keeping $left pending item(s) in $DOWNLOAD_LOG for next run."
@@ -93,19 +93,19 @@ run_xmp_update() {
     rm -f "$pending_tmp" 2>/dev/null || true
 }
 
-# Funzione per eseguire iCloudPD
+# Function to run iCloudPD
 run_icloudpd() {
     log "Starting iCloudPD with parameters:"
     log "  Username: ${ICLOUD_USERNAME}"
     log "  Directory: ${ICLOUD_DIR}"
     log "  Sync interval: ${ICLOUD_SYNC_INTERVAL:-3600}s"
     
-    # Esegue iCloudPD con i parametri corretti per la nuova versione
-    # Doppio logging: stdout del wrapper (per chi fa docker logs) + file dedicato latest-downloads.log
+    # Run iCloudPD with the right parameters for the new version
+    # Double logging: wrapper stdout (for whoever runs docker logs) + dedicated latest-downloads.log file
     PIPE="/tmp/icloudpd_stream.$$.pipe"
     rm -f "$PIPE" 2>/dev/null || true
     mkfifo "$PIPE"
-    # tee in background: scrive sia su stdout che su DOWNLOAD_LOG
+    # tee in the background: writes both to stdout and to DOWNLOAD_LOG
     tee -a "$DOWNLOAD_LOG" < "$PIPE" &
     TEE_PID=$!
 
@@ -137,13 +137,13 @@ run_icloudpd() {
         --smtp-password "${SMTP_PASSWORD}" \
         > "$PIPE" 2>&1
     cmd_ec=$?
-    # Chiudi tee e pulisci
+    # Close tee and clean up
     wait $TEE_PID 2>/dev/null || true
     rm -f "$PIPE" 2>/dev/null || true
     return $cmd_ec
 }
 
-# Controllo exiftool (installa se manca)
+# Check exiftool (install it if missing)
 ensure_exiftool() {
     if ! command -v exiftool >/dev/null 2>&1; then
         log "exiftool not found, installing..."
@@ -167,38 +167,38 @@ ensure_exiftool() {
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
     log "=== iCloudPD Wrapper Script Started ==="
     log "Version: 1.0"
     log "Target directory: ${ICLOUD_DIR}"
     
-    # Verifica che la directory esista
+    # Check that the directory exists
     if [ ! -d "${ICLOUD_DIR}" ]; then
         log "ERROR: Directory ${ICLOUD_DIR} does not exist"
         exit 1
     fi
     
-    # Esegue il fix XMP iniziale per tutti i file esistenti
+    # Run the initial XMP fix for all existing files
     log "Performing initial XMP fix for existing files..."
     run_xmp_fix
 
     log "Checking exiftool..."
     ensure_exiftool
     
-    # Loop principale con gestione crash
+    # Main loop with crash handling
     while true; do
         log "=== Starting iCloudPD synchronization ==="
         
-        # Esegue iCloudPD
+        # Run iCloudPD
         run_icloudpd
         exit_code=$?
         
-        # Log del risultato
+        # Log the result
         if [ $exit_code -eq 0 ]; then
             log "iCloudPD completed successfully"
 
-            # Controlla se gli xmp sono aggiornati
+            # Check whether the xmp files are up to date
             log "Running XMP date/time update after successful sync..."
             run_xmp_update
 
@@ -208,12 +208,12 @@ main() {
             log "iCloudPD exited with code: $exit_code"
             echo "$(date '+%Y-%m-%d %H:%M:%S') - Crash detected (exit code: $exit_code)" >> "$CRASH_LOG"
             
-            # Se il codice di uscita indica un crash, esegue il fix
+            # If the exit code indicates a crash, run the fix
             if [ $exit_code -ne 0 ]; then
                 log "Crash detected! Running XMP fix before retry..."
                 run_xmp_fix
                 
-                # Attende un po' prima di riprovare
+                # Wait a bit before retrying
                 log "Waiting 5 seconds before retry..."
                 sleep 5
             else
@@ -226,10 +226,10 @@ main() {
     log "=== iCloudPD Wrapper Script Finished ==="
 }
 
-# Trap per gestire i segnali
+# Trap to handle signals
 trap 'log "Received termination signal, shutting down..."; exit 0' TERM INT
 
-# Esegue se chiamato direttamente
+# Run if called directly
 if [ "${0##*/}" = "icloudpd-wrapper.sh" ]; then
     main "$@"
 fi

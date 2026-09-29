@@ -2,24 +2,24 @@
 set -euo pipefail
 
 # =============================================================================
-# SETUP JELLYFIN SSO BUTTON — Inietta un bottone di login SSO reale nella
-# pagina di login di Jellyfin via nginx sub_filter.
+# SETUP JELLYFIN SSO BUTTON — injects a real SSO login button into the
+# Jellyfin login page via nginx sub_filter.
 # =============================================================================
-# Perché serve: il plugin SSO Authentication (K0lin, 5.x) non inietta un
-# bottone nel client web di Jellyfin (limite di design del plugin, non un
-# bug — verificato: nessun campo di configurazione per questo in nessuna
-# versione controllata). L'unico modo per accedere via SSO restava l'URL
-# diretto /sso/OID/start/nextcloud.
+# Why it is needed: the SSO Authentication plugin (K0lin, 5.x) does not inject a
+# button into the Jellyfin web client (a design limit of the plugin, not a
+# bug — verified: no configuration field for this in any
+# version checked). The only way to sign in via SSO was the
+# direct URL /sso/OID/start/nextcloud.
 #
-# Come funziona: nginx serve /nc-sso-button.js come file statico e usa
-# sub_filter per iniettare <script src="/nc-sso-button.js"></script> prima
-# di </body> nella risposta HTML di Jellyfin (solo text/html, non tocca
-# risposte API/JSON né lo streaming video). Lo script JS aggiunge un
-# bottone fisso in basso a destra quando l'hash della pagina è #/login (o
-# vuoto), lo rimuove altrove — polling su location.hash, nessuna dipendenza
-# da classi CSS interne di Jellyfin che potrebbero cambiare a un aggiornamento.
+# How it works: nginx serves /nc-sso-button.js as a static file and uses
+# sub_filter to inject <script src="/nc-sso-button.js"></script> before
+# </body> in Jellyfin's HTML response (text/html only, it does not touch
+# API/JSON responses or video streaming). The JS script adds a fixed
+# button at the bottom right when the page hash is #/login (or
+# empty), and removes it elsewhere — polling on location.hash, no dependency
+# on Jellyfin's internal CSS classes that might change with an update.
 #
-# Uso:
+# Usage:
 #   sudo /mnt/nas2/nas-scripts/setup_jellyfin_sso_button.sh install
 #   sudo /mnt/nas2/nas-scripts/setup_jellyfin_sso_button.sh status
 # =============================================================================
@@ -61,9 +61,9 @@ install() {
         cp -a "$NGINX_CONF" "$backup"
         log "Backup nginx.conf: $backup"
 
-        # Inserisce la location statica per il JS e il sub_filter subito dopo
-        # il blocco "location / {" del vhost jellyfin (identificato dal proxy_pass
-        # jellyfin-backend), senza toccare gli altri vhost.
+        # Inserts the static location for the JS and the sub_filter right after
+        # the "location / {" block of the jellyfin vhost (identified by the proxy_pass
+        # jellyfin-backend), without touching the other vhosts.
         python3 - "$NGINX_CONF" << 'PYEOF'
 import re, sys
 
@@ -77,7 +77,7 @@ if idx == -1:
     print("ERRORE: marker 'location /' di jellyfin non trovato", file=sys.stderr)
     sys.exit(1)
 
-# Trova la chiusura del blocco "location / { ... }" del vhost jellyfin
+# Find the closing of the "location / { ... }" block of the jellyfin vhost
 brace_start = content.find("{", idx)
 depth = 0
 i = brace_start
@@ -89,7 +89,7 @@ while i < len(content):
         if depth == 0:
             break
     i += 1
-block_end = i  # indice della "}" di chiusura
+block_end = i  # index of the closing "}"
 
 sub_filter_block = (
     "\n\n            # SSO button injection (setup_jellyfin_sso_button.sh)\n"
@@ -106,9 +106,9 @@ new_location_block = (
     "        }\n"
 )
 
-# Inserisce sub_filter appena prima della chiusura del blocco location /
+# Insert the sub_filter right before the closing of the location / block
 content = content[:block_end] + sub_filter_block + content[block_end:]
-# Inserisce la nuova location dopo la chiusura del blocco (che si è spostata di len(sub_filter_block))
+# Insert the new location after the closing of the block (which has shifted by len(sub_filter_block))
 insert_point = block_end + len(sub_filter_block) + 1
 content = content[:insert_point] + new_location_block + content[insert_point:]
 

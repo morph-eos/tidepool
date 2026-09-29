@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SETUP SYSTEMD WATCHDOG — alert email se PID1 resta "wedged"
+# SETUP SYSTEMD WATCHDOG — email alert if PID1 stays "wedged"
 # =============================================================================
-# Chiude il gap scoperto l'11-14/09/2026 (vedi README, pitfall "systemd
-# wedged"): un Oops kernel durante lo start/stop di un container puo' lasciare
-# systemd (PID1) bloccato senza far panicare il kernel — quindi senza
-# kdump/reboot automatico — e SENZA ALCUN ALERT. E' rimasto cosi' 3 giorni e
-# mezzo prima di essere scoperto per caso da un 502 su Immich.
+# Closes the gap discovered on 11-14/09/2026 (see the README, pitfall "wedged
+# systemd"): a kernel Oops during a container start/stop can leave
+# systemd (PID1) stuck without panicking the kernel — hence without
+# kdump/automatic reboot — and WITHOUT ANY ALERT. It stayed like that for 3 and a
+# half days before being discovered by chance from a 502 on Immich.
 #
-# Installa systemd-health-watchdog.{service,timer}: esegue ogni 5 min
-# systemd_watchdog.sh, che rileva il timeout D-Bus verso PID1 e manda email
-# (SMTP condiviso da .env) — non riavvia da solo (vedi motivazione nello
-# script stesso: un riavvio forzato salta la sync ordinata dei DB).
+# Installs systemd-health-watchdog.{service,timer}: runs systemd_watchdog.sh
+# every 5 min, which detects the D-Bus timeout to PID1 and sends an email
+# (shared SMTP from .env) — it does not reboot by itself (see the rationale in
+# the script itself: a forced reboot skips the orderly sync of the DBs).
 #
-# Idempotente. Uso:
+# Idempotent. Usage:
 #   sudo bash setup_systemd_watchdog.sh          # install/update
-#   sudo bash setup_systemd_watchdog.sh status   # mostra stato
-#   sudo bash setup_systemd_watchdog.sh test     # esegue subito una verifica
-#   sudo bash setup_systemd_watchdog.sh remove   # disinstalla
+#   sudo bash setup_systemd_watchdog.sh status   # show status
+#   sudo bash setup_systemd_watchdog.sh test     # run a check right away
+#   sudo bash setup_systemd_watchdog.sh remove   # uninstall
 # =============================================================================
 set -euo pipefail
 

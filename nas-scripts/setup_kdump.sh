@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SETUP KDUMP — abilita raccolta di crash dump del kernel
+# SETUP KDUMP — enables kernel crash dump collection
 # =============================================================================
-# Cosa fa kdump:
-# - Riserva una porzione di RAM al boot per un secondo kernel ("crash kernel")
-# - In caso di kernel panic / oops fatale / hard hang con NMI, il kernel
-#   principale salta al crash kernel che dumpa la memoria del primo kernel
-#   in /var/crash/<timestamp>/ (vmcore + dmesg)
-# - Ti permette poi di analizzare il dump con `crash` o `gdb` per capire
-#   driver/funzione che ha causato il panic
+# What kdump does:
+# - Reserves a portion of RAM at boot for a second kernel ("crash kernel")
+# - On a kernel panic / fatal oops / hard hang with NMI, the main
+#   kernel jumps to the crash kernel, which dumps the first kernel's memory
+#   to /var/crash/<timestamp>/ (vmcore + dmesg)
+# - It then lets you analyze the dump with `crash` or `gdb` to find the
+#   driver/function that caused the panic
 #
-# Quando NON serve:
-# - Hard reset elettrico (kernel non gira piu')
-# - Perdita di rete senza panic (vedi caso 30 apr 2026: kernel vivo, WiFi giu')
-# - Crash applicativo (per quello esiste systemd-coredump)
+# When it is NOT useful:
+# - Electrical hard reset (the kernel is no longer running)
+# - Network loss without a panic (see the 30 Apr 2026 case: kernel alive, WiFi down)
+# - Application crash (systemd-coredump exists for that)
 #
-# Quando serve:
-# - Kernel panic (driver buggato, BUG_ON, NULL deref)
-# - Soft/hard lockup (CPU bloccata) → triggera panic via watchdog
-# - Machine Check Exception (MCE: RAM ECC, CPU bug)
+# When it is useful:
+# - Kernel panic (buggy driver, BUG_ON, NULL deref)
+# - Soft/hard lockup (stuck CPU) → triggers a panic via the watchdog
+# - Machine Check Exception (MCE: ECC RAM, CPU bug)
 #
-# Costo: ~256 MB di RAM riservati al boot.
-# Spazio: ogni dump ~ size della RAM usata (compressa con makedumpfile, di
-# solito 200-800 MB). I dump vecchi vanno potati a mano o via cron.
+# Cost: ~256 MB of RAM reserved at boot.
+# Space: each dump ~ the size of the RAM in use (compressed with makedumpfile, usually
+# 200-800 MB). Old dumps must be pruned by hand or via cron.
 # =============================================================================
 set -euo pipefail
 
 [[ $EUID -ne 0 ]] && exec sudo "$0" "$@"
 
-CRASHKERNEL="${CRASHKERNEL:-256M-:256M}"   # ≥256MB RAM → riserva 256MB
-KEEP_DUMPS="${KEEP_DUMPS:-3}"               # mantieni ultimi N dump
+CRASHKERNEL="${CRASHKERNEL:-256M-:256M}"   # ≥256MB RAM → reserve 256MB
+KEEP_DUMPS="${KEEP_DUMPS:-3}"               # keep the last N dumps
 
 log() { echo "[kdump-setup] $*"; }
 
@@ -42,10 +42,10 @@ KDUMP_CFG=/etc/default/kdump-tools
 if [[ -f "$KDUMP_CFG" ]]; then
     sed -i 's/^USE_KDUMP=.*/USE_KDUMP=1/' "$KDUMP_CFG"
     grep -q '^USE_KDUMP=' "$KDUMP_CFG" || echo 'USE_KDUMP=1' >> "$KDUMP_CFG"
-    # comprimi dump (-c -d 31), salta pagine zero/cache/free
+    # compress dumps (-c -d 31), skip zero/cache/free pages
     sed -i 's|^MAKEDUMP_ARGS=.*|MAKEDUMP_ARGS="-c -d 31"|' "$KDUMP_CFG"
     grep -q '^MAKEDUMP_ARGS=' "$KDUMP_CFG" || echo 'MAKEDUMP_ARGS="-c -d 31"' >> "$KDUMP_CFG"
-    # mantieni ultimi N dump
+    # keep the last N dumps
     sed -i "s|^NUM_DUMPS=.*|NUM_DUMPS=$KEEP_DUMPS|" "$KDUMP_CFG"
     grep -q '^NUM_DUMPS=' "$KDUMP_CFG" || echo "NUM_DUMPS=$KEEP_DUMPS" >> "$KDUMP_CFG"
 fi
@@ -54,7 +54,7 @@ log "3/5 Configurazione GRUB: crashkernel=$CRASHKERNEL + sysrq + watchdog panic"
 GRUB=/etc/default/grub
 cp -a "$GRUB" "${GRUB}.bak.$(date +%Y%m%d-%H%M%S)"
 
-# Estrai linea attuale, rimuovi parametri che riconfiguriamo, aggiungi i nuovi
+# Extract the current line, remove the parameters we reconfigure, add the new ones
 CURRENT=$(grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' "$GRUB" | sed -E 's/^[^"]*"(.*)"$/\1/')
 CLEANED=$(echo "$CURRENT" | sed -E '
     s/\bcrashkernel=[^ ]*//g;
