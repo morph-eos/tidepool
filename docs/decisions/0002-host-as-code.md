@@ -1,6 +1,6 @@
 # 0002. The host as code
 
-- **Status:** proposed (experiments not run yet)
+- **Status:** accepted (NixOS), with gates before it touches the real server
 - **Date:** 2026-09-29
 - **Phase:** 1, Foundations
 
@@ -106,8 +106,26 @@ Boot the NixOS live ISO from a USB stick on the real server, without installing 
 
 ## Decision
 
-_Pending._
+**B, NixOS with a flake.** The owner's decision (2026-09-29), taken after the measurements above and the field research. The sentence that tips it: NixOS wins the two criteria that were
+ranked first, a rebuild that is repeatable by construction (same input, same system, pinned by `flake.lock`) and reliability and security (rollback by generations, the firewall on by default, a secret
+that never enters the world-readable store). The risk that remains, the GPU and the desktop, can be tested on the real machine before anything is installed on it.
+
+## Gates before it touches the real server
+
+The lab has proved the host layer. It has **not** proved the machine, so nothing is installed on the server until these pass, in this order:
+
+| Gate | What to check | How |
+|---|---|---|
+| G1. GPU and desktop | the GPU shows its VA-API profiles (`vainfo`), GNOME starts, `/dev/dri` exists | boot the NixOS live ISO from a USB stick on the server, without installing: no disk is touched, about 20 minutes |
+| G2. Hardware transcoding in the containers | Jellyfin and Immich machine learning use the GPU from inside Docker | same live session, or a lab step once the server runs NixOS |
+| G3. Software not packaged for Nix | the Proton Drive CLI runs (nix-ld or a package) | in the lab, before the backup phase |
+| G4. Restore | a backup taken on the old system is restored onto the new one | phase 2, in the lab |
 
 ## Consequences
 
-_Pending._
+- **Easier:** the host is code in Git, so v0's open problem, "`/etc` is not backed up anywhere", disappears: `/etc` is generated from the flake. Versions are pinned; a bad change is undone by booting the previous generation.
+- **Harder:** a new language and model to learn, errors that are long and hard to read, a smaller community, and software that assumes a traditional filesystem needs packaging or nix-ld.
+- **A new way to lock myself out:** a broken SSH or network change can only be undone at the machine (proved in the lab). The server is next to the TV, so a keyboard and a screen are at hand. Risky changes are applied with `nixos-rebuild test`, which does not survive a reboot, before `switch`.
+- **The Ansible experiment stays frozen** (tags `exp-host-ansible`, `exp-host-ansible-r2`) as the reference and as the fallback. The v0 scripts stay in the archive.
+- **Secrets:** the choice narrows to what works natively on NixOS (sops-nix or agenix); see [ADR 0003](0003-secrets.md).
+- **Open:** how to deploy from the workstation. `nixos-rebuild --target-host` needs Nix on the workstation, and installing Nix needs root once. Until decided, the flake is pulled and built on the server.
