@@ -13,7 +13,7 @@
 #   vms/<name>/           per-VM disk overlay, env file, pid, serial log
 #
 # Usage:
-#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB] [--data-disk GB]
+#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB] [--data-disk GB] [--blank]
 #   lab/vm.sh start    <name>
 #   lab/vm.sh stop     <name>
 #   lab/vm.sh ssh      <name> [command...]
@@ -22,6 +22,10 @@
 #   lab/vm.sh destroy  <name>
 #   lab/vm.sh list
 #   lab/vm.sh console  <name>             (tail the serial log)
+#
+# --blank creates an empty system disk (no cloud image), for installing an OS from an ISO.
+# Environment for start: TIDEPOOL_EXTRA_ARGS (extra QEMU arguments, e.g. an installer ISO and kernel),
+# TIDEPOOL_NO_WAIT=1 (do not wait for SSH). The serial console is a socket, <vm>/serial.sock, also logged.
 # =============================================================================
 set -euo pipefail
 
@@ -72,22 +76,27 @@ next_port() {
 
 cmd_create() {
     local name="${1:?name required}"; shift || true
-    local cpus=4 mem=6144 disk=40 data=0
+    local cpus=4 mem=6144 disk=40 data=0 blank=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --cpus) cpus="$2"; shift 2 ;;
             --mem)  mem="$2"; shift 2 ;;
             --disk) disk="$2"; shift 2 ;;
             --data-disk) data="$2"; shift 2 ;;
+            --blank) blank=1; shift ;;
             *) die "unknown option: $1" ;;
         esac
     done
     local d; d="$(vm_dir "$name")"
     [ ! -e "$d" ] || die "VM already exists: $name"
     [ -r "$SSH_KEY_PUB" ] || die "SSH public key not found: $SSH_KEY_PUB"
-    fetch_base
     mkdir -p "$d/seed"
-    qemu-img create -q -f qcow2 -F qcow2 -b "$BASE" "$d/disk.qcow2" "${disk}G"
+    if [ "$blank" = 1 ]; then
+        qemu-img create -q -f qcow2 "$d/disk.qcow2" "${disk}G"
+    else
+        fetch_base
+        qemu-img create -q -f qcow2 -F qcow2 -b "$BASE" "$d/disk.qcow2" "${disk}G"
+    fi
     local port; port=$(next_port)
     if [ "$data" -gt 0 ]; then
         qemu-img create -q -f qcow2 "$d/data.qcow2" "${data}G"
@@ -100,6 +109,7 @@ SSH_PORT=$port
 HTTP_PORT=$((port + 1))
 HTTPS_PORT=$((port + 2))
 SSH2_PORT=$((port + 3))
+BLANK=$blank
 EOF
     cat > "$d/seed/meta-data" <<EOF
 instance-id: tidepool-$name-$(date +%s)
@@ -133,6 +143,8 @@ cmd_start() {
     local d; d="$(vm_dir "$name")"
     local seed_port=$((SSH_PORT + 9)) seed_pid
     local extra=()
+    # shellcheck disable=SC2206
+    local TIDEPOOL_EXTRA_ARGS_ARR=(${TIDEPOOL_EXTRA_ARGS:-})
     # The system disk has an explicit bootindex: with two virtio disks the firmware may otherwise pick the empty one.
     # A second disk identified by serial number, like the data disks of the real server:
     # inside the guest it appears as /dev/disk/by-id/virtio-TPDATA0001
@@ -149,14 +161,19 @@ cmd_start() {
         "${extra[@]}" \
         -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((SSH_PORT + 3))-:2222,hostfwd=tcp:127.0.0.1:$HTTP_PORT-:80,hostfwd=tcp:127.0.0.1:$HTTPS_PORT-:443" \
         -smbios "type=1,serial=ds=nocloud-net;s=http://10.0.2.2:$seed_port/" \
-        -display none -serial "file:$d/serial.log" \
+        -display none \
+        -chardev "socket,id=ser0,path=$d/serial.sock,server=on,wait=off,logfile=$d/serial.log" -serial chardev:ser0 \
+        "${TIDEPOOL_EXTRA_ARGS_ARR[@]}" \
         -daemonize -pidfile "$d/qemu.pid"
+    if [ "${TIDEPOOL_NO_WAIT:-0}" = 1 ]; then
+        kill "$seed_pid" 2>/dev/null || true
+        log "$name started (not waiting for SSH); console socket: $d/serial.sock"
+        return 0
+    fi
     log "booting $name, waiting for SSH on localhost:$SSH_PORT ..."
     local i
     for i in $(seq 1 90); do
-        if ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -p "$SSH_PORT" \
-            "$GUEST_USER@127.0.0.1" true 2>/dev/null; then
+        if guest_ssh_port >/dev/null 2>&1; then
             kill "$seed_pid" 2>/dev/null || true
             log "$name is up after ~$((i * 2)) s: lab/vm.sh ssh $name"
             return 0
