@@ -41,15 +41,15 @@ the same loop. The point is not only the result: it is being able to explain, la
 
 ## Phases
 
-| # | Phase | Question it answers |
-|---|---|---|
-| 0 | Lab | Can I build, break and rebuild a machine cheaply and repeatably? |
-| 1 | Foundations | How is the host described as code, and where do secrets live? |
-| 2 | Backup | Can I restore, before there is anything to lose? |
-| 3 | Edge | How does traffic reach the services, with which certificates? |
-| 4 | Services | In what order, and how, does each service move over from v0? |
-| 5 | Observability | How do I find out something broke without noticing by chance? |
-| 6 | Network and VMs | What is exposed, and how is the VM lab kept safe? |
-| 7 | Automation | How is "rebuild from scratch" proven on every change? |
+| # | Phase | Question it answers | Status |
+|---|---|---|---|
+| 0 | Lab | Can I build, break and rebuild a machine cheaply and repeatably? | **done**, [ADR 0001](decisions/0001-lab-on-qemu-vms.md) |
+| 1 | Foundations | How is the host described as code, and where do secrets live? | host **decided** (NixOS, [ADR 0002](decisions/0002-host-as-code.md)); secrets **in progress** ([ADR 0003](decisions/0003-secrets.md)); the [G1 gate](gates/G1-live-usb.md) is waiting for a maintenance window |
+| 2 | Backup | Can I restore, before there is anything to lose? | drafted, [ADR 0004](decisions/0004-backup.md), waiting for the owner to confirm the criteria |
+| 3 | Edge | How does traffic reach the services, with which certificates? | not started |
+| 4 | Services | In what order, and how, does each service move over from v0? | not started |
+| 5 | Observability | How do I find out something broke without noticing by chance? | not started |
+| 6 | Network and VMs | What is exposed, and how is the VM lab kept safe? | not started |
+| 7 | Automation | How is "rebuild from scratch" proven on every change? | not started |
 
 The list is a plan, not a promise: a phase can be split, merged or reordered when an experiment shows it should.
