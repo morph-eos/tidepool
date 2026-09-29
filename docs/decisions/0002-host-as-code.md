@@ -81,6 +81,25 @@ The lab has no GPU, no desktop session and none of the server's software. NixOS 
 
 Ansible keeps all of that exactly as it is today, since the machine stays Ubuntu.
 
+### Field evidence (read, not run)
+
+Collected on 2026-09-29 from documentation and forums. None of it was tested here.
+
+- **The video that prompted the search:** "What's on my Home Server 2025 - NixOS Edition" by Wolfgang's Channel (April 2025). The page could not be read from here,
+  so nothing is claimed about its content beyond what its author publishes: a public [NixOS configuration](https://github.com/notthebee/nix-config) that runs
+  Immich, Jellyfin, Vaultwarden, Syncthing and Nextcloud, close to this stack. It uses NixOS's own service modules (not Docker) and agenix for secrets.
+- **GPU is documented.** The NixOS wiki has a [Jellyfin page](https://wiki.nixos.org/wiki/Jellyfin) with the VA-API setup for Intel (`hardware.graphics`, the `iHD` driver,
+  `vainfo` to verify) and lists known problems, such as firmware loading on some Intel chips. A [nixpkgs issue](https://github.com/NixOS/nixpkgs/issues/356535)
+  shows Jellyfin hardware acceleration breaking after an update, which is what a pinned `flake.lock` is for.
+- **Containers lower the GPU risk.** This stack runs Jellyfin and Immich in Docker, so the libva and OpenVINO userspace ships in the images. The host only has to provide the kernel
+  driver and `/dev/dri`, which is a smaller thing to get wrong than a native Jellyfin on NixOS. It still has to be checked on the real GPU.
+- **Software that is not packaged for Nix** is a known, documented case: [nix-ld](https://wiki.nixos.org/wiki/Nix-ld) and FHS environments run downloaded binaries. It is workable,
+  and it is still work (a candidate to test is the Proton Drive CLI).
+- **Against NixOS:** the learning curve is described as steep and the errors as hard to read
+  ([Pierre Zemb, three years of NixOS](https://pierrezemb.fr/posts/nixos-good-bad-ugly/), [DEV Community](https://dev.to/pedroltz/nixos-on-servers-what-changes-when-your-os-becomes-code-4a99)),
+  and the community is smaller than Ubuntu's. **For NixOS:** idempotent by design where Ansible is idempotent by discipline, rollback by generations, and "one command to rebuild"
+  ([NixOS Discourse: NixOS vs Ansible](https://discourse.nixos.org/t/nixos-vs-ansible/16757), [HomeLab Starter](https://homelabstarter.com/homelab-nixos-immutable-infrastructure/)).
+
 ### A cheap test that reduces the risk of B
 
 Boot the NixOS live ISO from a USB stick on the real server, without installing (nothing is changed on the disks), and check the GPU and the desktop: `vainfo` must list the VA-API profiles, GNOME must start, `/dev/dri` must be there. About 20 minutes in a maintenance window.
