@@ -13,7 +13,7 @@
 #   vms/<name>/           per-VM disk overlay, env file, pid, serial log
 #
 # Usage:
-#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB]
+#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB] [--data-disk GB]
 #   lab/vm.sh start    <name>
 #   lab/vm.sh stop     <name>
 #   lab/vm.sh ssh      <name> [command...]
@@ -72,12 +72,13 @@ next_port() {
 
 cmd_create() {
     local name="${1:?name required}"; shift || true
-    local cpus=4 mem=6144 disk=40
+    local cpus=4 mem=6144 disk=40 data=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --cpus) cpus="$2"; shift 2 ;;
             --mem)  mem="$2"; shift 2 ;;
             --disk) disk="$2"; shift 2 ;;
+            --data-disk) data="$2"; shift 2 ;;
             *) die "unknown option: $1" ;;
         esac
     done
@@ -88,6 +89,9 @@ cmd_create() {
     mkdir -p "$d/seed"
     qemu-img create -q -f qcow2 -F qcow2 -b "$BASE" "$d/disk.qcow2" "${disk}G"
     local port; port=$(next_port)
+    if [ "$data" -gt 0 ]; then
+        qemu-img create -q -f qcow2 "$d/data.qcow2" "${data}G"
+    fi
     cat > "$d/env" <<EOF
 NAME=$name
 CPUS=$cpus
@@ -95,6 +99,7 @@ MEM=$mem
 SSH_PORT=$port
 HTTP_PORT=$((port + 1))
 HTTPS_PORT=$((port + 2))
+SSH2_PORT=$((port + 3))
 EOF
     cat > "$d/seed/meta-data" <<EOF
 instance-id: tidepool-$name-$(date +%s)
@@ -127,12 +132,22 @@ cmd_start() {
     is_running "$name" && { log "$name is already running"; return 0; }
     local d; d="$(vm_dir "$name")"
     local seed_port=$((SSH_PORT + 9)) seed_pid
+    local extra=()
+    # The system disk has an explicit bootindex: with two virtio disks the firmware may otherwise pick the empty one.
+    # A second disk identified by serial number, like the data disks of the real server:
+    # inside the guest it appears as /dev/disk/by-id/virtio-TPDATA0001
+    if [ -f "$d/data.qcow2" ]; then
+        extra+=(-drive "file=$d/data.qcow2,if=none,id=data1,cache=writeback"
+                -device "virtio-blk-pci,drive=data1,serial=TPDATA0001")
+    fi
     seed_pid=$(serve_seed "$d/seed" "$seed_port")
     qemu-system-x86_64 \
         -name "$name" -machine q35,accel=kvm -cpu host -smp "$CPUS" -m "$MEM" \
-        -drive "file=$d/disk.qcow2,if=virtio,cache=writeback" \
+        -drive "file=$d/disk.qcow2,if=none,id=os,cache=writeback" \
+        -device virtio-blk-pci,drive=os,bootindex=1 \
         -device virtio-rng-pci \
-        -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$HTTP_PORT-:80,hostfwd=tcp:127.0.0.1:$HTTPS_PORT-:443" \
+        "${extra[@]}" \
+        -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((SSH_PORT + 3))-:2222,hostfwd=tcp:127.0.0.1:$HTTP_PORT-:80,hostfwd=tcp:127.0.0.1:$HTTPS_PORT-:443" \
         -smbios "type=1,serial=ds=nocloud-net;s=http://10.0.2.2:$seed_port/" \
         -display none -serial "file:$d/serial.log" \
         -daemonize -pidfile "$d/qemu.pid"
@@ -167,12 +182,25 @@ cmd_stop() {
     kill "$pid" 2>/dev/null || true
 }
 
+# The guest starts with sshd on 22; once a candidate hardens it to 2222 the second forward is used.
+guest_ssh_port() {
+    local p
+    for p in "$SSH_PORT" "$((SSH_PORT + 3))"; do
+        # -n: the probe must not swallow the stdin that the real command may be reading
+        if ssh -n -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -p "$p" \
+            "$GUEST_USER@127.0.0.1" true 2>/dev/null; then echo "$p"; return 0; fi
+    done
+    return 1
+}
+
 cmd_ssh() {
     local name="${1:?name required}"; shift || true
     load_env "$name"
     is_running "$name" || die "$name is not running"
+    local port; port=$(guest_ssh_port) || die "no SSH answer on $SSH_PORT or $((SSH_PORT + 3))"
     exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-        -p "$SSH_PORT" "$GUEST_USER@127.0.0.1" "$@"
+        -p "$port" "$GUEST_USER@127.0.0.1" "$@"
 }
 
 cmd_snapshot() {
