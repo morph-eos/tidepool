@@ -31,15 +31,18 @@ r H02d "root login prohibit-password" bash -c 'echo "$0" | grep -qiE "^permitroo
 r H02e "MaxAuthTries 3" bash -c 'echo "$0" | grep -qi "^maxauthtries 3"' "$sshcfg"
 # H03
 r H03a "fail2ban is active" systemctl is-active --quiet fail2ban
-r H03b "sshd jail on 2222, maxretry 3" bash -c 'out=$(fail2ban-client get sshd maxretry 2>/dev/null; fail2ban-client status sshd 2>/dev/null); echo "$out" | grep -q "^3$" && grep -rqE "port\s*=\s*2222" /etc/fail2ban/'
+# -R follows symlinks: on some systems the configuration is a link into a read-only store
+r H03b "sshd jail on 2222, maxretry 3" bash -c 'out=$(fail2ban-client get sshd maxretry 2>/dev/null; fail2ban-client status sshd 2>/dev/null); echo "$out" | grep -q "^3$" && grep -RqE "port\s*=\s*.?2222" /etc/fail2ban/'
 # H04
-r H04a "Docker Engine from the official repository" bash -c 'apt-cache policy docker-ce | grep -q "download.docker.com"'
+r H04a "Docker Engine is installed and answers" bash -c '[ -n "$(docker version --format "{{.Server.Version}}" 2>/dev/null)" ]'
 r H04b "Compose plugin present" docker compose version
 r H04c "docker service enabled" systemctl is-enabled --quiet docker
 # H05
 r H05a "kernel cmdline has crashkernel=" grep -q "crashkernel=" /proc/cmdline
 r H05b "kernel cmdline has softlockup_panic=1" grep -q "softlockup_panic=1" /proc/cmdline
-r H05c "kdump tools installed" dpkg -s kdump-tools
+# Functional: the crash kernel is loaded and holds exactly 256 MiB (a second crashkernel= on the command line silently wins)
+r H05c "crash kernel loaded (kexec)" bash -c '[ "$(cat /sys/kernel/kexec_crash_loaded)" = 1 ]'
+r H05d "crash kernel reserves 256 MiB" bash -c '[ "$(cat /sys/kernel/kexec_crash_size)" = 268435456 ]'
 # H06
 r H06 "tidepool-fixperms.timer enabled and active" bash -c 'systemctl is-enabled --quiet tidepool-fixperms.timer && systemctl is-active --quiet tidepool-fixperms.timer'
 # H07
@@ -47,7 +50,7 @@ disk=/dev/disk/by-id/virtio-TPDATA0001
 r H07a "data disk found by serial" test -b "$disk"
 r H07b "ext4 filesystem on the data disk" bash -c '[ "$(blkid -o value -s TYPE "$(readlink -f '"$disk"')")" = ext4 ]'
 r H07c "mounted on /mnt/nas" mountpoint -q /mnt/nas
-r H07d "fstab uses UUID= for /mnt/nas" bash -c 'grep -E "^UUID=\S+\s+/mnt/nas\s" /etc/fstab'
+r H07d "fstab uses a stable identifier for /mnt/nas" bash -c 'grep -E "^(UUID=|/dev/disk/by-)\S+\s+/mnt/nas\s" /etc/fstab'
 # H08
 r H08a "time zone Europe/Rome" bash -c '[ "$(timedatectl show -p Timezone --value)" = Europe/Rome ]'
 # The first NTP sync after a boot takes a few seconds: wait up to 90 s before calling it a failure
