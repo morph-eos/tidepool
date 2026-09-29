@@ -26,7 +26,8 @@ r H01 "admin user with an SSH key and sudo" bash -c 'u=$(getent group sudo | cut
 r H02a "sshd listens on 2222" bash -c 'ss -ltn | grep -qE ":2222\b"'
 r H02b "sshd does not listen on 22" bash -c '! ss -ltn | grep -qE ":22\s"'
 r H02c "password login off" bash -c 'echo "$0" | grep -qi "^passwordauthentication no"' "$sshcfg"
-r H02d "root login prohibit-password" bash -c 'echo "$0" | grep -qi "^permitrootlogin prohibit-password"' "$sshcfg"
+# sshd -T prints the canonical name: "prohibit-password" is reported as "without-password"
+r H02d "root login prohibit-password" bash -c 'echo "$0" | grep -qiE "^permitrootlogin (prohibit-password|without-password)"' "$sshcfg"
 r H02e "MaxAuthTries 3" bash -c 'echo "$0" | grep -qi "^maxauthtries 3"' "$sshcfg"
 # H03
 r H03a "fail2ban is active" systemctl is-active --quiet fail2ban
@@ -49,7 +50,8 @@ r H07c "mounted on /mnt/nas" mountpoint -q /mnt/nas
 r H07d "fstab uses UUID= for /mnt/nas" bash -c 'grep -E "^UUID=\S+\s+/mnt/nas\s" /etc/fstab'
 # H08
 r H08a "time zone Europe/Rome" bash -c '[ "$(timedatectl show -p Timezone --value)" = Europe/Rome ]'
-r H08b "clock synchronized" bash -c '[ "$(timedatectl show -p NTPSynchronized --value)" = yes ]'
+# The first NTP sync after a boot takes a few seconds: wait up to 90 s before calling it a failure
+r H08b "clock synchronized" bash -c 'for i in $(seq 1 45); do [ "$(timedatectl show -p NTPSynchronized --value)" = yes ] && exit 0; sleep 2; done; exit 1'
 REMOTE_EOF
 )
 if [ "$WITH_SECRET" = 1 ]; then

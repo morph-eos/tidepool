@@ -171,15 +171,23 @@ cmd_stop() {
     local name="${1:?name required}"
     load_env "$name"
     is_running "$name" || { log "$name is not running"; return 0; }
-    ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -o LogLevel=ERROR -p "$SSH_PORT" "$GUEST_USER@127.0.0.1" 'sudo poweroff' 2>/dev/null || true
-    local pid i; pid=$(cat "$(vm_dir "$name")/qemu.pid")
+    local port pid i; pid=$(cat "$(vm_dir "$name")/qemu.pid")
+    # Ask the guest to power off through whichever SSH port answers (22, or 2222 once hardened)
+    if port=$(guest_ssh_port); then
+        ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o LogLevel=ERROR -p "$port" "$GUEST_USER@127.0.0.1" 'sudo poweroff' 2>/dev/null || true
+    fi
     for i in $(seq 1 30); do
         kill -0 "$pid" 2>/dev/null || { log "$name stopped"; return 0; }
         sleep 1
     done
     log "graceful shutdown timed out, killing"
     kill "$pid" 2>/dev/null || true
+    for i in $(seq 1 10); do
+        kill -0 "$pid" 2>/dev/null || { log "$name stopped"; return 0; }
+        sleep 1
+    done
+    die "$name did not stop"
 }
 
 # The guest starts with sshd on 22; once a candidate hardens it to 2222 the second forward is used.
