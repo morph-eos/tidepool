@@ -47,8 +47,8 @@ echo ""
 
 # === Servizi ===
 echo -e "${BLUE}🐳 Docker${NC}"
-if command -v docker compose &>/dev/null; then
-    docker compose ps --format 'table {{.Name}}\t{{.State}}' 2>/dev/null || docker compose ps 2>/dev/null
+if docker compose version &>/dev/null; then
+    (cd /mnt/nas2/docker && { docker compose ps --format 'table {{.Name}}\t{{.State}}' 2>/dev/null || docker compose ps 2>/dev/null; })
 else
     echo "  docker compose non disponibile"
 fi

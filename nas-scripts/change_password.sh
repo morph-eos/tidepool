@@ -5,8 +5,7 @@
 echo "=== Cambio Password Samba ==="
 echo "Utente: REDACTED_HOSTNAME"
 echo ""
-echo "IMPORTANTE: La password attuale predefinita è 'REDACTED_DEFAULT_PASSWORD'"
-echo "Per motivi di sicurezza, cambiala immediatamente!"
+echo "Scegli una password robusta: non riusare quella di altri servizi."
 echo ""
 
 # Verifico se l'utente esiste

@@ -64,7 +64,7 @@ if command -v docker > /dev/null 2>&1; then
         print_error "Docker installato ma non operativo"
         print_info "Prova: sudo systemctl start docker"
         print_info "Per avviare automaticamente: sudo systemctl enable docker"
-        ((ERRORS++))
+        ERRORS=$((ERRORS+1))
     fi
 else
     print_error "Docker non installato"
@@ -76,21 +76,21 @@ else
         print_warning "IMPORTANTE: Riavvia la sessione o esegui 'newgrp docker' per applicare i permessi di gruppo"
         print_success "Docker installato con successo!"
     else
-        ((ERRORS++))
+        ERRORS=$((ERRORS+1))
     fi
 fi
 
 # Verifica Docker Compose
 print_info "Controllo Docker Compose..."
-if command -v docker compose > /dev/null 2>&1; then
+if docker compose version > /dev/null 2>&1; then
     COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || docker compose version | awk '{print $NF}')
     print_success "Docker Compose operativo (versione: $COMPOSE_VERSION)"
 else
     print_error "Docker Compose non installato"
-    if install_package "docker compose" "Docker Compose"; then
+    if install_package "docker-compose-v2" "Docker Compose"; then
         print_success "Docker Compose installato con successo!"
     else
-        ((ERRORS++))
+        ERRORS=$((ERRORS+1))
     fi
 fi
 
@@ -102,7 +102,7 @@ if [ -f ".env" ]; then
     # Controlla email
     if [ -z "$EMAIL" ] || [ "$EMAIL" = "tua-email@example.com" ]; then
         print_error "EMAIL non configurata nel file .env"
-        ((ERRORS++))
+        ERRORS=$((ERRORS+1))
     else
         print_success "Email configurata: $EMAIL"
     fi
@@ -110,7 +110,7 @@ if [ -f ".env" ]; then
     # Controlla password Immich
     if [ -z "$IMMICH_DB_PASSWORD" ] || [ "$IMMICH_DB_PASSWORD" = "CAMBIA_QUESTA_PASSWORD_IMMICH" ]; then
         print_error "IMMICH_DB_PASSWORD non configurata nel file .env"
-        ((ERRORS++))
+        ERRORS=$((ERRORS+1))
     else
         print_success "Password Immich configurata"
     fi
@@ -166,7 +166,7 @@ EOF
     print_warning "- Imposta una EMAIL valida per i certificati SSL"
     print_warning "- Cambia le PASSWORD con valori sicuri"
     print_info "Riavvia questo script dopo aver modificato .env"
-    ((ERRORS++))
+    ERRORS=$((ERRORS+1))
 fi
 
 # Verifica file necessari
@@ -176,7 +176,7 @@ for file in "docker-compose.yml" "data/nginx/nginx.conf" "kickstart/docker-compo
         print_success "File presente: $file"
     else
         print_error "File mancante: $file"
-        ((ERRORS++))
+        ERRORS=$((ERRORS+1))
     fi
 done
 
@@ -217,19 +217,18 @@ if ! command -v nslookup > /dev/null 2>&1; then
     fi
 fi
 
-
 # Verifica regole udev per dischi
 print_info "Controllo regole udev..."
 UDEV_FILE="/etc/udev/rules.d/99-smartcheck-disks.rules"
-if [ -f "" ]; then
-    print_success "Regole udev presenti: "
+if [ -f "$UDEV_FILE" ]; then
+    print_success "Regole udev presenti: $UDEV_FILE"
     if [ -e /dev/smartcheck-nas ] && [ -e /dev/smartcheck-nas2 ]; then
         print_success "Symlink dischi attivi: /dev/smartcheck-nas, /dev/smartcheck-nas2"
     else
         print_warning "Symlink dischi non attivi (udevadm trigger necessario?)"
     fi
 else
-    print_warning "Regole udev non trovate () — esegui kickstart o setup_disk.sh"
+    print_warning "Regole udev non trovate ($UDEV_FILE) — esegui kickstart o setup_disk.sh"
 fi
 
 # Verifica UFW
@@ -280,7 +279,7 @@ fi
 # Verifica DNS (se possibile)
 print_info "Controllo DNS..."
 if command -v nslookup > /dev/null 2>&1; then
-    for domain in "REDACTED_HOSTNAME.REDACTED_DDNS" "immich.REDACTED_HOSTNAME.REDACTED_DDNS" "jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS" "bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS" "webdav.REDACTED_HOSTNAME.REDACTED_DDNS" "syncthing.REDACTED_HOSTNAME.REDACTED_DDNS" "openclaw.REDACTED_HOSTNAME.REDACTED_DDNS" "modem.REDACTED_HOSTNAME.REDACTED_DDNS" "www.REDACTED_DOMAIN"; do
+    for domain in "REDACTED_HOSTNAME.REDACTED_DDNS" "immich.REDACTED_HOSTNAME.REDACTED_DDNS" "jellyfin.REDACTED_HOSTNAME.REDACTED_DDNS" "bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS" "webdav.REDACTED_HOSTNAME.REDACTED_DDNS" "syncthing.REDACTED_HOSTNAME.REDACTED_DDNS" "modem.REDACTED_HOSTNAME.REDACTED_DDNS" "cloud.REDACTED_HOSTNAME.REDACTED_DDNS" "www.REDACTED_DOMAIN" "incus.REDACTED_DOMAIN"; do
         if nslookup "$domain" > /dev/null 2>&1; then
             IP=$(nslookup "$domain" | awk '/^Address: / { print $2 }' | tail -1)
             print_success "DNS risolve: $domain → $IP"

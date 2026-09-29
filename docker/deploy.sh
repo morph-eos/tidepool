@@ -65,9 +65,7 @@ mkdir -p data/jellyfin/{config,cache}
 mkdir -p data/plex/config
 mkdir -p data/vaultwarden
 mkdir -p data/webdav
-mkdir -p data/radicale
 mkdir -p data/syncthing
-mkdir -p data/openclaw
 mkdir -p data/icloud-photos
 mkdir -p scripts
 print_success "Directory create!"
@@ -79,8 +77,8 @@ if [ ! -f "$CERT_PATH" ]; then
     print_warning "Certificati SSL non trovati. Avvio kickstart..."
     
     print_info "Verifica che TUTTI questi domini puntino al tuo server:"
-    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + www/immich/jellyfin/plex/bitwarden/webdav/syncthing/openclaw/modem"
-    echo "  REDACTED_DOMAIN + www/immich/jellyfin/plex/bitwarden/webdav/syncthing/openclaw/modem"
+    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + www/immich/jellyfin/plex/bitwarden/webdav/syncthing/modem/cloud"
+    echo "  REDACTED_DOMAIN + www/immich/jellyfin/plex/bitwarden/webdav/syncthing/modem/cloud"
     echo ""
     
     docker compose -f kickstart/docker-compose.yaml up -d nginx
@@ -140,7 +138,7 @@ echo "  • https://modem.REDACTED_HOSTNAME.REDACTED_DDNS (modem admin, auth req
 echo ""
 echo "🔌 Servizi opzionali (via profiles):"
 echo "  • Plex: docker compose --profile plex up -d"
-echo "  • JellyPlex-Watched: docker compose --profile jellyplex up -d"
+echo "  • Plex + JellyPlex-Watched: docker compose --profile plex up -d"
 echo "  • iCloud Sync: docker compose --profile icloud up -d"
 echo ""
 echo "📊 Monitoraggio: docker compose ps | docker compose logs -f [servizio]"

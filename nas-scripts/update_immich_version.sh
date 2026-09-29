@@ -6,12 +6,12 @@ set -euo pipefail
 # =============================================================================
 # Uso:
 #   sudo /mnt/nas2/nas-scripts/update_immich_version.sh v2.7.5
-#   sudo /mnt/nas2/nas-scripts/update_immich_version.sh status
+#   sudo /mnt/nas2/nas-scripts/update_immich_version.sh status   # default senza argomenti
 # =============================================================================
 
 DOCKER_DIR="/mnt/nas2/docker"
 ENV_FILE="${DOCKER_DIR}/.env"
-TARGET_VERSION="${1:-v2.7.5}"
+TARGET_VERSION="${1:-status}"
 
 log() { echo "[immich-update] $*"; }
 die() { echo "[immich-update] ERRORE: $*" >&2; exit 1; }

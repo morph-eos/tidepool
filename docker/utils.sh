@@ -117,13 +117,13 @@ cmd_update() {
     print_info "Aggiornamento immagini Docker..."
     docker compose pull
     print_info "Riavvio con nuove immagini..."
-    # Workaround docker compose v1 + Alpine pinned images:
-    # Se up -d fallisce con KeyError, rimuovi e ricrea i container interessati
+    # Se up -d fallisce, ricrea i container servizio per servizio (compose risolve
+    # il nome del servizio nel relativo container_name)
     if ! docker compose up -d 2>/dev/null; then
-        print_warning "docker compose up -d fallito (probabile bug v1 con SHA256 pinned images)"
+        print_warning "docker compose up -d fallito"
         print_info "Ricreo i container uno per uno..."
         for svc in $(docker compose config --services); do
-            docker rm -f "$svc" 2>/dev/null || true
+            docker compose rm -sf "$svc" 2>/dev/null || true
         done
         docker compose up -d
     fi
@@ -234,10 +234,10 @@ cmd_reset() {
 
 cmd_sync() {
     case "${2:-}" in
-        status)  docker compose --profile jellyplex ps jellyplex-watched ;;
-        logs)    docker compose --profile jellyplex logs -f jellyplex-watched ;;
-        restart) docker compose --profile jellyplex restart jellyplex-watched ;;
-        start)   docker compose --profile jellyplex up -d jellyplex-watched ;;
+        status)  docker compose --profile plex ps jellyplex-watched ;;
+        logs)    docker compose --profile plex logs -f jellyplex-watched ;;
+        restart) docker compose --profile plex restart jellyplex-watched ;;
+        start)   docker compose --profile plex up -d jellyplex-watched ;;
         stop)    docker compose stop jellyplex-watched ;;
         *)
             echo "Uso: ./utils.sh sync [start|stop|status|logs|restart]"

@@ -101,7 +101,7 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'SAMBAEOF'
    map readonly = no
 
 [NAS2]
-   comment = Network Attached Storage 2 (1TB)
+   comment = Network Attached Storage 2 (2TB)
    path = /mnt/nas2
    browseable = yes
    writable = yes

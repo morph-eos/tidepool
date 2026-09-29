@@ -2,7 +2,8 @@
 # =============================================================================
 # Backup LEGGERO della configurazione Incus (NESSUN contenuto delle VM).
 #
-# Esporta in /mnt/nas2/incus-config-backup/:
+# Esporta in /mnt/nas2/incus-config-backup/ (output NON versionato in git, coperto
+# dai backup Borg):
 #   - global-db-dump.sql : dump SQL LIVE del DB globale (profili, reti, storage,
 #                          config istanze, e i CERTIFICATI trusted dashboard/API)
 #   - local-db-dump.sql  : dump SQL LIVE del DB locale del nodo

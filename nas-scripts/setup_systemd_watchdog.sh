@@ -2,7 +2,7 @@
 # =============================================================================
 # SETUP SYSTEMD WATCHDOG — alert email se PID1 resta "wedged"
 # =============================================================================
-# Chiude il gap scoperto l'11-14/09/2026 (vedi CLAUDE.md pitfall "systemd
+# Chiude il gap scoperto l'11-14/09/2026 (vedi README, pitfall "systemd
 # wedged"): un Oops kernel durante lo start/stop di un container puo' lasciare
 # systemd (PID1) bloccato senza far panicare il kernel — quindi senza
 # kdump/reboot automatico — e SENZA ALCUN ALERT. E' rimasto cosi' 3 giorni e

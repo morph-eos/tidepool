@@ -942,7 +942,7 @@ migrate_to_quota_pool() {
 
     log "=== Migrazione completata ==="
     log "Pool attivo: ${INCUS_POOL} (${INCUS_POOL_DRIVER}, quote rigide per block e filesystem volume)"
-    log "Loop file gestito da Incus sotto /var/lib/incus/disks/; nessun dato NAS toccato."
+    log "Il backing file resta dove Incus lo ha creato: per spostarlo sul disco dati usa relocate-pool."
     log "Per ridimensionare il pool: incus storage set ${INCUS_POOL} size=<new_size>"
 }
 
@@ -1187,9 +1187,13 @@ do_uninstall() {
     rm -f /usr/local/bin/vm-ssh
 
     # Ripristina cert self-signed se presenti i backup
-    [ -f /var/lib/incus/server.crt.selfsigned ] && mv /var/lib/incus/server.crt.selfsigned /var/lib/incus/server.crt
-    [ -f /var/lib/incus/server.key.selfsigned ] && mv /var/lib/incus/server.key.selfsigned /var/lib/incus/server.key
-    rm -f /var/lib/incus/server.crt /var/lib/incus/server.key 2>/dev/null
+    if [ -f /var/lib/incus/server.crt.selfsigned ] && [ -f /var/lib/incus/server.key.selfsigned ]; then
+        rm -f /var/lib/incus/server.crt /var/lib/incus/server.key
+        mv /var/lib/incus/server.crt.selfsigned /var/lib/incus/server.crt
+        mv /var/lib/incus/server.key.selfsigned /var/lib/incus/server.key
+    else
+        rm -f /var/lib/incus/server.crt /var/lib/incus/server.key 2>/dev/null
+    fi
 
     log "Incus rimosso. Storage in $INCUS_STORAGE NON cancellato (rimuovilo manualmente se vuoi)."
 }

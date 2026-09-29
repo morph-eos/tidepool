@@ -62,7 +62,6 @@ mkdir -p data/plex/config
 mkdir -p data/vaultwarden
 mkdir -p data/webdav
 mkdir -p data/syncthing
-mkdir -p data/openclaw
 mkdir -p data/icloud-photos
 mkdir -p scripts
 print_success "Directory create"
@@ -91,7 +90,11 @@ sudo ufw default deny incoming
 sudo ufw default allow outgoing
 
 # Regole idempotenti (ufw ignora duplicati)
+# SSH su porta non standard (2222). Buona prassi: tenere questa regola CHIUSA e aprirla
+# solo quando serve (es. manutenzione da fuori LAN), poi richiuderla: ufw delete allow 2222/tcp
 sudo ufw allow 2222/tcp comment "SSH + VSCode Remote" 2>/dev/null || true
+# Rimuove l'eventuale regola sulla porta 22 standard
+sudo ufw delete allow 22/tcp 2>/dev/null || true
 sudo ufw allow 80/tcp comment "HTTP nginx" 2>/dev/null || true
 sudo ufw allow 443/tcp comment "HTTPS nginx" 2>/dev/null || true
 sudo ufw allow 22000/tcp comment "Syncthing sync" 2>/dev/null || true
@@ -105,7 +108,7 @@ sudo ufw delete allow samba 2>/dev/null || true
 print_success "UFW configurato"
 
 # === Avahi (LAN only) ===
-LAN_INTERFACE="REDACTED_NIC_NAME"
+LAN_INTERFACE="REDACTED_WIFI_IFACE"
 if command -v avahi-daemon &>/dev/null; then
     print_info "Configurazione Avahi (ristretto a $LAN_INTERFACE)..."
     sudo tee /etc/avahi/avahi-daemon.conf > /dev/null << AVAHI
@@ -143,7 +146,7 @@ if [ ! -f "$CERT_PATH" ]; then
     print_warning "Certificati SSL non trovati. Avvio kickstart..."
     
     print_info "Verifica che TUTTI questi domini puntino a questo server:"
-    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + sottodomini: immich, jellyfin, plex, bitwarden, webdav, syncthing, openclaw, modem"
+    echo "  REDACTED_HOSTNAME.REDACTED_DDNS + sottodomini: immich, jellyfin, plex, bitwarden, webdav, syncthing, modem, cloud"
     echo "  REDACTED_DOMAIN + stessi sottodomini"
     echo ""
     
@@ -153,31 +156,31 @@ if [ ! -f "$CERT_PATH" ]; then
         docker volume create docker_certbot-www
     fi
     
-    docker-compose -f kickstart/docker-compose.yaml up -d nginx
+    docker compose -f kickstart/docker-compose.yaml up -d nginx
     sleep 5
     
     if ! curl -f -s http://localhost > /dev/null 2>&1; then
         print_error "Nginx kickstart non risponde"
-        docker-compose -f kickstart/docker-compose.yaml logs nginx
+        docker compose -f kickstart/docker-compose.yaml logs nginx
         exit 1
     fi
     
-    if docker-compose -f kickstart/docker-compose.yaml run --rm certbot; then
+    if docker compose -f kickstart/docker-compose.yaml run --rm certbot; then
         print_success "Certificati ottenuti!"
     else
         print_error "Errore generazione certificati"
-        docker-compose -f kickstart/docker-compose.yaml logs
+        docker compose -f kickstart/docker-compose.yaml logs
         exit 1
     fi
     
-    docker-compose -f kickstart/docker-compose.yaml down
+    docker compose -f kickstart/docker-compose.yaml down
 else
     print_success "Certificati SSL esistenti"
 fi
 
 # === Deploy stack ===
 print_info "Avvio stack completo..."
-docker-compose up -d
+docker compose up -d
 sleep 10
 
 # === Verifica ===

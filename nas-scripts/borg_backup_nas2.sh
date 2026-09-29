@@ -27,7 +27,15 @@ fi
 
 echo "$(date -Is) - Backup start: ${SOURCE} -> ${REPO} (${ARCHIVE})"
 
-borg create --progress --stats --compression lz4 --checkpoint-interval 300 "${REPO}::${ARCHIVE}" "${SOURCE}"
+# rc 1 = warning (es. file cambiati durante la copia, normale su dati vivi): non e' un errore.
+# Solo rc >= 2 interrompe, cosi' prune e compact girano comunque.
+BORG_RC=0
+borg create --progress --stats --compression lz4 --checkpoint-interval 300 "${REPO}::${ARCHIVE}" "${SOURCE}" || BORG_RC=$?
+if [ "$BORG_RC" -ge 2 ]; then
+	echo "$(date -Is) - Backup FAILED: borg create exit code ${BORG_RC}" >&2
+	exit "$BORG_RC"
+fi
+[ "$BORG_RC" -eq 1 ] && echo "$(date -Is) - WARN: borg create terminato con warning (exit 1)"
 borg prune --list --keep-daily=7 --keep-weekly=4 --keep-monthly=6 "${REPO}"
 borg compact "${REPO}"
 

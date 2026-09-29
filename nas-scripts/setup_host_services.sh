@@ -4,7 +4,8 @@
 # =============================================================================
 # Idempotente. Installa:
 #   1. wifi-watchdog.{service,timer}      → riconnette REDACTED_WIFI_IFACE se cade
-#   2. nas-scripts-fixperms.{service,timer} → riapplica chmod 0775 su *.sh
+#   2. nas-scripts-fixperms.{service,timer} → riapplica chmod 0775 su *.sh di
+#      nas-scripts/ e docker/ (Samba/macOS azzera il bit +x)
 #   3. docker-ensure-containers.service   → riavvia container Docker rimasti
 #      exited/created dopo il boot (mount /mnt/nas2 non pronto quando parte
 #      dockerd), ESCLUSI quelli intenzionalmente fermi (certbot, icloud;
@@ -118,16 +119,16 @@ install_fixperms() {
     local svc_changed=0 timer_changed=0
     write_unit "$SYSD/nas-scripts-fixperms.service" "$(cat <<'UNIT'
 [Unit]
-Description=Restore +x on /mnt/nas2/nas-scripts/*.sh
+Description=Restore +x on /mnt/nas2/nas-scripts/*.sh and /mnt/nas2/docker/**/*.sh
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/find /mnt/nas2/nas-scripts -maxdepth 1 -name *.sh -exec chmod 0775 {} +
+ExecStart=/usr/bin/find /mnt/nas2/nas-scripts /mnt/nas2/docker -maxdepth 2 -name '*.sh' -not -path '*/data/*' -exec chmod 0775 {} +
 UNIT
 )" && svc_changed=1
     write_unit "$SYSD/nas-scripts-fixperms.timer" "$(cat <<'UNIT'
 [Unit]
-Description=Re-applica permessi 0775 a /mnt/nas2/nas-scripts/*.sh ogni 5 min
+Description=Re-applica permessi 0775 agli script di nas-scripts e docker ogni 5 min
 
 [Timer]
 OnBootSec=60

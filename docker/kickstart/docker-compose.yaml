@@ -48,8 +48,8 @@ services:
       -d bitwarden.REDACTED_HOSTNAME.REDACTED_DDNS
       -d webdav.REDACTED_HOSTNAME.REDACTED_DDNS
       -d syncthing.REDACTED_HOSTNAME.REDACTED_DDNS
-      -d openclaw.REDACTED_HOSTNAME.REDACTED_DDNS
       -d modem.REDACTED_HOSTNAME.REDACTED_DDNS
+      -d cloud.REDACTED_HOSTNAME.REDACTED_DDNS
       -d www.REDACTED_DOMAIN
       -d immich.REDACTED_DOMAIN
       -d jellyfin.REDACTED_DOMAIN
@@ -57,8 +57,9 @@ services:
       -d bitwarden.REDACTED_DOMAIN
       -d webdav.REDACTED_DOMAIN
       -d syncthing.REDACTED_DOMAIN
-      -d openclaw.REDACTED_DOMAIN
       -d modem.REDACTED_DOMAIN
+      -d cloud.REDACTED_DOMAIN
+      -d REDACTED_NAME.REDACTED_DOMAIN
       -d incus.REDACTED_DOMAIN
       --rsa-key-size 4096
       --agree-tos

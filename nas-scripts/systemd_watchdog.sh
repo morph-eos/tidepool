@@ -4,7 +4,7 @@
 # =============================================================================
 # Esegue ogni 5 min via systemd timer (systemd-health-watchdog.timer).
 # Rileva PID1 "wedged" (vivo ma non risponde piu' a systemctl/D-Bus) — vedi
-# CLAUDE.md pitfall 2026-09-11: un Oops kernel durante lo start/stop di un
+# Pitfall del README 2026-09-11: un Oops kernel durante lo start/stop di un
 # container puo' lasciare systemd bloccato senza far panicare il kernel
 # (quindi senza kdump/reboot automatico) e senza alcun alert per giorni
 # (successo cosi' dall'11 al 14/09, scoperto solo da un 502 su Immich).
@@ -67,7 +67,7 @@ send_alert_email() {
     [ "$smtp_ssl" = "true" ] || [ "$smtp_tls" = "true" ] && curl_tls=(--ssl-reqd)
 
     # Precalcola FUORI dall'heredoc: un default con apostrofo dentro
-    # ${var:-...} in un heredoc rompe il parsing bash (vedi CLAUDE.md pitfall).
+    # ${var:-...} in un heredoc rompe il parsing bash (vedi README, sezione Pitfall).
     local from_name="${smtp_from_name:-REDACTED_BRAND Services}"
 
     curl -s --max-time 30 --url "$smtp_url" \
@@ -125,7 +125,7 @@ fermano o crashano (cgroup driver systemd bloccato) — i servizi gia' in
 esecuzione continuano a funzionare, ma qualsiasi crash da questo momento in
 poi NON si riprendera' da solo.
 
-Fix noto (vedi CLAUDE.md, pitfall 'systemd wedged'): serve un riavvio.
+Fix noto (vedi README, sezione Pitfall, 'systemd wedged'): serve un riavvio.
 'sudo reboot' normale NON funziona (passa anch'esso da PID1) — serve
 'sudo reboot -f' / 'sudo systemctl reboot -ff' (bypassa systemd, salta la
 sync/stop ordinato dei DB nei container) oppure un riavvio fisico/da console

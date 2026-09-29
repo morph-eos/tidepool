@@ -42,7 +42,7 @@ JOBS=(
     # borg_backup_nas2.sh e' STACCATO alle 04:00 (non piu' incatenato con ';'):
     # scansiona tutto /mnt/nas2 (piu' pesante, durata non garantita <30min) e
     # sovrapporsi al mirror Proton (stesso disco /mnt/nas) ha causato contesa
-    # I/O -> soft lockup ext4 il 2026-07-04 (vedi CLAUDE.md pitfall). REDACTED_DRIVE_TC gira
+    # I/O -> soft lockup ext4 il 2026-07-04 (vedi README, sezione Pitfall). REDACTED_DRIVE_TC gira
     # comunque ogni notte a prescindere dall'esito di backup_offsite.sh.
     "backup-offsite|0 3 * * *|sudo /mnt/nas2/nas-scripts/backup_offsite.sh|user"
     "backup-nas2-REDACTED_DRIVE|0 4 * * *|sudo /mnt/nas2/nas-scripts/borg_backup_nas2.sh|user"

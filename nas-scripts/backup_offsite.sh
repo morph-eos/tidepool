@@ -17,7 +17,7 @@ trap '' HUP
 #                 nextcloud-db-dumps, sqlite-snapshots, vaultwarden,
 #                 syncthing/obsidian (escluso com.whatsapp)
 #   docker/:      kickstart, scripts,
-#                 docker-compose.yml, .env, *.sh, README.md
+#                 docker-compose.yml, .env, *.sh
 #   nas2/:        media (ebooks+music), nas-scripts,
 #
 # Dump DB pre-borg:
@@ -159,10 +159,18 @@ log "=== BACKUP OFFSITE START ==="
 IMMICH_DUMP="${DOCKER_DIR}/data/immich/db_dump.sql.gz"
 if docker ps --format '{{.Names}}' | grep -q '^immich_postgres$'; then
     log "Dump PostgreSQL immich..."
-    docker exec immich_postgres pg_dumpall -U postgres 2>/dev/null \
-        | gzip > "$IMMICH_DUMP" \
-        || log "WARN: pg_dump fallito, continuo senza dump DB"
-    log "Dump immich: $(du -h "$IMMICH_DUMP" | cut -f1)"
+    # Il superutente del DB e' POSTGRES_USER del compose (IMMICH_DB_USERNAME), non "postgres"
+    IMMICH_DB_USER=$(grep '^IMMICH_DB_USERNAME=' "${DOCKER_DIR}/.env" | tail -1 | cut -d= -f2- | tr -d "\"'")
+    IMMICH_DB_USER=${IMMICH_DB_USER:-immich}
+    # Dump su file temporaneo: il dump precedente si sostituisce solo se il nuovo e' valido
+    if docker exec immich_postgres pg_dumpall -U "$IMMICH_DB_USER" 2>>"$LOGFILE" | gzip > "${IMMICH_DUMP}.tmp" \
+        && [ "$(stat -c%s "${IMMICH_DUMP}.tmp")" -gt 1024 ]; then
+        mv -f "${IMMICH_DUMP}.tmp" "$IMMICH_DUMP"
+        log "Dump immich: $(du -h "$IMMICH_DUMP" | cut -f1)"
+    else
+        rm -f "${IMMICH_DUMP}.tmp"
+        log "WARN: pg_dumpall fallito o vuoto, dump precedente mantenuto"
+    fi
 else
     log "WARN: container immich_postgres non attivo, skip dump DB"
 fi
@@ -260,9 +268,7 @@ borg create \
     "${DOCKER_DIR}/.env" \
     "${DOCKER_DIR}/check.sh" \
     "${DOCKER_DIR}/deploy.sh" \
-    "${DOCKER_DIR}/process_mkv.sh" \
     "${DOCKER_DIR}/utils.sh" \
-    "${DOCKER_DIR}/README.md" \
     "${MEDIA_DIR}" \
     "${NAS_SCRIPTS}" \
     "${INCUS_CONFIG}" \

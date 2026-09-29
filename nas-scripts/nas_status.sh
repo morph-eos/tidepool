@@ -32,7 +32,7 @@ echo ""
 
 # Docker
 echo "🐳 Container:"
-for c in nginx immich-server immich-database immich-redis immich-machine-learning jellyfin vaultwarden syncthing webdav smartcheck; do
+for c in nginx immich_server immich_postgres immich_redis immich_machine_learning jellyfin nextcloud nextcloud_mariadb nextcloud_redis vaultwarden syncthing webdav smartcheck  ; do
     if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
         ok "$c"
     else

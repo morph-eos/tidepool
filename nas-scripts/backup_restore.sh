@@ -174,9 +174,11 @@ cmd_restore_immich_db() {
 
     info "Ripristino database Immich..."
     if docker ps --format '{{.Names}}' | grep -q '^immich_postgres$'; then
-        gunzip -c "$dump_file" | docker exec -i immich_postgres psql -U postgres 2>&1
+        local db_user
+        db_user=$(grep '^IMMICH_DB_USERNAME=' /mnt/nas2/docker/.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'")
+        gunzip -c "$dump_file" | docker exec -i immich_postgres psql -U "${db_user:-immich}" -d postgres 2>&1
         log "Database Immich ripristinato"
-        info "Riavvia Immich: docker compose -f /mnt/nas2/docker/docker-compose.yml restart immich_server"
+        info "Riavvia Immich: docker compose -f /mnt/nas2/docker/docker-compose.yml restart immich-server"
     else
         err "Container immich_postgres non attivo. Avvialo prima del restore."
     fi

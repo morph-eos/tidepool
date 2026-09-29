@@ -25,14 +25,20 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 die()  { err "$*"; exit 1; }
 
-SSH_HARDENING_CONF="/etc/ssh/sshd_config.d/99-hardening.conf"
+# Prefisso 01-: in sshd_config.d per ogni direttiva vince la PRIMA occorrenza (ordine alfabetico)
+SSH_HARDENING_CONF="/etc/ssh/sshd_config.d/01-hardening.conf"
+SSH_HARDENING_LEGACY="/etc/ssh/sshd_config.d/99-hardening.conf"
 FAIL2BAN_JAIL="/etc/fail2ban/jail.d/sshd.conf"
+# Porta su cui ascolta sshd (impostata fuori da questo script). Con Ubuntu 24.04 e
+# ssh.socket va cambiata nel drop-in del socket, non solo con "Port" in sshd_config.
+SSH_PORT="${SSH_PORT:-2222}"
 
 # --- SSH Hardening -----------------------------------------------------------
 
 harden_ssh() {
     log "Hardening SSH..."
 
+    rm -f "$SSH_HARDENING_LEGACY"
     cat > "$SSH_HARDENING_CONF" <<'SSHCONF'
 # SSH Hardening — gestito da setup_fail2ban.sh
 PasswordAuthentication no
@@ -64,13 +70,13 @@ install_fail2ban() {
     fi
 
     # Jail SSH: ban dopo 3 tentativi in 10 minuti, ban 1 ora, recidivi 1 settimana
-    cat > "$FAIL2BAN_JAIL" <<'JAIL'
+    cat > "$FAIL2BAN_JAIL" <<JAIL
 # SSH jail — gestito da setup_fail2ban.sh
 # Ban dopo 3 tentativi falliti in 10 minuti
 [sshd]
 enabled  = true
 mode     = aggressive
-port     = ssh
+port     = ${SSH_PORT}
 filter   = sshd[mode=aggressive]
 backend  = systemd
 maxretry = 3
@@ -127,7 +133,7 @@ do_uninstall() {
     warn "Rimozione fail2ban e ripristino SSH..."
 
     # Rimuovi hardening SSH
-    rm -f "$SSH_HARDENING_CONF"
+    rm -f "$SSH_HARDENING_CONF" "$SSH_HARDENING_LEGACY"
     if sshd -t 2>/dev/null; then
         systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
     fi
