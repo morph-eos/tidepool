@@ -77,6 +77,22 @@ What would tip it, and only the owner can say:
    (then the filesystem does not matter for the offsite, and btrfs's lighter footprint and mainline kernel are attractive)?
 2. **How many disks hold the family's data, and in what arrangement?** Is it the existing 2 TB disk, the system disk, a mirror of two? A mirror gives self-repair for the data that matters most; a single disk only gives detection.
 
+## Layout proposals (to compare once the numbers are in)
+
+The owner has not decided the arrangement of the disks yet, so these are proposals to choose between, not a plan. The sizes come from [the inventory gate S1](../gates/S1-storage-inventory.md).
+Names below are roles, not the disks' real identities.
+
+| | L1. One copy of the family data, backed up | L2. The family data on a mirror |
+|---|---|---|
+| Family data (photos, databases, Nextcloud, documents) | one disk (the current small data disk, or the system disk if it is big enough) | **two** disks in a mirror: one more disk of the same size |
+| Media library | the new disk, single | the new disk, single |
+| Backup of everything, library included | the current large disk, single, receiving snapshots | the same |
+| What a dying family-data disk means | the service stops until the last backup is restored (minutes of data lost, hours of work) | the service keeps running, the disk is replaced, nothing is lost |
+| What it costs | nothing more than the new media disk | one more disk |
+| Self-repair of a bad block | no: the backup repairs it | yes, automatically, on the data that matters most |
+
+Both keep the rule that **a scrub that finds an error becomes an alert**, and both leave the library with exactly two local copies (the media disk and the backup disk), which is the intended trade-off.
+
 ## Consequences
 
 - Whichever of B or C is chosen, **ext4 is left for the data disks**: a corrupted block there is returned as good data and backed up as good data.
