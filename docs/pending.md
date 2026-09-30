@@ -37,7 +37,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | The PostgreSQL 14 → 17 move, rehearsed **on the server** in a second instance with the old database kept as the way back (the owner will not hand over a real dump; size, time and index rebuild stay unmeasured until then) | phase 4, [ADR 0006](decisions/0006-postgresql-version-and-immich.md) |
 | The root `README.md` still describes v0 | rewrite when the first phase closes |
 | A restore drill that brings back the database **and the files to the same moment** | ADR 0006: a database restore alone left six originals missing |
-| Barman Cloud, Barman and the local-repository pgBackRest as NixOS units, if chosen | there is no Barman module; pgBackRest's needs about six lines of ours |
+| The pgBackRest overrides for a local repository (two units, the repository's mode, `ReadWritePaths`) re-checked after every module update | the restore drill of phase 7 |
 
 ## Housekeeping
 
