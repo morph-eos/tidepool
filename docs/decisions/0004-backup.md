@@ -89,14 +89,35 @@ Things the experiment exposed, each one a cost of the tool:
 Databasus is, in practice, the only open-source tool that combines a web UI with full/incremental physical backups and WAL streaming. The others with a UI are logical only (pgbackweb, pg_dump based);
 Bacula and Bareos have web UIs and PostgreSQL plugins but are heavy general-purpose systems. **Barman, WAL-G, pghoard and pgmoneta have no UI.**
 
-**What Databasus's own documentation says about its agent** ([installation](https://databasus.com/installation/agent), read 2026-09-30, **not run in the lab**: it is configured through a web UI): the agent is a **Go binary downloaded from the Databasus server itself**
-(`curl -L -o databasus-agent "<host>/api/v1/system/agent?arch=amd64"`), runs **on the same host as PostgreSQL**, is started **by hand** with `--databasus-host`, `--db-id` and an **agent token**, and needs a WAL queue directory and a
-`postgresql.conf` with `archive_command = 'cp %p <queue>/%f.tmp && mv …'`. The documentation states that there is **no file-based or API configuration for the agent**, and that it needs **PostgreSQL 15 or newer**, which **excludes the Immich database (14)**.
-Under P1 that is: a downloaded binary, a hand-written service to supervise it, a token to store and rotate, a custom `archive_command`, and its configuration living in a web UI.
+**Databasus, tried in the lab with its web UI** (v3.60.0, container image pinned by digest, 1.13 GB; driven with a headless Chrome and screenshots, scripts in branch `exp/pitr-databasus`; the pictures are in
+[docs/evidence/databasus/](../evidence/databasus/)). **This corrects what I had written after reading its documentation**, which said the agent is required: for a database the server can reach directly, **no agent is needed**.
+Databasus opens a **physical replication slot** and a walsender of its own (`databasus_slot_…`, `databasus_wal_receiver_…`) and streams the WAL from its container. PostgreSQL's `archive_command` stayed empty.
+The agent (a downloaded binary started by hand with a token) is for databases the server cannot reach.
+
+| | Databasus (direct connection, web UI) |
+|---|---|
+| Setup | about a dozen UI steps: first account, workspace, a storage, the database (physical, full + incremental + WAL streaming), a connection test, schedule, retention, encryption, notifiers ([picture](../evidence/databasus/01-backup-configuration.png)). It **checks prerequisites and tells you the command** (`summarize_wal = on` was missing) and **offers a replication-only user**; it took a first full backup and started streaming by itself |
+| Full backup while the writer runs | under a second, 3.3 MB (the UI shows whole seconds) |
+| Incremental backup | under a second, 0.06 MB (needs PostgreSQL 17 with `summarize_wal`) |
+| **Restore to T_good** | **correct to the second**: asked for 15:10:36 UTC, the dropped table is back (500,000 rows), the counter ends at 3756, its last row was committed at 15:10:35.981, no gaps. The UI picks seconds, not milliseconds. Prepared in 4.5 s plus 1.7 s to start ([picture](../evidence/databasus/03-restore-dialog.png)) |
+| **Restore to the latest point**, after a crash | **206 acknowledged commits lost** out of 4728, in line with the other two: the WAL is archived in completed segments every 30 s, which is the `archive_timeout` set on PostgreSQL |
+| Our own configuration | PostgreSQL: `wal_level`, `max_wal_senders`, `summarize_wal`, `archive_timeout` and two `pg_hba.conf` lines (6). NixOS: **13 lines** to declare the container, its volume and the firewall rule it needs to reach the host ([module](../../nixos/modules/databasus.nix) in the branch). Custom scripts: **0** |
+| Declared as code | the **container is**; its **configuration is not**: the first account, the schedules and the retention live in its own database. The web application has **no API documentation** (`/openapi.json` returns the application's own page), so configuration as code would mean reverse-engineering the calls of its UI |
+
+What the lab showed about running it:
+
+- **A restore is a generated command to run by hand on the restore host**: `curl … | sh` with a one-time token, which needs `zstd` and the PostgreSQL 17 client tools, into an empty directory, and then `chown`, `pg_ctl start` and a wait for the replay.
+  Nothing is installed on the database server for it, and the prompt is clear, but it is a manual step that depends on the Databasus server being up.
+- **Recreating the container keeps everything** (session, database, backups): a version bump is a new digest and a restart. The same after a crash of PostgreSQL: it reconnected by itself.
+- **Its own state is a dependency that must be backed up**: an embedded PostgreSQL, the backups of a "local" storage if that is what is used, and **`secret.key`**. With the key removed the container started as "healthy",
+  **generated a different key without saying so, and from that moment could not use the stored credentials**: the database showed **Unavailable** ([picture](../evidence/databasus/04-lost-key-unavailable.png)) and **WAL streaming stopped, with no error in the container log**.
+  Putting the original key back made it resume by itself. Its status as a container ("healthy") says nothing about backup health: a notifier ("backup failed", "WAL gap") must be configured to hear about it. This is also a custody point for [ADR 0003](0003-secrets.md).
+- The supported storages are local, S3, Google Drive, NAS, Azure Blob, FTP, SFTP and Rclone, which keeps the offsite question open.
+- **Not tested:** PostgreSQL 14 (Immich's database in v0; the UI offers the incremental mode only with 17), an encrypted restore on a fresh Databasus instance, and what it would take to restore *Databasus itself* from nothing.
 
 **The price of a GUI.** A schedule set in a web interface lives in that application's own database, not in the flake. After a rebuild from an empty machine the schedule is whatever the restored state says; nothing in the repository
 says what it should be. That is a manual step and an invisible piece of configuration, which is what P1 is against. It can be made acceptable (the application's state is a volume that is backed up and restored, and the drill proves it),
-but the tools without a UI express the same schedule as a NixOS timer, in code. The owner prefers a GUI for scheduling the full backups; this is the cost of that preference, to weigh in the decision.
+but the tools without a UI express the same schedule as a NixOS timer, in code. The owner prefers a GUI for scheduling the full backups; this is the cost of that preference, to weigh in the decision. The lab confirmed it: the configuration of Databasus is not in the flake, and losing its key or its volume loses the ability to use what it backed up.
 
 **An experiment on J (snapshots)** (`lab/pg-snapshot-check.sh`, run in the NixOS lab VM on ZFS and btrfs): PostgreSQL 16 running pgbench and a counter writer, five snapshots taken at random moments **while it was writing**,
 each restored and started. **All ten recovered**: the pgbench invariant held and the counter had no gaps, recovery took about 2 seconds on ZFS and 11 on btrfs. The **negative control** (plain `cp` of the files of the running cluster,
@@ -132,7 +153,7 @@ Whether a maintained NixOS module exists is the test ([principles](../principles
 | PostgreSQL WAL streaming | `services.postgresqlWalReceiver` (pg_receivewal **only**: no base backups, no restore) | clean but incomplete |
 | Litestream | a module exists | clean |
 | pgBackRest, WAL-G, Barman | packages only, **no module** found (WAL-G: users report systemd sandbox problems) | each needs a hand-written service and scheduling |
-| Databasus | not found in nixpkgs; it is a container image plus an agent | would run through `virtualisation.oci-containers` (a native module); the agent is the open question |
+| Databasus | not found in nixpkgs; a container image | runs through `virtualisation.oci-containers` (a native module): **tried, 13 lines**, image pinned by digest. The agent is not needed for a reachable database |
 
 So **there is no end-to-end native path to point-in-time recovery on NixOS today**, and the options E to H all need *some* definition of our own. That is not an automatic rejection: a service written straight from the tool's documentation
 (the standard `archive_command`, a timer for the full backup) is configuration, not a patch to the core. It is a **cost to measure**, and the bake-off below measures it.
