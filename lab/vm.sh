@@ -13,7 +13,7 @@
 #   vms/<name>/           per-VM disk overlay, env file, pid, serial log
 #
 # Usage:
-#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB] [--data-disk GB] [--blank]
+#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB] [--data-disk GB] [--extra-disk GB]... [--blank]
 #   lab/vm.sh start    <name>
 #   lab/vm.sh stop     <name>
 #   lab/vm.sh ssh      <name> [command...]
@@ -23,7 +23,7 @@
 #   lab/vm.sh list
 #   lab/vm.sh console  <name>             (tail the serial log)
 #
-# --blank creates an empty system disk (no cloud image), for installing an OS from an ISO.
+# --extra-disk (repeatable) adds more empty disks, serial TPXTRA0001, TPXTRA0002, ...; --blank creates an empty system disk (no cloud image), for installing an OS from an ISO.
 # Environment for start: TIDEPOOL_EXTRA_ARGS (extra QEMU arguments), and the file <vm>/extra-args (one per line),
 # TIDEPOOL_NO_WAIT=1 (do not wait for SSH). The serial console is a socket, <vm>/serial.sock, also logged.
 # =============================================================================
@@ -76,7 +76,7 @@ next_port() {
 
 cmd_create() {
     local name="${1:?name required}"; shift || true
-    local cpus=4 mem=6144 disk=40 data=0 blank=0
+    local cpus=4 mem=6144 disk=40 data=0 blank=0 extras=()
     while [ $# -gt 0 ]; do
         case "$1" in
             --cpus) cpus="$2"; shift 2 ;;
@@ -84,6 +84,7 @@ cmd_create() {
             --disk) disk="$2"; shift 2 ;;
             --data-disk) data="$2"; shift 2 ;;
             --blank) blank=1; shift ;;
+            --extra-disk) extras+=("$2"); shift 2 ;;
             *) die "unknown option: $1" ;;
         esac
     done
@@ -101,6 +102,10 @@ cmd_create() {
     if [ "$data" -gt 0 ]; then
         qemu-img create -q -f qcow2 "$d/data.qcow2" "${data}G"
     fi
+    local n=0 g
+    for g in "${extras[@]}"; do
+        n=$((n + 1)); qemu-img create -q -f qcow2 "$d/extra$n.qcow2" "${g}G"
+    done
     cat > "$d/env" <<EOF
 NAME=$name
 CPUS=$cpus
@@ -158,6 +163,13 @@ cmd_start() {
         extra+=(-drive "file=$d/data.qcow2,if=none,id=data1,cache=writeback"
                 -device "virtio-blk-pci,drive=data1,serial=TPDATA0001")
     fi
+    local xf xi=0
+    for xf in "$d"/extra[0-9]*.qcow2; do
+        [ -f "$xf" ] || continue
+        xi=$((xi + 1))
+        extra+=(-drive "file=$xf,if=none,id=xtra$xi,cache=writeback"
+                -device "virtio-blk-pci,drive=xtra$xi,serial=$(printf 'TPXTRA%04d' "$xi")")
+    done
     seed_pid=$(serve_seed "$d/seed" "$seed_port")
     qemu-system-x86_64 \
         -name "$name" -machine q35,accel=kvm -cpu host -smp "$CPUS" -m "$MEM" \
@@ -235,7 +247,7 @@ cmd_ssh() {
 }
 
 # Snapshots cover every disk of the VM: a data disk left out would keep its old filesystem and make "empty" a lie
-vm_disks() { local f; for f in disk.qcow2 data.qcow2; do [ -f "$(vm_dir "$1")/$f" ] && echo "$(vm_dir "$1")/$f"; done; return 0; }
+vm_disks() { local f; for f in "$(vm_dir "$1")"/disk.qcow2 "$(vm_dir "$1")"/data.qcow2 "$(vm_dir "$1")"/extra[0-9]*.qcow2; do [ -f "$f" ] && echo "$f"; done; return 0; }
 
 cmd_snapshot() {
     local name="${1:?name required}" tag="${2:?tag required}" f
