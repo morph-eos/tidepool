@@ -6,37 +6,41 @@
 ## Before you start
 
 - [ ] A maintenance window of about 30 minutes (Immich, Jellyfin, Nextcloud and the rest are down while the machine runs the live system). Tell the household.
-- [ ] A USB stick of 8 GB or more. **Everything on it will be erased.**
+- [ ] A USB stick of 8 GB or more, prepared with Ventoy. **Everything on it is erased when Ventoy is installed.**
 - [ ] A keyboard and a screen on the server (it is next to the TV: use it).
 - [ ] The server is in a state you can restore by simply rebooting it. Nothing here changes that, but note the time of the last backup anyway (v0: 03:00 offsite, 04:00 local).
 - [ ] Choose the image. The **minimal** ISO (1.7 GB) has no desktop: it answers the GPU questions. The **graphical** ISO (about 3 GB, GNOME) also answers "does the desktop start". If you want both answers, take the graphical one.
 
-## 1. Prepare the stick (on the workstation)
+## 1. Prepare the stick (on the workstation), with Ventoy
 
-Download and check the image. The minimal one is already in `~/lab/tidepool/base/` with its checksum verified. For the graphical one:
+With [Ventoy](https://www.ventoy.net/) the stick is formatted once and the images are then simply **copied** onto it as files: no `dd`, and both the minimal and the graphical ISO can live on the same stick.
+The images are in `~/lab/tidepool/base/`; their checksums are verified after the download.
 
 ```bash
-cd ~/lab/tidepool/base
-curl -L -C - -O https://channels.nixos.org/nixos-26.05/latest-nixos-graphical-x86_64-linux.iso
-curl -L -O https://channels.nixos.org/nixos-26.05/latest-nixos-graphical-x86_64-linux.iso.sha256
-sha256sum -c latest-nixos-graphical-x86_64-linux.iso.sha256     # must say OK
+ls -la ~/lab/tidepool/base/nixos-26.05-minimal.iso ~/lab/tidepool/base/nixos-26.05-graphical.iso
 ```
 
-Find the stick. **This is the dangerous step: a wrong device name erases the wrong disk.**
+Copy them to the big data partition that Ventoy creates on the stick (its label is `Ventoy`), then check the copy, because a half-written file is a classic cause of "it does not boot":
 
 ```bash
-lsblk -o NAME,SIZE,MODEL,TRAN,MOUNTPOINTS      # the stick is the one with TRAN=usb and the right size
-```
-
-Unplug it, run the command again, plug it back in, and run it once more: the device that disappeared and came back is the stick. Then, with `sdX` replaced by its name (for example `sdb`, never a partition like `sdb1`):
-
-```bash
-sudo umount /dev/sdX* 2>/dev/null
-sudo dd if=nixos-26.05-minimal.iso of=/dev/sdX bs=4M status=progress conv=fsync   # or the graphical ISO
+cp ~/lab/tidepool/base/nixos-26.05-*.iso /media/$USER/Ventoy/
 sync
+cd /media/$USER/Ventoy && sha256sum nixos-26.05-minimal.iso nixos-26.05-graphical.iso
+#   compare with the two .sha256 files next to the originals
 ```
 
-**Stop here and tell me the output of the last `lsblk` if there is any doubt.**
+Installing Ventoy erases the stick, and choosing the wrong device there has the same danger as `dd`. You do that step yourself, from Ventoy's own tool, which shows the device and its size
+before it writes; make sure it is the USB stick and not a disk.
+
+**Two things to know about Ventoy and NixOS** ([ventoy: GRUB2 mode](https://www.ventoy.net/en/doc_grub2boot.html), [nixpkgs issue 245101](https://github.com/NixOS/nixpkgs/issues/245101)):
+
+- NixOS installer ISOs have been reported not to boot in Ventoy's default mode after some GRUB updates. If it fails, at the Ventoy menu select the ISO, press **Enter**, and when it offers the boot mode choose
+  **"Boot in grub2 mode"** (or press **Ctrl+R** on the list before choosing).
+- **Secure Boot:** Ventoy and the NixOS image are not signed by the machine's keys. If the firmware has Secure Boot on, either turn it off for the test (and back on afterwards), or enrol Ventoy's key when the blue MOK screen appears.
+  Look at the firmware settings first, so you know what you will be facing.
+
+If a Ventoy boot keeps failing, the fallback is to write the minimal ISO alone with `dd` (`sudo dd if=nixos-26.05-minimal.iso of=/dev/sdX bs=4M status=progress conv=fsync`, after identifying the stick with `lsblk`
+before and after plugging it in). That is the most boring way to boot, and it tells us whether the problem is Ventoy or the machine.
 
 ## 2. Boot the live system on the server
 
