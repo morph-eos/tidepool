@@ -118,7 +118,7 @@ The lab has proved the host layer. It has **not** proved the machine, so nothing
 |---|---|---|
 | G1. GPU and desktop | the GPU shows its VA-API profiles (`vainfo`), GNOME starts, `/dev/dri` exists | boot the NixOS live ISO from a USB stick on the server, without installing: no disk is touched, about 20 minutes |
 | G2. Hardware transcoding in the containers | Jellyfin and Immich machine learning use the GPU from inside Docker | same live session, or a lab step once the server runs NixOS |
-| G3. Software not packaged for Nix | the Proton Drive CLI runs (nix-ld or a package) | in the lab, before the backup phase |
+| G3. Software not packaged for Nix | the Proton Drive CLI runs (nix-ld or a package) | in the lab, before the backup phase. **Partly done:** the Proton Pass CLI 2.4.1 fails on NixOS by default and runs with `programs.nix-ld.enable = true`. The Drive CLI 0.8.0 starts the same way, but keeping its session needs libsecret and a keyring, and in the headless lab it still says "libsecret not available" (branch `exp/secrets-proton-pass`). To finish in a real graphical session |
 | G4. Restore | a backup taken on the old system is restored onto the new one | phase 2, in the lab |
 
 ## Consequences
