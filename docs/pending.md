@@ -34,9 +34,8 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | A restore drill that restores Borg data **from a Hetzner snapshot** (the read-only `/.zfs/snapshot` path), not only from the live repository | phase 7 |
 | Containers against native NixOS modules for each service (Immich, Jellyfin, Nextcloud, Vaultwarden, and the rest): lines of configuration, update, restore | phase 4 |
 | The real SSDs: sizes, TPM, LUKS and the ZFS mirror on the real machine (ADR 0005 is decided, its sizes are not) | after S1 |
+| The PostgreSQL 14 → 17 move, rehearsed **on the server** in a second instance with the old database kept as the way back (the owner will not hand over a real dump; size, time and index rebuild stay unmeasured until then) | phase 4, [ADR 0006](decisions/0006-postgresql-version-and-immich.md) |
 | The root `README.md` still describes v0 | rewrite when the first phase closes |
-
-| A **private rehearsal** of the PostgreSQL 14 → 17 move with a real dump from the server (size, time, index rebuild; whether pgvecto.rs data is still present) | the public repository only has generated pictures ([ADR 0006](decisions/0006-postgresql-version-and-immich.md)) |
 | A restore drill that brings back the database **and the files to the same moment** | ADR 0006: a database restore alone left six originals missing |
 | Barman Cloud, Barman and the local-repository pgBackRest as NixOS units, if chosen | there is no Barman module; pgBackRest's needs about six lines of ours |
 
