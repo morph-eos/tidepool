@@ -70,13 +70,13 @@ The amounts sent are the same for every tool (the changed data, deduplicated); o
 ## Criteria
 
 1. **Survives a stolen credential** (append-only or object lock), then **integrity** and **correct restores** (measured).
-2. **P1:** a maintained NixOS module with a timer, secrets by file (sops-nix), no glue (Proton's mirror script is the glue to beat).
+2. **P1:** a maintained NixOS module with a timer, secrets by file (through the mechanism of [ADR 0003](0003-secrets.md)), no glue (Proton's mirror script is the glue to beat).
 3. **Cost** for 200 GB to 1 TB, with no other subscription needed.
 4. **Moving parts** and what an update costs.
 
 ## Decision (2026-10-01)
 
-- **Borg over SSH to a Hetzner Storage Box** (the 1 TB plan, about €3.20 a month before VAT, as reported on 2026-09-30). Borg has a native NixOS module with a timer, the passphrase and the SSH key are sops-nix secrets, and the copy is encrypted on the client.
+- **Borg over SSH to a Hetzner Storage Box** (the 1 TB plan, about €3.20 a month before VAT, as reported on 2026-09-30). Borg has a native NixOS module with a timer, the passphrase and the SSH key are secrets delivered by the mechanism of [ADR 0003](0003-secrets.md), and the copy is encrypted on the client.
 - **Protection against a stolen credential or a mistake: the provider's own snapshots, not an append-only key.** Hetzner's Storage Box takes **automatic snapshots on a schedule** (10 slots on the 1 TB plan), readable over SSH only under `/.zfs/snapshot` and **read-only there**; removing one needs the Hetzner account, which the server never holds.
   This gives the protection of append-only **without a privileged prune job run by hand from another machine**, which would be a manual step in steady state (against P1). The snapshot plan is configured once in Hetzner's console (and exists as an API, so it can be put in code later); snapshots hold the data Borg deletes when it prunes, so they cost space.
   Hetzner's documentation does not describe restricting a key to `borg serve --append-only`; that is not relied on.
@@ -91,4 +91,4 @@ Open for the owner's later choice: the **Hetzner account and the snapshot plan**
 ## Consequences
 
 - Pruning runs on the machine itself (Borg `prune` from its module); protection comes from the provider's snapshots. **A restore from a snapshot** (the path under `/.zfs/snapshot`) must be part of the restore drill of phase 7.
-- The client secrets (the repository passphrase, the SSH key or S3 keys) are sops-nix secrets ([ADR 0003](0003-secrets.md)); **losing the passphrase loses the backup**, so it is kept in the same two places as the `age` key.
+- The client secrets (the repository passphrase, the SSH key or S3 keys) are secrets delivered by the mechanism of [ADR 0003](0003-secrets.md); **losing the passphrase loses the backup**, so it is kept in the same two places as the `age` key.
