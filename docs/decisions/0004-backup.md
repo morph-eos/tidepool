@@ -1,6 +1,6 @@
 # 0004. Backups: the tool and the restore drill
 
-- **Status:** proposed (requirements confirmed by the owner on 2026-09-30; criteria still to be confirmed **before** any experiment)
+- **Status:** proposed (requirements and criteria confirmed by the owner on 2026-09-30; round 1 and round 2 measured; offsite layer and decision pending)
 - **Date:** 2026-09-29, updated 2026-09-30
 - **Phase:** 2, Backup
 
@@ -173,6 +173,52 @@ So **there is no end-to-end native path to point-in-time recovery on NixOS today
 A lab VM with a Postgres database, a directory of files with known checksums and an SQLite file; a backup; then the VM is destroyed, a new empty one is built from the flake, and only the backup copy
 and the key are given to it. Measured: backup time and size, time to restore, and whether every file and every row came back. Then the negative cases: wrong key, a damaged repository, a deleted archive.
 
+## Round 2 (2026-09-30): PostgreSQL 14, sync, and object storage
+
+The owner's answers after round 1: stay on **PostgreSQL 14** (Immich's version) for now; minutes to a few hours of loss are acceptable, *closer to a point in time is better*; a GUI is **not decisive**, what counts is that the integration works out of the box and survives updates without glue around it;
+Databasus must be judged **with and without its agent**; Barman Cloud and object storage are to be tried as well, because Barman's local-disk model is heavier (its own catalog and versions).
+Everything below ran in the NixOS lab VM (`exp/pitr-pg14`, `lab/pitr-bakeoff.sh`, PostgreSQL 14.24, pgBackRest 2.58.0, Barman 3.14.1, Garage as a local S3 endpoint), with the same scenario as round 1: a full backup under load, `archive_timeout` 30 s, a dropped table, a `kill -9`, a restore to the moment before the mistake, and a restore to the latest point.
+
+### A correction to the test itself
+
+The first PostgreSQL 14 runs failed for **both** tools in the same way. The cause was the scenario, not the tools: the target time could fall after the last archived segment, and PostgreSQL refuses that (`recovery ended before configured recovery target was reached`). It had passed on 17 by luck of timing.
+The script now waits until the WAL up to the target is archived before the mistake is made. The PostgreSQL 17 numbers of round 1 still hold (re-run: pgBackRest 25 and Barman 44 acknowledged commits lost; 14: 3 and 43).
+
+### Results (PostgreSQL 14, one sequential writer, about 6,000 commits in the run)
+
+| Combination | Full backup under load | Restore to the moment before the mistake | Restore to the latest point: commits lost | Lines of our configuration | What it cost beyond that |
+|---|---|---|---|---|---|
+| **pgBackRest, local disk** | 13.5 s, 17 MB (zstd, encrypted) | **OK**, 15 s | 3 | 16 | nothing: `restore` writes the recovery settings itself |
+| **Barman (server, streaming), local disk** | 6.1 s, 126 MB (gzip) | **OK**, 2.5 s | 43 | 20 | a declared system user, `barman cron` every minute, a first `switch-wal`, its own catalog |
+| **pgBackRest, S3 repository** | 4.2 s, 12 MB (zstd, encrypted) | **OK**, 15.6 s | 47 | 24 (the S3 keys are part of it) | none for a real S3 (TLS natively); in the lab a TLS proxy was needed because Garage speaks plain HTTP |
+| **Barman Cloud, S3** | 6.0 s, 222 MB (no compression configured) | **OK**, 5.7 s | 65 | 16, **of which 3 are written by hand at restore time** | `barman-cloud-restore` **only fetches the base backup**: `restore_command`, the target and `recovery.signal` must be written by hand (`--target-time` does not do it); a test restore must run with `archive_mode = off`, or it archives a new timeline into the same bucket and a later "latest" restore silently stops at the old target (seen: 2,445 commits lost until fixed) |
+| **Barman, synchronous** | writes about a third slower (one sequential writer: about 4,000 commits in the time async made 6,000) | OK (2.4 s) | **1,142 with `barman recover`**; **0 when the `.partial` segment is copied in by hand** (3,977 of 3,977) | 1 more line | the synchronous receiver starts only if `synchronous_standby_names` is set **before** the receiver starts (else `pg_receivewal` has no `--synchronous` and commits wait for a whole segment); `barman recover` ignores the `.partial` file, so zero loss needs **a manual copy in the disaster path** |
+| **Databasus, direct connection** | not measured on 14 | **not available**: physical incremental and WAL streaming need PostgreSQL 17 (the UI offers "Full backups only" on 14, and blocks the other two modes asking for `summarize_wal`, a parameter that does not exist in 14) | recovery only to the time of a full backup | n/a | the same costs as round 1 (state outside the code, a key to keep, a generated restore command) |
+| **Databasus, with its agent** | not tested | not available | not available | n/a | Databasus's documentation says the agent is **deprecated** and needs **PostgreSQL 15 or newer**, so it cannot serve version 14; it would also be a binary fetched with `curl` and started by hand, which P1 does not allow |
+| **Filesystem snapshots** (round 1, PostgreSQL 16 on ZFS and btrfs) | instant | 10 of 10 snapshots recovered | up to the snapshot interval | none | the only restore point is a snapshot |
+
+How to read the losses: they are all of the same order and are bounded by `archive_timeout` and by where the last segment happened to end; 3 against 65 is not a ranking. The sizes are not comparable either (the compression differs).
+
+### What this means, tool by tool
+
+- **pgBackRest** is the cleanest: one configuration file, **the restore command does everything**, compression and encryption are built in, S3 and a local disk are the same tool with another repository line (**and it can write to several repositories at once**, a local one and an offsite one, natively).
+  Its cost: it speaks TLS to S3 only; it does not protect a test restore from archiving into the real repository unless the path differs (it refused: `pg1-path` mismatch).
+- **Barman** (server) restores fastest and is the most mature for a standby on another machine, but needs the most set-up: a catalog, a cron every minute and a first-WAL step. Its **synchronous** mode is real, and gives zero loss, but only with a manual step at recovery time.
+- **Barman Cloud** is simple to start (two commands, no server) and it needs **no catalog host**, but the restore is **not one command**: the recovery settings are hand-written, and the timeline pitfall above is easy to fall into. As documented, that is not "plug and play".
+- **Databasus** cannot deliver point-in-time recovery on PostgreSQL 14 at all. It becomes a candidate **only if Immich's database moves to PostgreSQL 17**, and its other costs stand.
+- **Snapshots** stay as the base layer under any of them.
+
+### The S3 endpoint itself
+
+- **MinIO is flagged insecure in nixpkgs** (the project is no longer maintained) and was not used. **Garage** has a NixOS module and worked, but its cluster layout, bucket and key are created with **imperative commands** (`garage layout assign/apply`, `bucket create`, `key create`), which are not declarative. That only matters if S3 is self-hosted; a cloud bucket is created once in a web console.
+- A local Garage next to the server is **not an offsite copy**: it would sit on the same machine. It only served as an endpoint for the test.
+
+### What is still not tested
+
+- PostgreSQL 14 **with Immich's vector extension** in the restore (to read from Immich's documentation and test).
+- Databasus on 14 with logical (`pg_dump`) backups: it works by definition, but it is not point-in-time.
+- The offsite layer itself (restic, Borg or Kopia to an S3 bucket or an SSH server, against Proton Drive): **the next round**. The v0 mirror to Proton Drive is a custom, Borg-aware script; under P1 that has to be replaced by something native or recorded as an exception.
+
 ## Still open
 
 - ~~Are the criteria right?~~ Confirmed by the owner on 2026-09-30, with one addition: **no hybrid, crooked or manual solutions**, which became P1 and the third criterion.
@@ -184,4 +230,4 @@ Settled on 2026-09-30: the media library **does not go offsite** (the disk would
 
 ## Decision
 
-_Pending: nothing has been tested._
+_Pending: the round 1 and round 2 tables are the input; the offsite layer (next round) and the disk layout ([ADR 0005](0005-storage-layout-and-filesystem.md)) come first._
