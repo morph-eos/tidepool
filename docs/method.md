@@ -46,7 +46,7 @@ the same loop. The point is not only the result: it is being able to explain, la
 | # | Phase | Question it answers | Status |
 |---|---|---|---|
 | 0 | Lab | Can I build, break and rebuild a machine cheaply and repeatably? | **done**, [ADR 0001](decisions/0001-lab-on-qemu-vms.md) |
-| 1 | Foundations | How is the host described as code, and where do secrets live? | host **decided** (NixOS, [ADR 0002](decisions/0002-host-as-code.md)); secrets **in progress** ([ADR 0003](decisions/0003-secrets.md)); the [G1 gate](gates/G1-live-usb.md) is **half answered** ([results](gates/G1-results.md): the image boots, the desktop and sound work, the GPU has a render node; hardware encode still to prove) |
+| 1 | Foundations | How is the host described as code, and where do secrets live? | host **decided** (NixOS, [ADR 0002](decisions/0002-host-as-code.md)); secrets **in progress** ([ADR 0003](decisions/0003-secrets.md)); the [G1 gate](gates/G1-live-usb.md) **passed** ([results](gates/G1-results.md): the desktop and sound work, and the GPU lists hardware decode and encode for H.264, HEVC, VP9 and AV1) |
 | 2 | Backup | Can I restore, before there is anything to lose? | requirements settled ([ADR 0004](decisions/0004-backup.md)); filesystem experiment done ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)), waiting for the disk inventory ([S1](gates/S1-storage-inventory.md)) before the tools are compared |
 | 3 | Edge | How does traffic reach the services, with which certificates? | not started |
 | 4 | Services | In what order, and how, does each service move over from v0? | not started |

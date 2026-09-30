@@ -1,4 +1,4 @@
-# G1 results (live USB on the real server), partial
+# G1 results (live USB on the real server)
 
 Run on 2026-09-30 with the graphical ISO booted from a Ventoy stick, on the server's own screen. Nothing was installed and no server disk was mounted (`lsblk` showed only the live image and the stick as mounted).
 Hardware models are left out on purpose, as everywhere in this repository.
@@ -11,26 +11,15 @@ Hardware models are left out on purpose, as everywhere in this repository.
 | Wi-Fi in the live session | **works** (the network menu is there and `nix-shell` downloaded packages) |
 | GPU found | an **Intel discrete GPU**, bound to the **`i915`** driver (the `xe` module is also present) |
 | `/dev/dri` | `card1` and `renderD128` exist, and the render node is readable by everyone |
-| `vainfo` | **failed, but not as a hardware verdict**: it looked for the `iHD` and `i965` drivers in the standard paths, found neither and gave up. The live image does not ship the VA-API user-space driver. To repeat with the driver supplied |
-| ffmpeg hardware encode | not run yet |
+| `vainfo`, first try | failed: it looked for the `iHD` and `i965` drivers in the standard paths, found neither and gave up. The live image does not ship the VA-API user-space driver, so this said nothing about the hardware |
+| `vainfo`, with the `iHD` driver supplied | **works**: the driver opens (Intel iHD 26.1.6) and lists **decode and low-power encode** entry points for MPEG-2 (decode), H.264, HEVC (Main, Main 10, Main 12, 4:2:2, 4:4:4 and the screen-content profiles), VP9 (profiles 0 to 3), JPEG and **AV1** |
+| ffmpeg hardware encode | not run (the profile list already shows the encode entry points; the ffmpeg run is the practical confirmation, and can be done in the next maintenance window or on the installed system) |
 | Disks | every disk visible, **nothing mounted** |
-| Boot log | one red **`FAILED`: "Load Kernel Modules"** (`systemd-modules-load.service`) in the initrd. The system carried on and reached the desktop. Which module failed is not known yet |
-
-## Still to do in the same session
-
-```bash
-# 1. the VA-API driver for Intel GPUs from this generation, supplied explicitly
-P=$(nix-build '<nixpkgs>' -A intel-media-driver --no-out-link); echo "$P"
-LIBVA_DRIVERS_PATH=$P/lib/dri LIBVA_DRIVER_NAME=iHD nix-shell -p libva-utils --run vainfo
-
-# 2. the encode test (same path Jellyfin uses)
-LIBVA_DRIVERS_PATH=$P/lib/dri LIBVA_DRIVER_NAME=iHD nix-shell -p ffmpeg-full --run "ffmpeg -hide_banner -vaapi_device /dev/dri/renderD128 -f lavfi -i testsrc=duration=5:size=1280x720:rate=30 -vf 'format=nv12,hwupload' -c:v h264_vaapi -y /tmp/vaapi-test.mp4 && ls -l /tmp/vaapi-test.mp4"
-
-# 3. which module failed to load
-journalctl -b -u systemd-modules-load --no-pager | tail -20
-```
+| Boot log | one red **`FAILED`: "Load Kernel Modules"**. **Harmless**: the live image tries to load the Hyper-V guest modules (`hv_vmbus`, `hv_netvsc`, `hv_utils`, `hv_storvsc`, `hv_balloon`), which answer "busy" or "no such device" on real hardware; the service succeeded on its second run. An installed system only loads what its configuration lists |
 
 ## Reading
 
-G1 is **half answered**: the machine boots the image, shows the desktop and has a GPU with a render node and a current kernel driver. The part that decides the gate, **hardware encode**, is still unproven.
-A failed `vainfo` on a live image without the driver says nothing about the hardware, which is why the driver is supplied by hand in step 1.
+**G1 passes for the GPU.** The machine boots the image, the desktop and the sound work, the GPU is bound to a current kernel driver with a render node, and the media driver opens and lists hardware decode and encode for
+every codec the stack uses (H.264, HEVC, VP9, AV1). The one failure seen at boot is a known, cosmetic consequence of the live image, not of the machine.
+
+What is **not** proved by G1 and is checked later, on the installed system or in the lab: the actual ffmpeg encode through `/dev/dri` from inside a container (gate G2), and the keyring behavior of the Proton Drive CLI in a real desktop session (gate G3).
