@@ -124,7 +124,7 @@ each restored and started. **All ten recovered**: the pgbench invariant held and
 which is not a valid backup) broke **6 of 6** times: the cluster did not start. So the check can tell a good backup from a bad one. What J gives: recovery points as often as the snapshot interval (minutes), no GUI, nothing PostgreSQL-specific to maintain.
 What it does not give: recovery to an arbitrary second, which is what WAL archiving (E to H) is for.
 
-**Layer 3: where the copies go**
+**Layer 3: where the copies go** (measured and priced in [ADR 0007](0007-offsite-copy.md))
 
 | Destination | Notes |
 |---|---|

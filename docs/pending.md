@@ -22,7 +22,9 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 
 | Item | Notes |
 |---|---|
-| The offsite layer: restic, Borg or Kopia to an S3 bucket or an SSH server, against the official Proton Drive CLI | the v0 mirror to Proton Drive is a custom Borg-aware script; under P1 it needs a native replacement or an entry in [the register](exceptions.md) |
+| The offsite layer against a **real provider** (Hetzner Storage Box or BorgBase over SSH, Backblaze B2 with object lock): real throughput, the first 200 GB upload, the provider's own append-only or no-delete key | lab results and prices are in [ADR 0007](decisions/0007-offsite-copy.md); needs an account, so after the owner chooses |
+| The official Proton Drive CLI as an optional second copy (or dropping it) | rclone's Proton backend is unusable (CAPTCHA, broken uploads, no maintainer); the CLI needs the owner's login and gate G3b |
+| The **privileged prune job** for an append-only repository, run from somewhere other than the backed-up machine | phase 7, with the restore drill |
 | Containers against native NixOS modules for each service (Immich, Jellyfin, Nextcloud, Vaultwarden, and the rest): lines of configuration, update, restore | phase 4 |
 | Disk layout and filesystem on the real disks (a small SSD for databases, a possible second fast 2 TB, the SMR disk as a sequential target) | after S1 |
 | The root `README.md` still describes v0 | rewrite when the first phase closes |
