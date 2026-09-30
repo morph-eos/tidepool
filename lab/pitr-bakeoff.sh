@@ -83,7 +83,7 @@ scenario() { # scenario <tool>   (needs the functions t_<tool>_setup, _backup, _
     writer_start $BPORT "$ACK"; sleep 10
     # P1
     t0=$(now); "t_${tool}_backup" "$DD" >"/tmp/$tool.backup.log" 2>&1; local rc=$?; local bt; bt=$(el "$t0")
-    local bsize; bsize=$(du -sm "$REPO/$tool" 2>/dev/null | cut -f1)
+    local bsize; if declare -F "t_${tool}_size" >/dev/null; then bsize=$("t_${tool}_size"); else bsize=$(du -sm "$REPO/$tool" 2>/dev/null | cut -f1); fi
     if [ $rc -ne 0 ]; then say "$tool P1: FAIL (backup exited $rc, see /tmp/$tool.backup.log)"; RES[$tool/P1]=FAIL; return; fi
     say "$tool P1: OK  full backup under load in ${bt}s, ${bsize} MB in the repository"; RES[$tool/P1]="OK ${bt}s ${bsize}MB"
     # P2: let time pass so WAL gets archived, note T_good, make the mistake, keep writing, crash
@@ -211,12 +211,112 @@ synchronous_standby_names = 'barman_receive_wal'
 EOF2
     psqlq $BPORT "alter system set synchronous_standby_names = 'barman_receive_wal'" >/dev/null 2>&1
     psqlq $BPORT "select pg_reload_conf()" >/dev/null 2>&1
-    sleep 2
+    # Barman starts pg_receivewal with --synchronous only if synchronous_standby_names already lists it at start: restart the receiver (barman cron brings it back)
+    kill "$(pgrep -u postgres -x pg_receivewal)" 2>/dev/null
+    local i
+    for i in $(seq 1 40); do
+        pgrep -u postgres -af 'pg_receivewal.*--synchronous' >/dev/null && break
+        sleep 3
+    done
+    sleep 3
 }
 t_barmansync_backup() { t_barman_backup "$@"; }
 t_barmansync_stop_services() { t_barman_stop_services; }
 t_barmansync_restore_time() { t_barman_restore_time "$@"; }
 t_barmansync_restore_latest() { t_barman_restore_latest "$@"; }
+
+# ---------------------------------------------------------------------------- S3 variants (a Garage bucket on localhost; keys come from S3_KEY and S3_SECRET, never from the repository)
+PGHOME=$(getent passwd postgres | cut -d: -f6)
+S3URL=http://127.0.0.1:3900
+GARAGE() { GARAGE_RPC_SECRET=0000000000000000000000000000000000000000000000000000000000000000 garage "$@"; }
+s3_reset() { # s3_reset <bucket>: an empty bucket for each run
+    GARAGE bucket delete --yes "$1" >/dev/null 2>&1; GARAGE bucket create "$1" >/dev/null
+    GARAGE bucket allow --read --write --owner "$1" --key pgkey >/dev/null
+}
+s3_size() { GARAGE bucket info "$1" 2>/dev/null | awk '/^Size:/{v=$2; u=$3; if(u ~ /GiB/) v*=1024; if(u ~ /KiB/) v/=1024; printf "%d", v}'; }
+
+# Barman Cloud: no Barman server, no catalog host; WAL and base backups go straight to the bucket (barman-cloud-wal-archive, barman-cloud-backup)
+BC="--cloud-provider aws-s3 --endpoint-url $S3URL"; BCBUCKET=barmancloud-$(date +%s); BCURL=s3://$BCBUCKET
+t_barmancloud_setup() {
+    s3_reset "$BCBUCKET"
+    emit barmancloud $PGHOME/.aws/credentials <<EOF
+[default]
+aws_access_key_id = $S3_KEY
+aws_secret_access_key = $S3_SECRET
+EOF
+    emit barmancloud $PGHOME/.aws/config <<EOF
+[default]
+region = garage
+EOF
+    chown -R postgres:postgres $PGHOME/.aws
+    emit barmancloud "$1/pgconf-add" <<EOF
+wal_level = replica
+archive_mode = on
+archive_command = 'barman-cloud-wal-archive $BC $BCURL main %p'
+archive_timeout = $ARCH_TIMEOUT
+EOF
+    cat "$1/pgconf-add" >> "$1/postgresql.conf"; rm -f "$1/pgconf-add"
+}
+# barman-cloud-check-wal-archive is meant to run BEFORE archiving starts ("Expected empty archive"), so it is not a readiness check after the cluster is up
+t_barmancloud_after_start() { :; }
+t_barmancloud_backup() { pg barman-cloud-backup $BC -h /tmp -p $BPORT -U postgres --immediate-checkpoint $BCURL main; }
+t_barmancloud_size() { s3_size "$BCBUCKET"; }
+t_barmancloud_stop_services() { :; }
+t_barmancloud_id() { pg barman-cloud-backup-list $BC $BCURL main | awk 'NR==2{print $1}'; }
+# barman-cloud-restore only fetches the base backup: the recovery settings are ours to write (restore_command, the target, recovery.signal)
+bc_recovery() { # bc_recovery <dir> [target time]
+    local t=""; [ -n "${2:-}" ] && t="recovery_target_time = '$2'"
+    emit barmancloud "$1/postgresql.auto.conf.recovery" <<EOF
+restore_command = 'barman-cloud-wal-restore $BC $BCURL main %f %p'
+recovery_target_action = 'promote'
+archive_mode = off
+$t
+EOF
+    cat "$1/postgresql.auto.conf.recovery" >> "$1/postgresql.auto.conf"; rm -f "$1/postgresql.auto.conf.recovery"; touch "$1/recovery.signal"; chown postgres:postgres "$1/recovery.signal" "$1/postgresql.auto.conf"
+}
+t_barmancloud_restore_time() { pg barman-cloud-restore $BC $BCURL main "$(t_barmancloud_id)" "$1" && bc_recovery "$1" "$2"; }
+t_barmancloud_restore_latest() { pg barman-cloud-restore $BC $BCURL main "$(t_barmancloud_id)" "$1" && bc_recovery "$1"; }
+
+# pgBackRest with an S3 repository (TLS through the lab proxy on 3443)
+t_pgbackrests3_setup() {
+    PBBUCKET=pgbackrest-$(date +%s); s3_reset "$PBBUCKET"
+    emit pgbackrests3 /etc/pgbackrest.conf <<EOF
+[global]
+repo1-type=s3
+repo1-s3-endpoint=127.0.0.1:3443
+repo1-s3-bucket=$PBBUCKET
+repo1-s3-region=garage
+repo1-s3-key=$S3_KEY
+repo1-s3-key-secret=$S3_SECRET
+repo1-s3-uri-style=path
+repo1-storage-verify-tls=n
+repo1-path=/pg
+repo1-retention-full=2
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=lab-only-not-a-secret
+compress-type=zst
+start-fast=y
+log-path=$REPO/pgbackrest-log
+[main]
+pg1-path=$1
+pg1-port=$BPORT
+pg1-socket-path=/tmp
+EOF
+    mkdir -p $REPO/pgbackrest-log; chown postgres:postgres $REPO/pgbackrest-log
+    emit pgbackrests3 "$1/pgconf-add" <<EOF
+wal_level = replica
+archive_mode = on
+archive_command = 'pgbackrest --stanza=main archive-push %p'
+archive_timeout = $ARCH_TIMEOUT
+EOF
+    cat "$1/pgconf-add" >> "$1/postgresql.conf"; rm -f "$1/pgconf-add"
+}
+t_pgbackrests3_after_start() { t_pgbackrest_after_start; }
+t_pgbackrests3_backup() { t_pgbackrest_backup; }
+t_pgbackrests3_size() { s3_size "$PBBUCKET"; }
+t_pgbackrests3_stop_services() { :; }
+t_pgbackrests3_restore_time() { t_pgbackrest_restore_time "$@"; }
+t_pgbackrests3_restore_latest() { t_pgbackrest_restore_latest "$@"; }
 
 want=("$@"); [ ${#want[@]} -gt 0 ] || want=(pgbackrest barman)
 for t in "${want[@]}"; do
