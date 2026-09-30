@@ -12,16 +12,17 @@
 #   P4  restore to the latest point: how many ACKNOWLEDGED commits were lost (the data-loss window actually reached)
 #   G   how much configuration of our own the setup needed (lines), and how many custom scripts (none expected)
 #
-# Usage (inside the VM):  sudo bash pitr-bakeoff.sh [pgbackrest|barman ...]
+# Usage (inside the VM):  sudo PGV=14 bash pitr-bakeoff.sh [pgbackrest|barman ...]   (PGV: PostgreSQL major version, 14 or 17)
 # =============================================================================
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
 D=/dev/disk/by-id/virtio
 X=/mnt/pgx; REPO=/mnt/pgrepo
 BPORT=5500; APORT=5501; LPORT=5502
-ARCH_TIMEOUT=${ARCH_TIMEOUT:-60}
+ARCH_TIMEOUT=${ARCH_TIMEOUT:-30}
 declare -A RES GLUE
-pg() { sudo -u postgres "$@"; }
+PGV=${PGV:-17}; PGBIN=/etc/pitr-lab/pg$PGV/bin
+pg() { sudo -u postgres env PATH="$PGBIN:$PATH" "$@"; }
 say() { printf '  %s\n' "$*"; }
 now() { date +%s.%N; }
 el() { awk -v a="$1" -v b="$(now)" 'BEGIN{printf "%.1f", b-a}'; }
@@ -89,8 +90,9 @@ scenario() { # scenario <tool>   (needs the functions t_<tool>_setup, _backup, _
     sleep $((ARCH_TIMEOUT + 15))
     local rowT; rowT=$(psqlq $BPORT "select to_char(clock_timestamp(),'YYYY-MM-DD HH24:MI:SS.MSTZH'), max(n) from counter")
     local T_GOOD=${rowT%%|*} N_GOOD=${rowT##*|}
+    sleep $((ARCH_TIMEOUT + 5))   # T_good must be covered by archived WAL before the mistake: a target past the last archived segment is refused by PostgreSQL
     psqlq $BPORT "drop table pgbench_accounts" >/dev/null
-    sleep 20
+    sleep 10
     local LAST_ACK; LAST_ACK=$(cat "$ACK"); cluster_stop_hard "$DD"; writer_stop
     say "$tool P2: crash (kill -9). T_good=${T_GOOD} (last row then: $N_GOOD), last acknowledged row at the crash: $LAST_ACK"
     "t_${tool}_stop_services"
@@ -218,7 +220,7 @@ t_barmansync_restore_latest() { t_barman_restore_latest "$@"; }
 
 want=("$@"); [ ${#want[@]} -gt 0 ] || want=(pgbackrest barman)
 for t in "${want[@]}"; do
-    echo "== $t"
+    echo "== $t (PostgreSQL $PGV)"
     prepare_disks
     scenario "$t"
     cleanup_all
