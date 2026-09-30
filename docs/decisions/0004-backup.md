@@ -62,15 +62,43 @@ are handled by the archive command and the tool. That is the standard shape of p
 | I. Litestream (SQLite) | continuous replication of the Vaultwarden database | no | |
 | J. **Crash-consistent filesystem snapshots** of the database dataset, every few minutes (sanoid or btrbk, replicated to the large disk) | no PostgreSQL-specific tool at all | no | see the experiment below: the snapshots are valid backups |
 
+**An experiment on E and G** (`lab/pitr-bakeoff.sh`, run in the NixOS lab VM with PostgreSQL 17.11, pgBackRest 2.58.0 and Barman 3.14.1, both from nixpkgs, repositories on a separate disk). A writer inserts one row at a time and records the last row
+PostgreSQL acknowledged, so a loss can be counted exactly. The scenario: a full backup **while the writer runs**; a moment T_good is noted; a table is dropped (the mistake); the writer goes on; the machine is crashed with `kill -9`.
+Then: restore to T_good, and restore to the latest point. `archive_timeout` is 30 s.
+
+| | pgBackRest (archive-push) | Barman (streaming, `backup_method = postgres`) |
+|---|---|---|
+| Full backup under load | 15 s, 17 MB (compressed, **encrypted** AES-256 in the repository) | 6 s, 121 MB (gzip; includes the WAL already streamed) |
+| **Restore to T_good** | **exact**: the dropped table is back and the counter ends at 2782 where T_good had 2782; 18 s | **exact within one row**: ends at 2001 where T_good had 2000; 3.4 s |
+| **Restore to the latest point**, after a crash of the primary | 106 acknowledged commits lost out of 3410 (about 5 s of writes) | 158 lost out of 2566 (about 8 s of writes) |
+| Our own configuration | 16 lines (repository, retention, encryption, compression, log path, and the `archive_command`) | 20 lines (plus the manual steps below) |
+| Custom scripts | 0 | 0 |
+
+How to read the losses: both tools lose the tail of the WAL that was **not yet archived or completed** when the machine died (bounded by `archive_timeout`; Barman's streaming keeps the current segment in a `.partial` file that `barman recover` does not use).
+It is the window when the **primary's own disk is lost**. If the machine crashes and the disk survives, PostgreSQL recovers by itself and nothing is lost. Barman documents a **synchronous** mode (PostgreSQL waits for Barman to flush each commit) for zero loss;
+the attempt in the lab **was not conclusive**: writes almost stopped (4 rows in two minutes) and the variant would need its receiver set up for synchronous flushing, so no number is claimed for it.
+
+Things the experiment exposed, each one a cost of the tool:
+
+- **pgBackRest:** the time given to `--type=time` accepts milliseconds but not microseconds, and **no space before the time zone** (`…47.049+02`, not `…47.049 +02`); the log directory must exist or every command warns. It does not stream WAL: the loss window is the archive interval.
+- **Barman:** it does **not create its own system user** (one must be declared); `barman cron` must run **every minute** (a timer to write); until one WAL segment arrives `barman check` fails and a backup refuses to start, so a documented **manual `barman switch-wal` is the first step**;
+  on a quiet database the backup waits for the end-of-backup segment, which needs `archive_timeout`; and an overlapping run in the lab showed its background receiver must be supervised like a service.
+- **Both:** the scheduling (a full backup weekly, incremental or differential more often) is **not in the 16 or 20 lines**: it is a systemd timer each, in our own Nix.
+
 **Alternatives with a GUI** (searched 2026-09-30, [Sliplane](https://sliplane.io/blog/5-awesome-databasus-alternatives), [Bytebase](https://www.bytebase.com/blog/top-open-source-postgres-backup-solution/)):
 Databasus is, in practice, the only open-source tool that combines a web UI with full/incremental physical backups and WAL streaming. The others with a UI are logical only (pgbackweb, pg_dump based);
 Bacula and Bareos have web UIs and PostgreSQL plugins but are heavy general-purpose systems. **Barman, WAL-G, pghoard and pgmoneta have no UI.**
+
+**What Databasus's own documentation says about its agent** ([installation](https://databasus.com/installation/agent), read 2026-09-30, **not run in the lab**: it is configured through a web UI): the agent is a **Go binary downloaded from the Databasus server itself**
+(`curl -L -o databasus-agent "<host>/api/v1/system/agent?arch=amd64"`), runs **on the same host as PostgreSQL**, is started **by hand** with `--databasus-host`, `--db-id` and an **agent token**, and needs a WAL queue directory and a
+`postgresql.conf` with `archive_command = 'cp %p <queue>/%f.tmp && mv …'`. The documentation states that there is **no file-based or API configuration for the agent**, and that it needs **PostgreSQL 15 or newer**, which **excludes the Immich database (14)**.
+Under P1 that is: a downloaded binary, a hand-written service to supervise it, a token to store and rotate, a custom `archive_command`, and its configuration living in a web UI.
 
 **The price of a GUI.** A schedule set in a web interface lives in that application's own database, not in the flake. After a rebuild from an empty machine the schedule is whatever the restored state says; nothing in the repository
 says what it should be. That is a manual step and an invisible piece of configuration, which is what P1 is against. It can be made acceptable (the application's state is a volume that is backed up and restored, and the drill proves it),
 but the tools without a UI express the same schedule as a NixOS timer, in code. The owner prefers a GUI for scheduling the full backups; this is the cost of that preference, to weigh in the decision.
 
-**An experiment on J** (`lab/pg-snapshot-check.sh`, run in the NixOS lab VM on ZFS and btrfs): PostgreSQL 16 running pgbench and a counter writer, five snapshots taken at random moments **while it was writing**,
+**An experiment on J (snapshots)** (`lab/pg-snapshot-check.sh`, run in the NixOS lab VM on ZFS and btrfs): PostgreSQL 16 running pgbench and a counter writer, five snapshots taken at random moments **while it was writing**,
 each restored and started. **All ten recovered**: the pgbench invariant held and the counter had no gaps, recovery took about 2 seconds on ZFS and 11 on btrfs. The **negative control** (plain `cp` of the files of the running cluster,
 which is not a valid backup) broke **6 of 6** times: the cluster did not start. So the check can tell a good backup from a bad one. What J gives: recovery points as often as the snapshot interval (minutes), no GUI, nothing PostgreSQL-specific to maintain.
 What it does not give: recovery to an arbitrary second, which is what WAL archiving (E to H) is for.
