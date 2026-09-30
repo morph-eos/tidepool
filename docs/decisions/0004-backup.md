@@ -87,9 +87,10 @@ and the key are given to it. Measured: backup time and size, time to restore, an
 
 ## Still open
 
-- Are the **criteria above** right, and in this order? (The owner has confirmed the requirements, not yet the criteria.)
-- Does the **media library** go offsite as well, or only to the big local disk? It changes the cost of the offsite destination by an order of magnitude.
-- Is a **short experiment on ZFS and btrfs** welcome before the disk layout is fixed, given that a third disk is coming?
+- Are the **criteria above** right, and in this order? The plan is to proceed with them and revise if the results suggest otherwise.
+
+Settled on 2026-09-30: the media library **does not go offsite** (the disk would be too large and too costly); the **filesystem experiment was wanted and is done**
+([ADR 0005](0005-storage-layout-and-filesystem.md)), and the backup tool is chosen after it.
 
 ## Decision
 
