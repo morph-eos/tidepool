@@ -219,6 +219,22 @@ How to read the losses: they are all of the same order and are bounded by `archi
 - Databasus on 14 with logical (`pg_dump`) backups: it works by definition, but it is not point-in-time.
 - The offsite layer itself (restic, Borg or Kopia to an S3 bucket or an SSH server, against Proton Drive): **the next round**. The v0 mirror to Proton Drive is a custom, Borg-aware script; under P1 that has to be replaced by something native or recorded as an exception.
 
+## Round 3 (2026-09-30): what NixOS already provides, and the real Immich database
+
+Searched and run in the lab ([ADR 0006](0006-postgresql-version-and-immich.md) has the details):
+
+| Tool | NixOS module in 26.05 | What that means under P1 |
+|---|---|---|
+| pgBackRest | **yes**, `services.pgbackrest`: repositories and stanzas declared, **backup jobs as systemd timers**, `archive_command` set automatically | the schedule is in code; built for a repository on another host, and for a **local** one it needed about six lines of our own, two of them overriding the module (see ADR 0006) |
+| Barman and Barman Cloud | **none** | the service, the timers, the system user and the `cron` are all ours to write and keep |
+| `pg_receivewal` | yes, `services.postgresql-wal-receiver` | a stream of WAL, not a backup catalog |
+| `pg_dump` | yes, `services.postgresql-backup` | a logical dump, not point-in-time |
+| restic, Borg, borgmatic | yes (with timers) | the file-level layer, for the offsite copy |
+| Databasus | none (a container, declared) | see round 1 and 2 |
+| ZFS snapshots and replication | yes: `services.sanoid`, `syncoid`, `zrepl`; btrfs: `btrbk` | the snapshot layer |
+
+On the **real Immich schema** (PostgreSQL 17, native, pgBackRest through its module): a full backup of 167.5 MB into 53.3 MB; a point-in-time restore after deleting six assets brought the rows back in 4 s; **the six original files did not come back**, because Immich deletes them with the rows. **The database restore and the files must go back to the same moment.**
+
 ## Still open
 
 - ~~Are the criteria right?~~ Confirmed by the owner on 2026-09-30, with one addition: **no hybrid, crooked or manual solutions**, which became P1 and the third criterion.
