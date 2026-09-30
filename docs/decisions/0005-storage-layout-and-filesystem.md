@@ -1,6 +1,6 @@
 # 0005. Storage layout and filesystem
 
-- **Status:** proposed (experiment done; two answers from the owner needed before deciding)
+- **Status:** accepted (2026-10-01) with provisional parts: a two-SSD ZFS mirror, LUKS with a TPM if there is one; sizes await the inventory S1
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (it comes before the backup tool because the layout decides what the tool can rely on)
 
@@ -67,15 +67,41 @@ finds that block on the raw device and overwrites 4 KiB of it, bypassing the fil
 - **Tooling on NixOS:** `services.sanoid` and `syncoid` for ZFS snapshots and replication; `btrbk` for btrfs ([Btrbk on the NixOS wiki](https://wiki.nixos.org/wiki/Btrbk)). Sanoid's own README says btrfs support is shelved.
 - **Parity RAID:** ZFS raidz is mature; btrfs RAID5/6 is still not recommended. It does not matter here (single disks and a mirror at most), and it matters if the layout ever changes.
 
-## Decision
+## Mirror experiment (2026-10-01): what a failed member costs
 
-_Pending. Both B and C pass everything that matters; A fails the first criterion, and that is the reason to leave ext4 behind._
+The owner's layout uses a **mirror of two SSDs**, so the test that matters is not speed but what happens when a member dies. `lab/mirror-bakeoff.sh` (branch `exp/storage-mirror`) in the NixOS lab VM: a mirror of two 6 GB virtual disks, 400 MB written, a checksum list; plain and on LUKS.
 
-What would tip it, and only the owner can say:
+| | btrfs RAID1 | ZFS mirror |
+|---|---|---|
+| 400 MB of one member overwritten with random bytes, then the scrub | **repaired**: "1 corrected", `csum` errors counted; all files identical; a second scrub clean | **repaired**: "scrub repaired 391M with 0 errors"; all files identical; a second scrub clean |
+| The same on LUKS | identical | identical |
+| A whole member lost (zeroed): **how the system says so** | **only error counters** (`btrfs device stats`: `corruption_errs 141056`); no "degraded" state | **`state: DEGRADED`**, and `zpool status -x` names the pool |
+| Data while degraded | all files identical | all files identical |
+| **Replacing the member** | 3 commands (`filesystem show`, `replace start`, `scrub start`) | **2 commands** (`zpool replace -w`, `zpool scrub -w`) |
+| After the replacement | two devices, a scrub finds no errors, data identical | `state: ONLINE`, no errors, data identical |
+| **Booting with one member missing** (one LUKS mapper closed) | **the mount is refused** unless the `degraded` option is given by hand | the pool **imports as DEGRADED** and serves the data |
+| PostgreSQL 17, pgbench, 4 clients, 30 s (a toy: 6 GB virtual disks, repeated) | 156 to 215 tps | 325 to 421 tps (lz4 compression on) |
+| Native monitoring of a failed member | none in NixOS (a separate exporter would be needed) | `services.zfs.zed`: events, including email |
 
-1. **Is the offsite copy meant to be a replication of snapshots to a remote machine or service** (then ZFS raw send is a real advantage), **or a file-level backup tool** such as restic or Borg to object storage or Proton Drive
-   (then the filesystem does not matter for the offsite, and btrfs's lighter footprint and mainline kernel are attractive)?
-2. **How many disks hold the family's data, and in what arrangement?** Is it the existing 2 TB disk, the system disk, a mirror of two? A mirror gives self-repair for the data that matters most; a single disk only gives detection.
+The pgbench numbers are a toy and say only that neither is wildly slow; the repeated runs differ by more than the noise between runs of one candidate, in the same direction. The rest is qualitative and is the point:
+**for a server that restarts without the owner, a mirror that refuses to mount with a missing member is a worse failure mode than one that comes up degraded and says so.**
+(An earlier run of this script was thrown away: the lab disks were still mounted from an old experiment and every command had silently landed on the system disk; the script now stops when a mirror is not created.)
+
+## Decision (2026-10-01)
+
+Taken by the assistant on the owner's delegation ("tell me which"), with the owner's layout and constraints; reversible until the disks are bought.
+
+- **Layout: L2 with the owner's disks.**
+  - **Two SSDs in a mirror** for the system, the databases and the family's data. Sizes come from the inventory [S1](../gates/S1-storage-inventory.md) (budget up to about €250 for the pair).
+  - The **16 TB disk receives backups of everything**, the media library included, written sequentially.
+  - The **new 8 TB disk is the media library**, single (its second copy is the 16 TB disk).
+  - The **2 TB disk (taken as SMR)** is **not** a mirror member and holds **no databases**: it is at most a secondary local copy written sequentially.
+- **Filesystem: ZFS** (mirror on the two SSDs). Reasons, from the lab: it reports a lost member as DEGRADED and comes up degraded after a reboot, replacement is two commands, it has a native event daemon for notifications, and the toy run on PostgreSQL was faster. The offsite copy is a file-level Borg backup ([ADR 0007](0007-offsite-copy.md)), so ZFS's encrypted send to a remote is not needed and is not what tips it.
+  Costs accepted: the kernel stays on a line ZFS supports (the G1 run was on such a kernel), and the cache is **capped** (the machine is also a media center).
+- **Snapshots:** `services.sanoid` every 15 minutes on the datasets of the services ([ADR 0004](0004-backup.md)) and `services.syncoid` to the 16 TB disk.
+- **Encryption of the disks:** a **LUKS layer under the pool with the key held in the machine's TPM** (systemd's native route; tested as a layer under both filesystems in the lab, without a TPM) **if S1 shows a TPM**; **otherwise no local encryption** (the owner's choice), relying on the offsite copy being encrypted.
+  ZFS's own encryption is not used because it has no native TPM unlock.
+- **Still provisional until S1 is run:** the sizes of the SSDs, whether there is a TPM, and whether the family's data fits on the mirror.
 
 ## A hardware finding that affects the layout (2026-09-30)
 

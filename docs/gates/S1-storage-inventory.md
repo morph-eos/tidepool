@@ -41,9 +41,18 @@ sudo find /mnt/nas2/docker/data/immich -type f -mtime -90 -printf '%s\n' 2>/dev/
 docker logs --tail 12 smartcheck 2>&1        # the v0 container reports SMART status and temperature
 ```
 
+## 6. The machine: encryption key storage, memory, boot
+
+```bash
+ls /dev/tpm* 2>&1                              # is there a TPM the disks' key could live in?
+systemd-analyze has-tpm2 2>&1 | head -n 3      # systemd's own answer, if the command exists
+free -h | head -n 2
+[ -d /sys/firmware/efi ] && echo "UEFI boot" || echo "legacy boot"
+```
+
 ## What to bring back
 
-The output of steps 1 to 4 (step 5 if it shows a warning), with any name you do not want to share replaced. With it I can fill the table below and propose a layout with real numbers.
+The output of steps 1 to 4 and 6 (step 5 if it shows a warning), with any name you do not want to share replaced. With it I can fill the table below and propose a layout with real numbers.
 
 | Kind of data | Where today | Size today | Growth | Must it be protected how? |
 |---|---|---|---|---|

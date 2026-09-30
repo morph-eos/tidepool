@@ -1,6 +1,6 @@
 # 0006. PostgreSQL version, and how Immich's database runs
 
-- **Status:** proposed (experiments run; recommendation below, waiting for the owner)
+- **Status:** accepted (2026-10-01): PostgreSQL 17, native service, Immich in pinned containers; the 14 to 17 move rehearsed on the server with the old database kept as the way back
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (it decides what the backup tools have to cope with)
 
@@ -95,14 +95,12 @@ So the native module is clean for a remote repository and **needs about six line
 3. **P1:** glue and overrides, secrets handling, what an update costs.
 4. **Distance from what upstream runs and supports.**
 
-## Decision
+## Decision (2026-10-01)
 
-_Pending the owner._ What the measurements support:
-
-- **PostgreSQL 17.** It works with Immich 3.2.4, the move from v0 is a documented dump and restore, and it removes the limit on point-in-time recovery in Databasus; it is also the version the NixOS packages default to.
-- **Not the native Immich module** (A): it is marked insecure in this release.
-- **Between B and C**: C lets every backup tool reach the database and needs no password, but with pgBackRest as a NixOS module it costs about six lines of our own (two of them overriding the module), which is the price of keeping a local repository. B is simpler to move and to keep, but closes the door on `archive_command`-based tools, so its point-in-time recovery would rest on Barman streaming or Databasus.
-  The ADR 0004 decision between the backup tools therefore decides this one.
+- **PostgreSQL 17**, as **option C: the native NixOS service**, with Immich's containers pinned by digest. It works with Immich 3.2.4, the move from v0 is a documented dump and restore, it lets pgBackRest (the chosen tool, [ADR 0004](0004-backup.md)) reach the database, and needs no password.
+- **Fallback (owner's condition): B**, PostgreSQL 17 from Immich's image, if the native route lacks a tool or breaks on an update; its backups would then rest on tools that connect from outside (Barman streaming, `pg_receivewal`).
+- **Not the native Immich module** (A): marked insecure in this release.
+- **The move from v0's database (14) to 17** is rehearsed **on the server itself, not in the lab**: the owner will not hand over a real dump. The v0 container stays untouched as the way back; a dump of it is restored into a **second** PostgreSQL 17 instance on the same machine, the counts and a search are checked, and only then does Immich point at the new one. The size, time and index rebuild of a real library are **unmeasured**; that risk is accepted and is why the old database is kept running until the new one has been verified.
 
 ## Consequences
 

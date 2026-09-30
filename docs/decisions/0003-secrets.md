@@ -1,6 +1,6 @@
 # 0003. Where secrets live
 
-- **Status:** proposed (experiments run; recommendation below, waiting for the owner's answer on key custody)
+- **Status:** accepted (2026-10-01): sops-nix; key in Proton Pass and on paper; variables in a separate private repository
 - **Date:** 2026-09-29
 - **Phase:** 1, Foundations
 
@@ -84,14 +84,17 @@ Beyond the scenario:
 Candidate C fails the gate as it stands: its integration is exactly the kind of custom fetch-and-inject step the principle excludes, plus a token lifecycle to maintain. The test that was planned (an account login and a scoped token)
 is therefore **not needed to decide**; it can still be run if the owner wants to know how it behaves. **Proton Pass stays useful for the human part**: keeping a copy of the age private key outside the server, which is a one-time manual act, not steady-state glue.
 
-## Decision
+## Decision (2026-10-01)
 
-**Recommended: A, SOPS with age, through sops-nix.** With P1 in force this is stronger: the module renders the `.env` files natively, so no script assembles them. It is the only option that is at once safe to lose the workstation (with the key kept elsewhere), readable in diffs, easy to rotate, installed as two static
-binaries, and **tested with both host candidates** (Ansible through `community.sops`, NixOS through sops-nix). B cannot remove a recipient, C and D depend on tools that
-only one of the two hosts uses well, and E is NixOS-only.
+**A, SOPS with age, through sops-nix.** It is not a forced choice but the winner of the comparison: it is the only option that is at once structured, tested with both host candidates, and rendered natively by a NixOS module (no script assembles the `.env` files).
+agenix, which the owner asked to try, is age-based too but NixOS-only and has no templates; Proton Pass as a machine mechanism was set aside (a login on the machine, and a bootstrap that depends on what it bootstraps).
 
-**Still open, and it is the owner's call:** where the age private key lives so that it is independent of this server, and how it is backed up (see the questions in the session notes:
-an off-server password manager, a printed copy, a second recipient on a USB stick). Until then the status stays *proposed*.
+The owner's answers:
+- **Custody of the age key:** in **Proton Pass**, with a **printed copy** if possible (Proton Pass alone is the accepted minimum). The key is never only on the server, and never only inside something this server hosts.
+- **The passphrases of the offsite backup** ([ADR 0007](0007-offsite-copy.md)) follow the **same custody** as the age key (losing one loses the backup).
+- **Non-secret variables** (domain, addresses, names, ports): a **separate private GitHub repository**; the public repository shows example values only. The deployment runs **from the workstation** ([ADR 0002](0002-host-as-code.md)), which has access to both repositories, so the server never needs a credential for the private one.
+
+What stays to do: create the private repository and the structure of the example values in the public one (phase 1 closing work), and write the age key down where it will be kept.
 
 ## Consequences
 

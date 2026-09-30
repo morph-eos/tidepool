@@ -1,6 +1,6 @@
 # 0007. The offsite copy
 
-- **Status:** proposed (lab results and prices gathered; waiting for the owner's choice of destination)
+- **Status:** accepted (2026-10-01): Borg to a Hetzner Storage Box with the provider's snapshots; Proton Drive only as an optional second copy, to be checked on the server
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (layer 3 of [ADR 0004](0004-backup.md))
 
@@ -74,16 +74,21 @@ The amounts sent are the same for every tool (the changed data, deduplicated); o
 3. **Cost** for 200 GB to 1 TB, with no other subscription needed.
 4. **Moving parts** and what an update costs.
 
-## Decision
+## Decision (2026-10-01)
 
-_Pending the owner._ What the measurements support:
+- **Borg over SSH to a Hetzner Storage Box** (the 1 TB plan, about €3.20 a month before VAT, as reported on 2026-09-30). Borg has a native NixOS module with a timer, the passphrase and the SSH key are sops-nix secrets, and the copy is encrypted on the client.
+- **Protection against a stolen credential or a mistake: the provider's own snapshots, not an append-only key.** Hetzner's Storage Box takes **automatic snapshots on a schedule** (10 slots on the 1 TB plan), readable over SSH only under `/.zfs/snapshot` and **read-only there**; removing one needs the Hetzner account, which the server never holds.
+  This gives the protection of append-only **without a privileged prune job run by hand from another machine**, which would be a manual step in steady state (against P1). The snapshot plan is configured once in Hetzner's console (and exists as an API, so it can be put in code later); snapshots hold the data Borg deletes when it prunes, so they cost space.
+  Hetzner's documentation does not describe restricting a key to `borg serve --append-only`; that is not relied on.
+- **Retention: a few weeks**, not v0's six months: Borg `keep-daily 7` and `keep-weekly 4`, no monthly (the owner's choice).
+- **Custody of the repository passphrase:** as the age key: Proton Pass, with a printed copy if possible.
+- **Not Kopia** (no module, no append-only). **Not restic to S3** for now: equal in the lab; Borg to a Borg-native server needs no object-lock configuration and gives the cheapest step for 1 TB.
+- **Proton Drive**: **not the offsite copy.** It remains an *option to investigate* as an **optional second copy** with the official CLI, possibly in a custom container image if (and only if) the CLI can authenticate without a desktop session, which its help does not show (`auth login` opens a browser and keeps the session in the user's keyring). That is checked with gate G3b on the real server; if it cannot be made headless, it is dropped rather than kept as a script. An image built by us would itself be an entry in [the register](../exceptions.md).
+- **The databases** can also go offsite through pgBackRest's own second repository on the same destination (SFTP); whether to do that, or rely on the Borg copy of pgBackRest's repository directory, is decided when the databases are moved (phase 4).
 
-- **Not Kopia** (no module, no append-only).
-- **Between Borg and restic:** both are native modules with timers and both restore byte for byte. Borg over SSH to a Borg-native server (Hetzner Storage Box at about €3.20 a month for 1 TB, or BorgBase) gives the **append-only key** with the least moving parts, and needs no S3 object-lock configuration. restic to Backblaze B2 gives pay-for-what-you-store pricing (about $1.40 a month for 200 GB) but needs **object lock or a no-delete key** to match that protection.
-- **Proton Drive**: keep only as an optional second copy through the official CLI, as a recorded exception, or drop it. It should not be the only offsite copy while it depends on a custom script and an unverified keyring.
-- **For the databases**, pgBackRest can write a second repository to the same S3 or SFTP destination natively, so the offsite copy of the databases does not have to go through the file tool.
+Open for the owner's later choice: the **Hetzner account and the snapshot plan** need to exist before the first real upload, and the first upload (about 200 GB) should be timed against the real uplink.
 
 ## Consequences
 
-- Whatever is chosen, **pruning is a separate, privileged job** if append-only is used: it belongs in the restore-drill schedule of phase 7, not on the machine being backed up.
+- Pruning runs on the machine itself (Borg `prune` from its module); protection comes from the provider's snapshots. **A restore from a snapshot** (the path under `/.zfs/snapshot`) must be part of the restore drill of phase 7.
 - The client secrets (the repository passphrase, the SSH key or S3 keys) are sops-nix secrets ([ADR 0003](0003-secrets.md)); **losing the passphrase loses the backup**, so it is kept in the same two places as the `age` key.

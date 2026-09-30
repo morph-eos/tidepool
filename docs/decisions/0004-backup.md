@@ -1,6 +1,6 @@
 # 0004. Backups: the tool and the restore drill
 
-- **Status:** proposed (requirements and criteria confirmed by the owner on 2026-09-30; round 1 and round 2 measured; offsite layer and decision pending)
+- **Status:** accepted (2026-10-01): pgBackRest through its NixOS module; snapshots every 15 minutes for the files; retention of a few weeks
 - **Date:** 2026-09-29, updated 2026-09-30
 - **Phase:** 2, Backup
 
@@ -244,6 +244,25 @@ On the **real Immich schema** (PostgreSQL 17, native, pgBackRest through its mod
 Settled on 2026-09-30: the media library **does not go offsite** (the disk would be too large and too costly); the **filesystem experiment was wanted and is done**
 ([ADR 0005](0005-storage-layout-and-filesystem.md)), and the backup tool is chosen after it.
 
-## Decision
+## Decision (2026-10-01)
 
-_Pending: the round 1 and round 2 tables are the input; the offsite layer (next round) and the disk layout ([ADR 0005](0005-storage-layout-and-filesystem.md)) come first._
+**Databases: pgBackRest, through its NixOS module**, with the schedule in code (systemd timers) and point-in-time recovery; `archive_timeout` **30 s** (the owner accepts up to 30 seconds of loss; nothing tighter is pursued).
+Why it beat the others, in the order of the owner's criteria (clean, plug and play, updates without glue around them):
+
+| Why pgBackRest | What it cost in the lab |
+|---|---|
+| a NixOS module that declares repositories, **backup jobs as timers**, and sets `archive_command` itself; one configuration file; **one command restores** (recovery settings written by the tool); compression and encryption built in; writes to S3 or SFTP natively, so the databases can go offsite on their own | about six lines of our own for a local repository, two of them overriding the module's units ([ADR 0006](0006-postgresql-version-and-immich.md)); a first backup job must run once before archiving works |
+
+Not chosen, and why:
+- **Barman and Barman Cloud:** no NixOS module (every unit, user and timer is ours to write), a separate catalog, and for Barman Cloud a restore that only fetches the base backup: the recovery settings are written by hand, and a test restore that archives into the same bucket silently truncates a later restore.
+  Barman in synchronous mode gives zero loss only with a manual copy in the disaster path, and the owner does not need zero.
+- **Databasus:** no point-in-time recovery below PostgreSQL 17, the configuration lives in its own database, the restore key must be kept outside its volume, and its agent is deprecated. The GUI was not decisive for the owner.
+- **Snapshots of the filesystem alone:** not point-in-time; but they stay as the layer that restores **the files to the same moment** as the database ([ADR 0005](0005-storage-layout-and-filesystem.md)).
+
+**The files of the services** (Immich's library, and the others): filesystem snapshots **every 15 minutes**, with the database restored to a moment matching a snapshot. A restore drill must bring back **both**, because a database restored without the files left six originals missing in the lab.
+
+**Retention:** a few weeks, not v0's six months: weekly full and daily differential with pgBackRest (two full backups kept), and the file backups as in [ADR 0007](0007-offsite-copy.md).
+
+**Offsite:** [ADR 0007](0007-offsite-copy.md). **Disks and filesystem:** [ADR 0005](0005-storage-layout-and-filesystem.md).
+
+Revisit if the local-repository overrides turn out to break on a module update (the restore drill of phase 7 is what would show it), or if a stricter loss limit is wanted.
