@@ -30,6 +30,9 @@ than in a script.
 
 ## Criteria
 
+**Gate: [P1, clean over clever](../principles.md).** An option that needs custom glue is set aside unless nothing else meets a *must*.
+
+
 1. **Safety of the failure modes:** what happens if the key is lost, if the repository leaks, if a secret is committed by mistake.
 2. **Rebuild fit:** one key from outside, delivered without typing passwords in the middle of the run.
 3. **Readable diffs and one-command rotation.**
@@ -69,9 +72,21 @@ Beyond the scenario:
 - **Bootstrapping:** the key that decrypts everything must not live only in a service that this repository rebuilds. If the age key sat only in the self-hosted Vaultwarden, restoring
   from an empty server would be circular. Field advice says the same: what the bootstrap depends on must be independent of what it bootstraps.
 
+### Effect of P1 (2026-09-30)
+
+| Option | Native on NixOS? | Glue needed |
+|---|---|---|
+| sops-nix (A) | yes, a NixOS module with `sops.secrets` and `sops.templates` | none: the env files the Compose stack needs are rendered by the module itself |
+| agenix (E/B) | yes, a NixOS module | none, but no templates: each env file is one secret |
+| Proton Pass CLI (C, tested only for "does the binary start") | **no**: a binary run through a fetch step | a script or service to call `pass-cli inject`, a personal access token to store on the machine, renew (sessions last two hours) and rotate, and a network dependency at rebuild time |
+| Ansible Vault | not applicable once the host is NixOS | not applicable |
+
+Candidate C fails the gate as it stands: its integration is exactly the kind of custom fetch-and-inject step the principle excludes, plus a token lifecycle to maintain. The test that was planned (an account login and a scoped token)
+is therefore **not needed to decide**; it can still be run if the owner wants to know how it behaves. **Proton Pass stays useful for the human part**: keeping a copy of the age private key outside the server, which is a one-time manual act, not steady-state glue.
+
 ## Decision
 
-**Recommended: A, SOPS with age.** It is the only option that is at once safe to lose the workstation (with the key kept elsewhere), readable in diffs, easy to rotate, installed as two static
+**Recommended: A, SOPS with age, through sops-nix.** With P1 in force this is stronger: the module renders the `.env` files natively, so no script assembles them. It is the only option that is at once safe to lose the workstation (with the key kept elsewhere), readable in diffs, easy to rotate, installed as two static
 binaries, and **tested with both host candidates** (Ansible through `community.sops`, NixOS through sops-nix). B cannot remove a recipient, C and D depend on tools that
 only one of the two hosts uses well, and E is NixOS-only.
 

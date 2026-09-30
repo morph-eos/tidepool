@@ -26,6 +26,7 @@ the same loop. The point is not only the result: it is being able to explain, la
 - **Measure, do not guess.** Numbers worth collecting: time from an empty disk to running services, time to restore, count of manual steps, idle RAM.
   v0 baseline: 9 manual steps in the rebuild order, never timed.
 - **Secrets never enter the repository in clear text**, not even in experiment branches.
+- **Clean over clever** ([principles](principles.md)): tools are used as documented, through maintained NixOS modules, with no glue scripts; any exception goes in [the register](exceptions.md).
 - **Small steps, verified each time.** A step is done when its check passes, not when the command returns.
 
 ## What lives where
@@ -36,6 +37,7 @@ the same loop. The point is not only the result: it is being able to explain, la
 | `exp/<phase>-<candidate>` (branch), `exp-<phase>-<candidate>` (tag) | one candidate's experiment, kept after the decision |
 | `docs/decisions/` | one ADR per decision, numbered |
 | `docs/method.md` | this file |
+| `docs/principles.md`, `docs/exceptions.md` | what a good answer looks like, and the register of exceptions |
 | `lab/` | the tooling to create, snapshot and destroy the throwaway VMs |
 | `~/lab/tidepool/` (outside the repo) | VM disks and base images, never committed |
 
