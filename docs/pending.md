@@ -8,7 +8,6 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 |---|---|---|
 | Run the S1 inventory on the server (read-only, about ten minutes; now also asks for a TPM, memory and boot mode) | needs the server | the sizes of the SSDs, the encryption decision, the final layout |
 | Open the Hetzner Storage Box account and set its snapshot plan | a subscription and the console | the first offsite upload ([ADR 0007](decisions/0007-offsite-copy.md)) |
-| **Confirm or change the secrets mechanism** (SOPS with age through sops-nix is only recommended; [ADR 0003](decisions/0003-secrets.md)) | the owner postponed it, then a conditional answer that I wrongly recorded as accepted | every secret of phases 2 to 4 |
 | Create the private repository for the non-secret variables and write the age key down (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 
 ## Waiting for the owner (application layer)

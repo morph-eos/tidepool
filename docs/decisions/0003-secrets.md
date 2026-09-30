@@ -1,6 +1,6 @@
 # 0003. Where secrets live
 
-- **Status:** proposed. SOPS with age through sops-nix is the **recommendation**; the owner has **not confirmed it** (see the decision section). Answers given on custody and variables, conditional on it.
+- **Status:** accepted (2026-10-01, confirmed by the owner in words: "vada per sops + age"): SOPS with age through sops-nix; key in Proton Pass and on paper; variables in a separate private repository
 - **Date:** 2026-09-29
 - **Phase:** 1, Foundations
 
@@ -84,7 +84,7 @@ Beyond the scenario:
 Candidate C fails the gate as it stands: its integration is exactly the kind of custom fetch-and-inject step the principle excludes, plus a token lifecycle to maintain. The test that was planned (an account login and a scoped token)
 is therefore **not needed to decide**; it can still be run if the owner wants to know how it behaves. **Proton Pass stays useful for the human part**: keeping a copy of the age private key outside the server, which is a one-time manual act, not steady-state glue.
 
-## Decision: not yet taken (2026-10-01)
+## Decision (2026-10-01)
 
 **Correction.** An earlier edit of this file on 2026-10-01 wrote this ADR as *accepted*. It was not: the owner answered the quiz with "15a (only if I am forced to use sops and have no better choices)", which is a condition, not a confirmation, and was never asked to confirm SOPS by itself.
 The earlier "confirm sops-nix, or revisit agenix?" question was postponed by the owner ("we will talk about secrets later"). This ADR is therefore **proposed**, with a recommendation.
@@ -99,7 +99,7 @@ The earlier "confirm sops-nix, or revisit agenix?" question was postponed by the
 - **Custody of the age key** (or whatever key the chosen tool uses): in **Proton Pass**, with a **printed copy** if possible; Proton Pass alone is the accepted minimum. The same custody for the offsite backup passphrase ([ADR 0007](0007-offsite-copy.md)).
 - **Non-secret variables** (domain, addresses, names, ports): a **separate private GitHub repository**, with the public one showing example values only. The deployment runs **from the workstation** ([ADR 0002](0002-host-as-code.md)), so the server never needs a credential for the private repository.
 
-**To decide:** confirm SOPS with age through sops-nix, or choose agenix (or another). Nothing else in the project is blocked on this choice, but the secrets of the backups ([ADR 0007](0007-offsite-copy.md)) and of the databases ([ADR 0006](0006-postgresql-version-and-immich.md)) will use whichever is chosen.
+**Confirmed by the owner, in a separate message after the correction above: SOPS with age, through sops-nix.** The secrets of the backups ([ADR 0007](0007-offsite-copy.md)) and of the databases ([ADR 0006](0006-postgresql-version-and-immich.md)) use it. Still to do: create the private repository for the variables, and write the age key down in Proton Pass and on paper.
 
 ## Consequences
 
