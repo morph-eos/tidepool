@@ -62,6 +62,14 @@ are handled by the archive command and the tool. That is the standard shape of p
 | I. Litestream (SQLite) | continuous replication of the Vaultwarden database | no | |
 | J. **Crash-consistent filesystem snapshots** of the database dataset, every few minutes (sanoid or btrbk, replicated to the large disk) | no PostgreSQL-specific tool at all | no | see the experiment below: the snapshots are valid backups |
 
+**Alternatives with a GUI** (searched 2026-09-30, [Sliplane](https://sliplane.io/blog/5-awesome-databasus-alternatives), [Bytebase](https://www.bytebase.com/blog/top-open-source-postgres-backup-solution/)):
+Databasus is, in practice, the only open-source tool that combines a web UI with full/incremental physical backups and WAL streaming. The others with a UI are logical only (pgbackweb, pg_dump based);
+Bacula and Bareos have web UIs and PostgreSQL plugins but are heavy general-purpose systems. **Barman, WAL-G, pghoard and pgmoneta have no UI.**
+
+**The price of a GUI.** A schedule set in a web interface lives in that application's own database, not in the flake. After a rebuild from an empty machine the schedule is whatever the restored state says; nothing in the repository
+says what it should be. That is a manual step and an invisible piece of configuration, which is what P1 is against. It can be made acceptable (the application's state is a volume that is backed up and restored, and the drill proves it),
+but the tools without a UI express the same schedule as a NixOS timer, in code. The owner prefers a GUI for scheduling the full backups; this is the cost of that preference, to weigh in the decision.
+
 **An experiment on J** (`lab/pg-snapshot-check.sh`, run in the NixOS lab VM on ZFS and btrfs): PostgreSQL 16 running pgbench and a counter writer, five snapshots taken at random moments **while it was writing**,
 each restored and started. **All ten recovered**: the pgbench invariant held and the counter had no gaps, recovery took about 2 seconds on ZFS and 11 on btrfs. The **negative control** (plain `cp` of the files of the running cluster,
 which is not a valid backup) broke **6 of 6** times: the cluster did not start. So the check can tell a good backup from a bad one. What J gives: recovery points as often as the snapshot interval (minutes), no GUI, nothing PostgreSQL-specific to maintain.
@@ -119,7 +127,8 @@ and the key are given to it. Measured: backup time and size, time to restore, an
 ## Still open
 
 - ~~Are the criteria right?~~ Confirmed by the owner on 2026-09-30, with one addition: **no hybrid, crooked or manual solutions**, which became P1 and the third criterion.
-- For tier 1, is **recovery to an arbitrary second** a requirement, or are recovery points every few minutes enough? It decides between J and E to H.
+- ~~For tier 1, is recovery to an arbitrary second a requirement?~~ Answered 2026-09-30: recovery to minutes or hours is the floor, and **the more precise the better, at equal cleanliness and ease of maintenance**. So point-in-time recovery (E to H) is wanted as a strong *should*, and snapshots (J) stay as the baseline and for what is not PostgreSQL.
+- Containers are accepted for tools without a module (see [P1](../principles.md)); the owner prefers them where nothing native fits.
 
 Settled on 2026-09-30: the media library **does not go offsite** (the disk would be too large and too costly); the **filesystem experiment was wanted and is done**
 ([ADR 0005](0005-storage-layout-and-filesystem.md)), and the backup tool is chosen after it.

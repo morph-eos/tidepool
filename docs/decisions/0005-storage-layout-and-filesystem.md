@@ -77,6 +77,17 @@ What would tip it, and only the owner can say:
    (then the filesystem does not matter for the offsite, and btrfs's lighter footprint and mainline kernel are attractive)?
 2. **How many disks hold the family's data, and in what arrangement?** Is it the existing 2 TB disk, the system disk, a mirror of two? A mirror gives self-repair for the data that matters most; a single disk only gives detection.
 
+## A hardware finding that affects the layout (2026-09-30)
+
+The disks seen from the live session (G1) are: a **small SATA SSD** as the system disk, the **large data disk**, and a **small 2.5-inch data disk**. The third disk is not installed yet.
+The manufacturer's documentation for the small disk's model family says it is **SMR** (shingled magnetic recording): it absorbs bursts of writes in a cache and rewrites whole bands later,
+so sustained **random writes are slow and their latency is unpredictable**. That is the profile of a database (WAL, checkpoints) and of a busy small-file workload, and of a ZFS resilver or a btrfs balance.
+Today that disk holds the Docker data, Postgres included. Whether it really is SMR should be confirmed against its datasheet; if it is:
+
+- **do not put the databases or ZFS data on it.** The system SSD (small, but the databases are) or a **CMR** disk are the candidates;
+- it is fine as a **slow archive or a backup target that is written sequentially** (a `send`/`receive` of snapshots is sequential);
+- the capacity planning in S1 has to include how much the databases need, to see whether they fit on the SSD.
+
 ## Layout proposals (to compare once the numbers are in)
 
 The owner has not decided the arrangement of the disks yet, so these are proposals to choose between, not a plan. The sizes come from [the inventory gate S1](../gates/S1-storage-inventory.md).

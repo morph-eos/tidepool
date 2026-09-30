@@ -8,6 +8,7 @@ The [method](method.md) says *how* decisions are made. These say what a good ans
 
 - **Configuration, not patches.** A tool is configured through its documented options. Nothing modifies its core, and nothing wraps it so that it behaves differently from how its documentation says it behaves.
 - **A maintained NixOS module, not a hand-written service.** If a NixOS module exists for a tool, that is how it is deployed. If there is only a package, the cost of writing and keeping the service definition counts against the tool.
+- **A container is an accepted way to run a tool that has no module**, if it is declared in the flake (`virtualisation.oci-containers`), the image is **pinned by digest**, its configuration lives in the flake and its state in a named volume that is backed up. The owner prefers containers where nothing native fits. The cost that counts is what an update means: a new digest to review, and a restore drill.
 - **No scripts that compensate.** No pre/post hooks that change the flow of a tool (the `bpstart` kind of script that alters how a backup system runs), and no scripts that drive a tool through its API to make up for something it does not do.
 - **No hybrids, and no manual steps in steady state.** Two tools doing one job half each, or a person who must remember to run something, are design faults, not compromises.
 
