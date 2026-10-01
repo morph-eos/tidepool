@@ -9,15 +9,15 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **Buy one SSD of about 500 GB** (chosen: [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); a second one later, as a mirror | the owner's money | the real layout |
 | **Create the private repository** for the non-secret variables, and **write the age key and the Borg key exports down** (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 | (Only if Proton Drive fails its test) **open the Hetzner Storage Box account** and set its snapshot plan | a subscription and the console | the offsite copy in that case ([ADR 0007](decisions/0007-offsite-copy.md)) |
+| **Set a firmware password** (and keep the boot loader's command-line editor off: with lanzaboote on NixOS it is) | the owner will do it | what makes the disk encryption protect a stolen machine ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | **New services to add** next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
 
-| **The 8 TB media disk**: is a second copy of the media library worth buying a disk for (used, about €140)? See the open question in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) | the owner is weighing it | the media layout |
 
 ## Deferred on purpose
 
 | Item | Why |
 |---|---|
-| **Secure Boot** (a signed boot chain with the TPM key tied to it) | postponed by the owner, expected in the system eventually; what it takes on NixOS is not yet looked at. **It is what makes the disk encryption protect a stolen machine** ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); until then the TPM protects a disk that leaves the machine, not the whole machine |
+| **Disk replacement on a SMART warning** (an alert from `smartd` or similar): the 16 TB disk now holds the only copy of the media | phase 5 |
 | **Self-healing of the primary disk** | deferred by the owner: done properly, with a second SSD attached as a mirror when it can be bought ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | **Scheduled ZFS snapshots** | dropped by the owner: the Borg repositories cover what they would undo; can be added later in code ([ADR 0004](decisions/0004-backup.md)) |
 
@@ -42,6 +42,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **Containers against native NixOS modules** for each service (Immich, Jellyfin, Nextcloud, Vaultwarden, and the rest): lines of configuration, update, restore | phase 4 |
 | Incus (or what replaces it) on ZFS or LVM, and where the VM disks live | phase 6 ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | The pgBackRest overrides for a local repository re-checked after every module update | listed in [the exceptions register](exceptions.md); the restore drill is the test |
+| **Secure Boot on NixOS** (already on in the firmware): lanzaboote with the owner's own keys, the LUKS key sealed to the signed boot chain; to try in the lab VM, then on the machine | host phase, [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) |
 | The root `README.md` still describes v0 | rewrite when the first phase closes |
 
 ## Housekeeping

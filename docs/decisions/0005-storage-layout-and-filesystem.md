@@ -98,12 +98,12 @@ How each point came about is under "How the decision changed" below.
 | **New SSD, about 500 GB** (the owner buys it; a single-disk ZFS pool for now) | the **primary**: the databases and the live data of the services (Immich, Nextcloud, Vaultwarden, Syncthing, the notes, WebDAV). Kept under about 80% full. |
 | **Existing small SSD (119 GB)** | the **system**, rebuilt from the flake |
 | **2 TB disk (SMR, 3.6 years old)** | the **Borg repository prepared for the offsite** (selected family data; [ADR 0004](0004-backup.md), [0007](0007-offsite-copy.md)); the **disks of the Incus virtual machines or whatever replaces it** (mostly throwaway tests where an SSD is wasted; **a VM that matters goes on the SSD**); a **local NAS share**; the **overflow** for static data (music, video) if the SSD fills |
-| **16 TB disk** | the **Borg repository of everything**, the **pgBackRest repository**, the media library's **plain second copy**, and the **Time Machine partition** (kept for now; encrypted by macOS, by the user of that backup) |
-| **New 8 TB disk** | the **media library** |
+| **16 TB disk** (stays ext4, no conversion) | the **media library** (one copy), the **Borg repository of everything**, the **pgBackRest repository** and the **Time Machine partition** (kept for now; encrypted by macOS, by the user of that backup) |
+| **8 TB disk** | **not bought** (the owner, 2026-10-01); a disk is added when the library outgrows the 16 TB disk |
 
 Nothing on the 2 TB disk may be the only copy of anything that matters: the offsite repository is a second copy by definition, the NAS share is in the Borg repository of everything, and the VMs are replaceable. The ZFS-versus-LVM choice for Incus's storage belongs to phase 6.
 
-**Filesystem: ZFS.** From the lab: it reports a lost member as DEGRADED and comes up degraded after a reboot, replacement is two commands, it has a native event daemon for notifications (`services.zfs.zed`), and the toy run on PostgreSQL was faster. Costs accepted: the kernel stays on a line ZFS supports (the G1 run was on such a kernel) and the cache is **capped** (the machine is also a media center).
+**Filesystem: ZFS on the SSDs**, where the family's data lives. The 16 TB disk **stays ext4** (the owner, 2026-10-01): Borg and pgBackRest checksum their own data, and a flipped bit in a film is a glitch, not a loss. The 2 TB disk's filesystem goes with the choice for Incus in phase 6. From the lab: it reports a lost member as DEGRADED and comes up degraded after a reboot, replacement is two commands, it has a native event daemon for notifications (`services.zfs.zed`), and the toy run on PostgreSQL was faster. Costs accepted: the kernel stays on a line ZFS supports (the G1 run was on such a kernel) and the cache is **capped** (the machine is also a media center).
 The offsite copy is a file-level Borg backup, so ZFS's encrypted send is not needed and is not what tips it.
 
 **No scheduled snapshots, no replication of snapshots.** The Borg repositories cover what a snapshot would undo ([ADR 0004](0004-backup.md)). ZFS stays the choice because the reasons above do not depend on snapshots: checksums and scrub, a mirror that reports and boots degraded, two-command replacement, compression, and `zpool attach` to add the second SSD later.
@@ -117,31 +117,32 @@ The offsite copy is a file-level Borg backup, so ZFS's encrypted send is not nee
 | Primary SSD | yes | personal data in clear |
 | 2 TB disk | yes | the NAS share and the VMs |
 | Small system SSD | **yes** (decided with the owner, 2026-10-01) | it holds the key that decrypts the secrets of the repository ([ADR 0003](0003-secrets.md)); left plain, a thief with the disk and the repository's secrets could read them |
-| 16 TB disk | **no** (the owner, 2026-10-01) | only encrypted repositories (Borg, pgBackRest), a plain media copy with nothing personal, and a Time Machine partition encrypted by macOS |
-| 8 TB media disk | no | films and series, nothing personal |
+| 16 TB disk | **no** (the owner, 2026-10-01) | the media library (nothing personal), encrypted repositories (Borg, pgBackRest), and a Time Machine partition encrypted by macOS |
 
 What the TPM protects, and what it does not (the owner asked: if every login needs a password, can someone who steals the whole machine still read the disks?):
 - **A disk taken out and connected to another computer: protected.** The key is sealed in the original machine's TPM, and another computer has no way to release it.
 - **The whole machine, booted by the thief: protected only if the boot chain is locked.** A password at the login (SSH or the screen) is **not** what stops the thief, because they do not need to log in: the TPM releases the key to whatever boots on that machine **if the measurements it was sealed against still match**. With **Secure Boot off**, the measurement the key is usually sealed to (PCR 7) is a constant "Secure Boot disabled" value, so **an attacker's USB stick, or a changed kernel command line, can get the key released** ([systemd-cryptenroll, Arch manual](https://man.archlinux.org/man/systemd-cryptenroll.1); [a demonstration](https://oddlama.org/blog/bypassing-disk-encryption-with-tpm2-unlock/); general knowledge, **not tested here**).
 - **What makes the owner's reasoning true** is therefore: **Secure Boot enforced with a signed boot image** (the key sealed to it, ideally also to the kernel image), the boot loader's command-line editor disabled, and a firmware password; then the thief can only boot the intended system, and the login password protects the data. **Or a PIN at boot** (`--tpm2-with-pin`), which stops unattended reboots. A third way, for later, is unlocking over the home network from another device (Tang with Clevis), so a machine carried out of the house stays locked.
-- **So today** (Secure Boot postponed), the encryption protects against the **disk-only** cases: a stolen or returned or discarded disk. It should not be described as protecting a stolen machine until Secure Boot is in place. Secure Boot moves from "nice to have" to "the thing that makes the encryption mean something against a stolen machine".
+- **Where this stands (2026-10-01):** Secure Boot is **already enabled in the firmware** of the current server. On the NixOS system the boot chain has to be signed with **the owner's own keys**: the usual way is **lanzaboote** (an external flake input, pinned like the others) with `sbctl` creating the keys; it signs the boot image, keeps `systemd-boot`'s command-line editor off, and lets the LUKS key be sealed to it ([the lanzaboote quick start](https://github.com/nix-community/lanzaboote/blob/999c0cb03f748fe311bca78961dbf0562dc91659/docs/QUICK_START.md); read, **not tried here**). The firmware password is the owner's to set. Until that chain exists on NixOS, the encryption protects against the **disk-only** cases (a stolen, returned or discarded disk), not a stolen machine. This is host-phase work.
 
-## Open question (2026-10-01): is a second copy of the media library worth a disk?
+## The 8 TB media disk (decided 2026-10-01: not bought now)
 
-The plan buys an **8 TB disk** (used, about €140) for the media library, so that the 16 TB disk holds its second copy. The library is **1.4 TB** today, of films and series (nothing personal, and the owner is unsure a personal library keeps its point when streaming exists). Options:
+The plan had bought an **8 TB disk** (used, about €140) for the media library, so that the 16 TB disk would hold its second copy. The owner, after weighing it, **chose to buy nothing now** (option B below): the library stays on the 16 TB disk in one copy.
 
-| | What it means |
+| Option | Verdict |
 |---|---|
-| **A. Buy the 8 TB disk** (the plan) | two copies of the media; the 16 TB disk is free of the media's primary role; also the room to move the 16 TB disk's data while it is reformatted |
-| **B. Buy nothing now** | the media stays on the 16 TB disk, **one copy**, next to the Borg and pgBackRest repositories; a failure of that disk loses the media **and** the local repositories at once, while the family's data still has the SSD, the offsite repository on the 2 TB disk and the offsite copy |
-| **C. A smaller used disk** (2 to 4 TB, sized to the library) | a second copy of the media for less than the 8 TB, and a place to hold the 16 TB disk's data meanwhile; less room to grow |
-| **D. A second copy only of what is hard to replace** | what cannot be fetched again belongs in the Borg repositories or the offsite copy, not in the media library |
+| A. Buy the 8 TB disk | not now |
+| **B. Buy nothing now; the 16 TB disk stays ext4 and keeps the media** | **chosen**: no conversion, no disk to move the data meanwhile, no cost |
+| C. A smaller used disk sized to the library | not needed while the 16 TB disk has room |
+| D. A second copy only of what is hard to replace | what cannot be re-obtained goes in the Borg repositories or the offsite copy, not in the media library |
 
-Two things that matter and are easy to miss:
-- **Converting the 16 TB disk to ZFS needs somewhere to hold its data meanwhile** (about 3.2 TB: media 1.4, the local Borg repositories 1.1, Time Machine 0.7). The 2 TB disk is too small, so **some disk of at least 4 TB is needed at least during the move**, or the 16 TB disk stays ext4. Staying ext4 would be acceptable for it: Borg and pgBackRest checksum their own data, and a flipped bit in a film is a glitch, not a loss; ZFS is needed where the family's data lives (the SSDs).
-- A hard disk's chance of failing in a given year is of the order of 1 to 2 percent (published fleet statistics; general knowledge). The 16 TB disk has about 9,600 hours and a clean SMART report.
+Why it holds, from the facts:
+- **Capacity is not the reason to buy now**: the 16 TB disk's data partition has 11.8 TB with 3.1 TB used. When the library outgrows it, another disk is added (the owner expects to grow it past 4 TB).
+- **The risk is small and the loss is replaceable**: a disk fails in a given year with a probability of the order of 1 to 2 percent (published fleet statistics; general knowledge); the 16 TB disk has about 9,600 hours and a clean SMART report; the family's data does not depend on it (SSD, the offsite repository on the 2 TB disk, the offsite copy).
+- **A failing disk is replaced, not repaired**: the owner's plan is to buy another disk when this one fails and copy. **That works only while the disk still reads**, so it relies on a SMART alert (phase 5): a disk that is replaced on a warning loses nothing; one that dies suddenly loses the media only, which is then re-obtained.
+- The owner keeps a personal library on purpose: ownership matters to him, in a world where streaming titles disappear, even for things he rarely rewatches, and the family may watch the same titles later.
 
-Decision: **pending the owner.**
+What Jellyfin's database says about the library (read-only, aggregated, no titles; Jellyfin has run since February 2026, so 7.5 months of history): **35 films (1,095 GB, about 31 GB each) and 299 episodes (313 GB)**, 3,771 music tracks, 6 users; **91 of the 334 films and episodes were played at least once (27% by count, 48% by size, 672 GB)**. The space is dominated by a few very large files: at that size, a library of 130 films is already 4 TB, so the growth depends on how large the files are as much as on how many (a re-encode of what is not a favourite would shrink it several times; the hardware transcoding check G2 is pending).
 
 ## How the decision changed
 
@@ -149,7 +150,8 @@ Decision: **pending the owner.**
 2. **First recommendation:** two SSDs in a ZFS mirror, with snapshots every 15 minutes replicated to the 16 TB disk and LUKS on three disks.
 3. **After S1** (the services' data is only 165 GB; second-hand SSDs are expensive) the options below were offered, and the owner chose **B with his own roles** for the disks.
 4. **The owner then dropped the snapshots** (his argument, accepted: Borg already holds what a snapshot would undo, and snapshots cost space) and **deferred self-healing** to a real second SSD.
-5. **Encryption:** the 16 TB disk was first to be encrypted; with snapshots replaced by Borg it holds only encrypted repositories, and the owner decided to skip it.
+5. **Encryption:** the 16 TB disk was first to be encrypted; with snapshots replaced by Borg it holds encrypted repositories, the media and an encrypted Time Machine partition, and the owner decided to skip it.
+6. **The 8 TB disk** was first to hold the media with the 16 TB disk as its second copy; the owner decided against buying it now, and the 16 TB disk stays ext4.
 
 ### The options offered after S1
 
@@ -203,10 +205,9 @@ Both keep the rule that **a scrub that finds an error becomes an alert**, and bo
 | Disk dies | Effect | Recovery |
 |---|---|---|
 | Primary SSD | the services stop until it is replaced | the database from the pgBackRest repository (about 30 seconds lost), the files from the Borg repository of everything (up to one or two hours lost); hours of work |
-| Media disk | none to the services | mount the plain copy on the 16 TB disk; Jellyfin comes back at once |
-| 16 TB disk | no service stops; the local copies are gone | the repositories are rebuilt from the live data; the offsite copy is untouched |
+| 16 TB disk | no service stops; the **media library (one copy)** and the local repositories are gone | the repositories are rebuilt from the live data and the offsite copy is untouched; the media is re-obtained. **Replace the disk on a SMART warning**, copying while it still reads (this needs the alert of phase 5); a sudden failure loses the media only |
 | 2 TB disk | the VMs and the NAS share are gone | the share from the Borg repository of everything; the VMs are replaceable; the offsite repository is rebuilt from the live data |
 | System SSD | the server does not boot | rebuild from the flake; the secrets need the age key from Proton Pass or paper |
 
 - **The backup tools do not depend on ZFS features** ([ADR 0004](0004-backup.md)): pgBackRest and Borg are file-level, so the filesystem could change later without changing them.
-- **Revisit** when the second SSD is bought (a mirror by `zpool attach`), and when Secure Boot is taken up.
+- **Revisit** when the second SSD is bought (a mirror by `zpool attach`), and when Secure Boot is set up on NixOS.
