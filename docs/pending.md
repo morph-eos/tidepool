@@ -10,7 +10,8 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **Create the private repository** for the non-secret variables, and **write the age key and the Borg key exports down** (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 | (Only if Proton Drive fails its test) **open the Hetzner Storage Box account** and set its snapshot plan | a subscription and the console | the offsite copy in that case ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | **Set a firmware password** (and keep the boot loader's command-line editor off: with lanzaboote on NixOS it is) | the owner will do it | what makes the disk encryption protect a stolen machine ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
-| **Edge questions still open** ([ADR 0008](decisions/0008-edge.md)): the list of public services, and the DNS provider (does it have an API?) | they decide the certificate strategy and what the router forwards | phase 3 |
+| **The DNS challenge with the DNS at the provider**: try route 1 of [ADR 0008](decisions/0008-edge.md) (CNAME delegation of `_acme-challenge` to a free provider with an API, such as deSEC, or acme-dns); needs the owner to open the account and add a few CNAME records at the DNS provider; fallback: a private CA | decides how the VPN-only and wildcard names get certificates | phase 3 |
+| **Syncthing's sync port (22000) and Plex** are outside the public / VPN-only split and need a decision | they are not HTTP | phase 3 |
 | **New services to add** next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
 
 
@@ -45,6 +46,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | Incus (or what replaces it) on ZFS or LVM, and where the VM disks live | phase 6 ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | The pgBackRest overrides for a local repository re-checked after every module update | listed in [the exceptions register](exceptions.md); the restore drill is the test |
 | **Secure Boot on NixOS** (already on in the firmware): lanzaboote with the owner's own keys, the LUKS key sealed to the signed boot chain; to try in the lab VM, then on the machine | host phase, [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) |
+| **Docker and Incus together on one host** (both manage the firewall; they were not tested together) and **real VMs** instead of the lab's containers ([ADR 0010](decisions/0010-vm-service-exposure.md)); the VM manager comparison (Incus, microvm.nix, NixOS containers, libvirt) | phase 6 |
 | **The VPN on real devices**: a phone and a laptop, roaming, a changed server address, the DNS for the VPN names; Tailscale as the fallback ([ADR 0009](decisions/0009-remote-access-vpn.md)) | phase 3 |
 | **A certificate-order failure must be noticed**: in the lab one failed order left every name on placeholder certificates | phase 5 |
 | **The edge on the real machine**: the router's port forwarding (80, 443; the range 3000-3099 and the Incus API to question), the firewall on the host (v0 has none), fail2ban against the proxy's logs, HTTP/3, and the DNS records, which stay manual | phase 3 and 6, [ADR 0008](decisions/0008-edge.md) |
