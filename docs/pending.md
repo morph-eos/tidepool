@@ -7,17 +7,17 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | Item | Why it waits | Blocks |
 |---|---|---|
 | **Buy one SSD of about 500 GB** (chosen: [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); a second one later, as a mirror | the owner's money | the real layout |
-| **Confirm LUKS with the TPM on the small system SSD** (proposed: it holds the key that decrypts the repository's secrets) | not yet answered | [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) |
-| **Vaultwarden: move it to PostgreSQL**, or another way to back up its SQLite file | the backup design reads files live, so an open SQLite file is the one real risk | [ADR 0004](decisions/0004-backup.md) |
 | **Create the private repository** for the non-secret variables, and **write the age key and the Borg key exports down** (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 | (Only if Proton Drive fails its test) **open the Hetzner Storage Box account** and set its snapshot plan | a subscription and the console | the offsite copy in that case ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | **New services to add** next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
+
+| **The 8 TB media disk**: is a second copy of the media library worth buying a disk for (used, about €140)? See the open question in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) | the owner is weighing it | the media layout |
 
 ## Deferred on purpose
 
 | Item | Why |
 |---|---|
-| **Secure Boot** (a signed boot chain with the TPM key tied to it) | postponed by the owner, expected in the system eventually; what it takes on NixOS is not yet looked at. Until then the TPM protects a disk that leaves the machine, not the whole machine |
+| **Secure Boot** (a signed boot chain with the TPM key tied to it) | postponed by the owner, expected in the system eventually; what it takes on NixOS is not yet looked at. **It is what makes the disk encryption protect a stolen machine** ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); until then the TPM protects a disk that leaves the machine, not the whole machine |
 | **Self-healing of the primary disk** | deferred by the owner: done properly, with a second SSD attached as a mirror when it can be bought ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | **Scheduled ZFS snapshots** | dropped by the owner: the Borg repositories cover what they would undo; can be added later in code ([ADR 0004](decisions/0004-backup.md)) |
 
@@ -38,6 +38,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **The full restore drill on a rebuilt machine** (database and files to the same moment; Borg data also from a Hetzner snapshot, the read-only `/.zfs/snapshot` path) | phase 7; a database restore alone left six originals missing in the lab |
 | A periodic `borg check`, a verification restore, and a **notification when a backup job fails** | the Borg module does none of them; phase 5 and the restore drill |
 | The **PostgreSQL 14 → 17 move**, rehearsed **on the server** in a second instance with the old database kept as the way back | the owner will not hand over a real dump; size, time and index rebuild stay unmeasured until then; phase 4, [ADR 0006](decisions/0006-postgresql-version-and-immich.md) |
+| **Move the services to PostgreSQL** (decided by the owner): Nextcloud from MariaDB, Vaultwarden from SQLite; check that Jellyfin, Plex and Syncthing cannot (they would stay as rebuildable stores read live by Borg) | phase 4, [ADR 0004](decisions/0004-backup.md) |
 | **Containers against native NixOS modules** for each service (Immich, Jellyfin, Nextcloud, Vaultwarden, and the rest): lines of configuration, update, restore | phase 4 |
 | Incus (or what replaces it) on ZFS or LVM, and where the VM disks live | phase 6 ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | The pgBackRest overrides for a local repository re-checked after every module update | listed in [the exceptions register](exceptions.md); the restore drill is the test |

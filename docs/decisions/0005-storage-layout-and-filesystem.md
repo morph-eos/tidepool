@@ -116,11 +116,15 @@ The offsite copy is a file-level Borg backup, so ZFS's encrypted send is not nee
 |---|---|---|
 | Primary SSD | yes | personal data in clear |
 | 2 TB disk | yes | the NAS share and the VMs |
-| Small system SSD | **yes (proposed addition, to confirm)** | it holds the key that decrypts the secrets of the repository ([ADR 0003](0003-secrets.md)); left plain, a thief with the disk and the repository's secrets could read them |
+| Small system SSD | **yes** (decided with the owner, 2026-10-01) | it holds the key that decrypts the secrets of the repository ([ADR 0003](0003-secrets.md)); left plain, a thief with the disk and the repository's secrets could read them |
 | 16 TB disk | **no** (the owner, 2026-10-01) | only encrypted repositories (Borg, pgBackRest), a plain media copy with nothing personal, and a Time Machine partition encrypted by macOS |
 | 8 TB media disk | no | films and series, nothing personal |
 
-What the TPM protects, and what it does not: it protects a **single disk that leaves the machine** (a theft of one disk, a disk sent back, a disk thrown away). It does **not** protect against someone taking the **whole machine**: the TPM releases the key at boot with no one typing anything. Closing that needs the boot chain signed and measured (**Secure Boot** with the key tied to it) or a passphrase at boot, which stops unattended reboots. **Secure Boot is postponed** by the owner, who expects it in the system eventually.
+What the TPM protects, and what it does not (the owner asked: if every login needs a password, can someone who steals the whole machine still read the disks?):
+- **A disk taken out and connected to another computer: protected.** The key is sealed in the original machine's TPM, and another computer has no way to release it.
+- **The whole machine, booted by the thief: protected only if the boot chain is locked.** A password at the login (SSH or the screen) is **not** what stops the thief, because they do not need to log in: the TPM releases the key to whatever boots on that machine **if the measurements it was sealed against still match**. With **Secure Boot off**, the measurement the key is usually sealed to (PCR 7) is a constant "Secure Boot disabled" value, so **an attacker's USB stick, or a changed kernel command line, can get the key released** ([systemd-cryptenroll, Arch manual](https://man.archlinux.org/man/systemd-cryptenroll.1); [a demonstration](https://oddlama.org/blog/bypassing-disk-encryption-with-tpm2-unlock/); general knowledge, **not tested here**).
+- **What makes the owner's reasoning true** is therefore: **Secure Boot enforced with a signed boot image** (the key sealed to it, ideally also to the kernel image), the boot loader's command-line editor disabled, and a firmware password; then the thief can only boot the intended system, and the login password protects the data. **Or a PIN at boot** (`--tpm2-with-pin`), which stops unattended reboots. A third way, for later, is unlocking over the home network from another device (Tang with Clevis), so a machine carried out of the house stays locked.
+- **So today** (Secure Boot postponed), the encryption protects against the **disk-only** cases: a stolen or returned or discarded disk. It should not be described as protecting a stolen machine until Secure Boot is in place. Secure Boot moves from "nice to have" to "the thing that makes the encryption mean something against a stolen machine".
 
 ## How the decision changed
 
