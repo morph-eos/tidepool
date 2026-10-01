@@ -82,10 +82,23 @@ So the native module is clean for a remote repository and **needs about six line
 | Updates | a new digest to review | the channel, and a rebuild; a major version needs a dump and restore either way |
 | Lines of our configuration | 5 for the container, plus a password it needs | 8 for the service, plus the six above if pgBackRest is added |
 
+### The real database, measured read-only on the server (2026-10-01)
+
+The owner gave access to the server; **only aggregate numbers were read** (no dump, no names, nothing written). v0 runs Immich 3.2.1 with PostgreSQL **14.19**, VectorChord **0.4.3** and pgvector 0.8.1 in Immich's image.
+
+| What | Value |
+|---|---|
+| The `immich` database | **269 MB** (the lab's was a few tens of MB; about 119 MB of it is the geodata table Immich loads itself, 8 MB the country table) |
+| Assets | **7,196** (4 deleted), 1 user |
+| Search vectors (`smart_search`) | 6,742 (40 MB); faces and face vectors: 8,585 (50 MB) |
+| Extensions | `vchord` 0.4.3 and `vector` 0.8.0, plus the usual `uuid-ossp`, `cube`, `earthdistance`, `pg_trgm`, `unaccent`; **no pgvecto.rs (`vectors`) extension** |
+| `shared_buffers`, `max_connections` | default (128 MB), 100 |
+
+What this settles: **the library is small** (a dump is of the order of the database's size, a few hundred MB at most, so the dump, the restore and the index rebuild are minutes, not hours; an **estimate** from sizes, **not a timed run**), and the **pgvecto.rs question below is closed**: its extension is not installed, so there is nothing to convert. Still to do, **on the server in a second instance** (the owner's rule above): the timed dump and restore, and the search check. Counts from `pg_stat_user_tables` are estimates; the counts in the table above are exact `count(*)` for the first four rows.
+
 ### Not tested
 
 - **The real data.** The lab has a dozen generated pictures. A real library's database (hundreds of thousands of assets, real face and scene vectors, real vector indexes) must be rehearsed **privately** with a dump from the server: timings, size of the dump, index rebuild time. It cannot be done in the public repository.
-- Whether v0's real database still holds **pgvecto.rs** data (its image ships both extensions); Immich 3 requires the move to VectorChord, which the documentation says is automatic when upgrading through 2.x.
 - The other databases (Nextcloud's MariaDB, the SQLite files of Vaultwarden and Jellyfin): outside this decision.
 
 ## Criteria
