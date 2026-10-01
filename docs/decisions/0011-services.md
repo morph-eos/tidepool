@@ -1,6 +1,6 @@
 # 0011. How each service runs: its NixOS module or a declared container
 
-- **Status:** proposed (lab results in; recommendation below; waiting for the owner's answers on a few inputs)
+- **Status:** accepted (2026-10-01): native Nextcloud, Vaultwarden, Syncthing, smartd and PostgreSQL; Jellyfin 12.1 and Immich as pinned containers; WebDAV through nginx; Nextcloud as the single sign-on provider; icloudpd and Plex dropped
 - **Date:** 2026-10-01
 - **Phase:** 4, Services
 
@@ -67,6 +67,24 @@ What running them showed:
 - **Nextcloud's apps can be declared**: `oidc`, `oidc_login`, `user_oidc` and `user_saml` are available as Nix packages (`services.nextcloud.extraApps`), so installing them is not an imperative step in the app store.
 - **NixOS has modules for several identity providers**: `services.kanidm`, `services.authelia`, `services.keycloak`, `services.pocket-id`, `services.zitadel`, `services.dex`. Which one, if any, replaces v0's "Nextcloud as the provider plus scripts" is a separate design question, below.
 
+**WebDAV for Seedvault, two ways** (`lab/services-extra-bakeoff.sh`): a backup-app-like sequence (MKCOL, PUT of 5 MB, PROPFIND, MOVE, GET, DELETE, a **2 GB PUT**, a wrong password) against **the `webdav` module with its unit hardened** and against **nginx with its WebDAV modules** (`services.nginx.additionalModules`).
+
+| | `webdav` module, hardened | nginx with the DAV modules |
+|---|---|---|
+| The whole sequence | **passes** (2 GB in 10 s) | **passes** (2 GB in 5 s) |
+| systemd exposure | **9.2 UNSAFE as shipped, 2.2 OK** after about 12 lines of systemd options of our own (an override of the module's unit) | **1.6 OK**, the unit nginx already has |
+| Extra service and user | one more | none |
+| Cost | the 12 lines; the module's own settings for users | nginx is rebuilt with the module (a build, no hash to refresh); the user file is a bcrypt file from a sops secret |
+
+Seedvault itself talks to a WebDAV server through **DAVx5's WebDAV mount** or **Nextcloud's own app** ([the discussion](https://github.com/seedvault-app/seedvault/discussions/494)); a recent DAVx5 release stopped being recognised by Seedvault on GrapheneOS ([issue](https://github.com/GrapheneOS/os-issue-tracker/issues/7810)), a client-side matter that does not depend on the server. **Neither server was tried with a real phone.**
+
+**Nextcloud as the OpenID provider** (`exp/services-native`):
+- **The `oidc` app (2.3.1) is declared** (`extraApps`) and enabled: no app-store step.
+- **A client is created with one command**, `occ oidc:create`, **with the client identifier and secret we choose** (the identifier must be 32 to 64 printable characters), so they can be sops secrets and the command can be run again after `oidc:remove`: it is **idempotent in effect**. The clients are **rows in the database**, so a restore brings them back; **a rebuild from nothing needs the commands again**.
+- **Simpler than v0**: v0 inserted the redirect addresses with SQL into MariaDB (`setup_nextcloud_oidc.sh`) because `oidc:create` cannot add one afterwards, and each service had **two** addresses (two domains). With **one domain** each client has **one** address, so the SQL goes away.
+- **The discovery document** is at `/.well-known/openid-configuration` after **a 301 redirect**, and also directly at `/index.php/apps/oidc/openid-configuration`; its `issuer` is `https://<cloud name>`. A strict client (Vaultwarden checks the issuer against its authority) may not follow the redirect: **the well-known address should answer directly** (a rewrite in the virtual host), **to be settled when the integration is built**.
+- **Not tested:** a real login through Nextcloud into Vaultwarden, Jellyfin or Immich, and Jellyfin's SSO plugin.
+
 **Not tested:** Jellyfin's **hardware transcoding** (the lab has no GPU; the real-server check G2 is pending), Immich's machine learning on the owner's GPU, a **restore** of any of these (the drill of phase 7), the **icloudpd** service, a real smartd on the disks, the **SSO** integrations, and the owner's phone apps against the WebDAV server.
 
 ## Criteria, in this order
@@ -77,27 +95,25 @@ What running them showed:
 4. **Update path:** what a new upstream version costs (the channel's cadence against the digest bump).
 5. **Fit with the backups and the disks.**
 
-## Decision
+## Decision (2026-10-01)
 
-_Recommended, pending the owner's answers below._
+The owner's answers: **WebDAV is for Seedvault** (GrapheneOS); the **GPU is an Intel one**; **icloudpd is dropped**; **Nextcloud stays the single sign-on provider** for the services; **for now only the services that exist today move over**, the new ones come later.
 
-**Through their NixOS modules:** PostgreSQL 17 and its databases ([ADR 0006](0006-postgresql-version-and-immich.md)), **Nextcloud 33** (with `database.createLocally`, Redis, and the OpenID apps declared as `extraApps`), **Vaultwarden** on PostgreSQL, **Syncthing**, **`smartd` in place of the `smartcheck` container**, nginx.
+**Through their NixOS modules:** PostgreSQL 17 and its databases ([ADR 0006](0006-postgresql-version-and-immich.md)); **Nextcloud 33** (`database.createLocally`, Redis, the `oidc` app declared); **Vaultwarden** on PostgreSQL (with the ordering after the database written out); **Syncthing** (sync port public, GUI VPN-only); **`smartd` in place of the `smartcheck` container**; nginx.
 
 **As containers, declared and pinned by digest** (the module cannot serve v0's data or is flagged insecure):
-- **Jellyfin 12.1** (the module's 10.11 cannot open a 12.1 database): the container with the GPU device for transcoding and the media as read-only volumes;
-- **Immich**, with the native PostgreSQL 17 of ADR 0006 (the module is flagged insecure);
-- **icloudpd** (no module), only if the owner still wants the iCloud sync.
+- **Jellyfin 12.1**: the module's 10.11 cannot open a 12.1 database (tested). With the **Intel GPU**, transcoding goes through the render device (`/dev/dri`) with VA-API; the check **G2** on the real server confirms it.
+- **Immich** (server and machine learning), with the native PostgreSQL 17 of ADR 0006. **The machine learning keeps v0's OpenVINO build**, which suits an Intel GPU (it needs the render device and the Intel compute runtime on the host); confirmed on the real server.
 
-**WebDAV: an open question for the owner** (below): the module works but has the weakest isolation of all (9.2), and Nextcloud already serves WebDAV (`/remote.php/dav`); if the phone apps can use Nextcloud's, **the separate server is dropped**.
+**WebDAV for Seedvault: nginx with its DAV modules** (recommended): it passed the whole sequence, adds **no service and no user**, and its unit scores 1.6; **the fallback is the `webdav` module with its unit hardened** (2.2, about 12 lines of ours). Neither was tried with a phone: **the first real Seedvault backup is the test.**
 
-**Dropped:** Plex and its helper, certbot, the proxy container, the `smartcheck` container.
+**Single sign-on: Nextcloud as the provider**, with its `oidc` app declared in the flake. Three clients (**Immich, Jellyfin, Vaultwarden**, as in v0), each registered by `occ oidc:create` with an identifier and a secret taken from sops. **The registration is a small declared step that runs after Nextcloud's setup** (three commands, ten lines or so): it is **glue under P1** (an application that cannot declare its clients), so it goes **in [the register](../exceptions.md)** when it is written, with a check at every upgrade (`oidc:list` matches what the flake says). Jellyfin's SSO plugin and the button of v0 are part of the Jellyfin work.
+
+**Dropped:** Plex and its helper, **icloudpd**, certbot, the proxy container, the `smartcheck` container.
 
 **Updates:** the native services follow the channel (`flake.lock`), the containers follow a digest bump that is reviewed; **both are a version change plus the same checks**, and a **Nextcloud major version is upgraded one step at a time** (the module enforces it).
 
-## Questions for the owner
+## Questions answered, and what remains
 
-1. **Which application do your phones use for WebDAV, and for what?** (If it can use Nextcloud's own WebDAV, the separate server goes away.)
-2. **What GPU does the server have** (AMD, NVIDIA or Intel)? The type, not the model. It decides Jellyfin's transcoding setup and the build of Immich's machine learning (v0 uses the OpenVINO build, which is Intel's; an AMD card would use the CPU or a heavier ROCm build).
-3. **Do you still want icloudpd?** (It is off in v0, on a profile.)
-4. **What single sign-on do you want?** v0: Nextcloud as the provider, Jellyfin through a plugin with a button injected by a script, Vaultwarden through the same. The options are to **keep Nextcloud as the provider** (its OpenID app, declared in the flake; the clients still have to be registered in it by commands) or **a dedicated provider** from the list above (a separate service, with its own clients declared). This is its own decision; say whether you want it in this phase.
-5. **Which new services** do you want to add (the replacement for Trakt, and others)? Each one gets the same comparison.
+1. ~~WebDAV~~: Seedvault; nginx recommended. 2. ~~GPU~~: Intel. 3. ~~icloudpd~~: dropped. 4. ~~Single sign-on~~: Nextcloud. 5. ~~New services~~: later.
+**Remaining:** the **wording of the first real checks** (a Seedvault backup through nginx, Jellyfin's transcode on the GPU, Immich's machine learning on it, a login through Nextcloud into each service) belongs to the deployment and to the restore drill.
