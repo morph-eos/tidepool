@@ -7,7 +7,8 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | Item | Why it waits | Blocks |
 |---|---|---|
 | **Buy one SSD of about 500 GB** (chosen: option B with the owner's roles, [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); the second can follow later | the owner's money | the real layout |
-| **Decide the encryption of each disk** (proposed: LUKS with the TPM on the SSD, the 2 TB and the 16 TB; the media disk plain) | [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) explains what the TPM does and does not protect | the disk set-up |
+| **Secure Boot** (signed boot chain with the TPM key tied to it), postponed by the owner but expected in the system | what it takes on NixOS is not yet looked at | making the TPM unlock mean something against a stolen machine |
+| **Revisit what the backup disk holds** (replicas in clear, or only encrypted repositories and a plain media copy), which decides whether it needs encryption and whether snapshots are replicated at all | the owner asked why replicate and why not Borg: see the answer in the session and ADR 0004 | [ADR 0004](decisions/0004-backup.md), [0005](decisions/0005-storage-layout-and-filesystem.md) |
 | (Only if Proton Drive fails its test) open the Hetzner Storage Box account and set its snapshot plan | a subscription and the console | the offsite copy if Proton Drive is not adopted ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | Create the private repository for the non-secret variables and write the age key down (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 

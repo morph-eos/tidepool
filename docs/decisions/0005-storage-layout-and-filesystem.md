@@ -131,7 +131,7 @@ One new SSD of about 500 GB now; the second added later with `zpool attach` if t
 What the owner accepted by putting the VMs on the SMR disk: random writes from a busy VM can stall on it. It is fine for test machines; **a VM that matters goes on the SSD**. The ZFS-versus-LVM choice for Incus's storage belongs to phase 6.
 The SMR disk is old (3.6 years powered on, 1,475 command timeouts), so **nothing there may be the only copy of anything that matters**: the Borg staging repository is a second copy by definition, the NAS share is in the snapshots, and the VMs are replaceable.
 
-### Encryption of each disk (proposed, waiting for the owner)
+### Encryption of each disk (decided with the owner)
 
 The owner's proposal: do not encrypt the media disk (nothing personal), and perhaps not the backup disk (the Borg repository is already encrypted). My reading:
 
@@ -140,7 +140,7 @@ The owner's proposal: do not encrypt the media disk (nothing personal), and perh
 - **Every disk holding personal data in clear should be encrypted**: the primary SSD, the 2 TB disk (the NAS share, the VMs) and the 16 TB disk. If only some are encrypted, a thief who takes the whole machine gets the others, and encrypting the SSD alone achieves little.
 - **What LUKS with the key in the TPM protects, and what it does not.** It protects a **single disk that leaves the machine** (a theft of one disk, a failed disk sent back, a disk thrown away). It does **not** protect against someone taking the **whole machine**: the TPM releases the key at boot with no one typing anything. Closing that needs the boot chain signed and measured (Secure Boot with the key tied to it) or a passphrase at boot, which stops the unattended reboots the owner wants. That is a choice to make knowingly, not a gap to discover later.
 
-Decision needed from the owner: **encrypt SSD, 2 TB and 16 TB with LUKS and the TPM (my recommendation), leave the media disk plain**; or encrypt nothing locally and rely on the offsite copy being encrypted ([ADR 0007](0007-offsite-copy.md)).
+**Decision (2026-10-01, the owner agreed): SSD, 2 TB and 16 TB encrypted with LUKS and the TPM; the media disk left plain.** **Secure Boot is postponed** by the owner, who expects it to be part of the system eventually: it is what would make the TPM release the key only to the intended boot chain (pending). The 16 TB's encryption may be revisited if its contents change (see the question on what the backup disk holds, in [pending](../pending.md)).
 
 ## A hardware finding that affects the layout (2026-09-30)
 
