@@ -1,6 +1,6 @@
 # 0013. The VM and container lab on the server
 
-- **Status:** proposed (2026-10-01): framing and criteria, **no experiment run yet**
+- **Status:** proposed (2026-10-01): criteria **confirmed by the owner** (range first), Podman preferred to Docker by the owner; experiments running
 - **Date:** 2026-10-01
 - **Phase:** 6, Network and VMs
 
@@ -26,11 +26,13 @@ The owner's use: **tests of every kind, kept ready for any occasion**, "even con
 | **B. libvirt/QEMU** | the classic stack, `virsh` and virt-manager | any OS as a VM; containers only through LXC drivers, not the focus | `virtualisation.libvirtd`; domains as XML; a community flake (NixVirt) declares them |
 | **C. microvm.nix** | **NixOS** guests as lightweight VMs, declared as flake outputs | **NixOS guests only** | the guests are in the flake by construction |
 | **D. NixOS containers** (`systemd-nspawn`) | NixOS guests as containers, declared in the host configuration | NixOS guests only, no other OS, no VM | native |
-| **E. Docker alone** | containers only | OCI images; **no VM** | `virtualisation.docker` (already in the plan for the services) |
+| **E. Podman, or Docker, alone** | containers only | OCI images; **no VM** | `virtualisation.podman` and `virtualisation.oci-containers` (Podman backend); `virtualisation.docker` |
 
-**Combinations, not exclusive:** E is in the plan anyway for Jellyfin and Immich ([ADR 0011](0011-services.md)). The question is which **one** manager (A, B or C-plus-something) covers the VMs, and whether it can also take the owner's "containers for tests" so a second tool is not needed.
+**The owner prefers Podman to Docker, mainly because it is open source** (2026-10-01). Docker Engine is itself under the Apache 2.0 licence; what differs is that Podman has no daemon and can run without root, and the Docker **Desktop** product is not open source (not relevant on a server). The preference is taken as a requirement: **the services' containers of [ADR 0011](0011-services.md) must run under Podman, and Docker is measured as the baseline**, not as a goal.
 
-## Criteria, in this order (to be confirmed by the owner before any test)
+**Combinations, not exclusive:** a container engine is in the plan anyway for Jellyfin and Immich ([ADR 0011](0011-services.md)), and Incus can run OCI images itself. The question is which **one** manager (A, B or C-plus-something) covers the VMs, and whether it can also take the owner's "containers for tests" so a second tool is not needed.
+
+## Criteria, in this order (confirmed by the owner on 2026-10-01, before any test)
 
 1. **Range (measured):** what it can run from one tool: a VM of another operating system, a system container, an OCI application container; each tried.
 2. **P1 and declaration:** how much of it the flake can declare, lines of our own, **glue and imperative state** (the Incus profile of v0 is the example to avoid).
@@ -43,7 +45,7 @@ The owner's use: **tests of every kind, kept ready for any occasion**, "even con
 The workstation's CPU is AMD with **nested virtualization on** (checked), so real VMs can run inside the NixOS lab VM, which the experiment of [ADR 0010](0010-vm-service-exposure.md) could not do (it used containers).
 
 - **R1.** Incus with a **real VM** (a cloud image and an installer ISO), a system container and an **OCI application container** (for example the image of a small web server), the owner's cloud-init as a profile declared in the preseed.
-- **R2.** **Docker and Incus together** on the lab host: both enabled, restart each, check the firewall rules, DNS and the paths between a Docker container, an Incus container and a VM, with the host firewall of ADR 0010 on.
+- **R2.** **Podman, and Docker as the baseline, each together with Incus** on the lab host: both enabled, restart each, check the firewall rules, DNS and the paths between a Docker container, an Incus container and a VM, with the host firewall of ADR 0010 on.
 - **R3.** **libvirt** with a declared domain (through NixVirt) and an installer ISO, against the same checks.
 - **R4.** **microvm.nix**: a NixOS guest declared in the flake, boot time, memory, what it cannot run.
 - **R5.** For the winner: the **throwaway cycle**, a declared instance that stays (a service VM), the web UI behind the VPN address, the storage pool on a separate disk, memory at idle.
