@@ -10,8 +10,8 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **Create the private repository** for the non-secret variables, and **write the age key and the Borg key exports down** (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 | (Only if Proton Drive fails its test) **open the Hetzner Storage Box account** and set its snapshot plan | a subscription and the console | the offsite copy in that case ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | **Set a firmware password** (and keep the boot loader's command-line editor off: with lanzaboote on NixOS it is) | the owner will do it | what makes the disk encryption protect a stolen machine ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
+| **Services to carry over to v1** ([ADR 0008](decisions/0008-edge.md)): **Plex is dropped**; **Syncthing** stays with its sync port public and its GUI VPN-only; Jellyfin, Immich, Nextcloud, Vaultwarden, WebDAV stay (the owner may add others) | phase 4 |
 | **The DNS challenge with the DNS at the provider**: try route 1 of [ADR 0008](decisions/0008-edge.md) (CNAME delegation of `_acme-challenge` to a free provider with an API, such as deSEC, or acme-dns); needs the owner to open the account and add a few CNAME records at the DNS provider; fallback: a private CA | decides how the VPN-only and wildcard names get certificates | phase 3 |
-| **Syncthing's sync port (22000) and Plex** are outside the public / VPN-only split and need a decision | they are not HTTP | phase 3 |
 | **New services to add** next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
 
 
