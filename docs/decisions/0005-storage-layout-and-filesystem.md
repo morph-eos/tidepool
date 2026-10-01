@@ -140,9 +140,17 @@ Why it holds, from the facts:
 - **Capacity is not the reason to buy now**: the 16 TB disk's data partition has 11.8 TB with 3.1 TB used. When the library outgrows it, another disk is added (the owner expects to grow it past 4 TB).
 - **The risk is small and the loss is replaceable**: a disk fails in a given year with a probability of the order of 1 to 2 percent (published fleet statistics; general knowledge); the 16 TB disk has about 9,600 hours and a clean SMART report; the family's data does not depend on it (SSD, the offsite repository on the 2 TB disk, the offsite copy).
 - **A failing disk is replaced, not repaired**: the owner's plan is to buy another disk when this one fails and copy. **That works only while the disk still reads**, so it relies on a SMART alert (phase 5): a disk that is replaced on a warning loses nothing; one that dies suddenly loses the media only, which is then re-obtained.
+- **The 8 TB disk stays an upgrade for later** (the owner has other purchases first, the SSD above all); nothing in the design depends on having it.
 - The owner keeps a personal library on purpose: ownership matters to him, in a world where streaming titles disappear, even for things he rarely rewatches, and the family may watch the same titles later.
 
 What Jellyfin's database says about the library (read-only, aggregated, no titles; Jellyfin has run since February 2026, so 7.5 months of history): **35 films (1,095 GB, about 31 GB each) and 299 episodes (313 GB)**, 3,771 music tracks, 6 users; **91 of the 334 films and episodes were played at least once (27% by count, 48% by size, 672 GB)**. The space is dominated by a few very large files: at that size, a library of 130 films is already 4 TB, so the growth depends on how large the files are as much as on how many (a re-encode of what is not a favourite would shrink it several times; the hardware transcoding check G2 is pending).
+
+## Memory: is it enough? (2026-10-01)
+
+Measured on the current server (read-only): **4.7 GiB in use**, no memory pressure at all (the kernel's pressure counters are zero), the 16 GB swap file and the zram swap unused. The containers add up to about **2.6 GiB** (Immich's server 0.9, Jellyfin 0.4, the Immich and Nextcloud databases about 0.35, Nextcloud 0.2, Syncthing 0.15, the Immich machine learning 0.2 while idle) and the desktop session about **1.2 GiB**; the two Incus VMs are stopped. The server had been up only 12 hours, so **peaks are not measured**.
+
+What the new system adds, as a peak budget (estimates): the system and desktop 1.5 GB; the **ZFS cache, to be capped at about 3 GB** (it shrinks under pressure, but a cap keeps it predictable on a media center); PostgreSQL 17 for three databases about 1.5 GB; Immich with its machine-learning burst about 3.5 GB; Jellyfin with a transcode about 1.5 GB; Nextcloud and the rest about 1 GB; the Borg and pgBackRest jobs about 1 GB. That is **about 13 GB without virtual machines**, and a test VM of 4 GB makes it about 17 GB, which the swap absorbs.
+**Verdict: the memory is enough for the planned system** if the ZFS cache is capped and the VMs stay modest. It is **not a purchase to make now**; add memory only if the first weeks show pressure (the memory pressure counters are the thing to watch, phase 5) or if several VMs run at once. Swap: **zram** (declared in NixOS), and a swap file only on the SSD, never on the SMR disk or on a ZFS volume. Whether there is a free memory slot is unknown (it needs root to read).
 
 ## How the decision changed
 

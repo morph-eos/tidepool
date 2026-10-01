@@ -17,6 +17,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 
 | Item | Why |
 |---|---|
+| **Memory**: cap the ZFS cache at about 3 GB; watch the memory pressure counters in the first weeks; add RAM only if they show it ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) | phase 5 |
 | **Disk replacement on a SMART warning** (an alert from `smartd` or similar): the 16 TB disk now holds the only copy of the media | phase 5 |
 | **Self-healing of the primary disk** | deferred by the owner: done properly, with a second SSD attached as a mirror when it can be bought ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | **Scheduled ZFS snapshots** | dropped by the owner: the Borg repositories cover what they would undo; can be added later in code ([ADR 0004](decisions/0004-backup.md)) |
