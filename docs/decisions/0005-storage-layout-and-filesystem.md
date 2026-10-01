@@ -1,6 +1,6 @@
 # 0005. Storage layout and filesystem
 
-- **Status:** accepted (2026-10-01) with provisional parts: a two-SSD ZFS mirror, LUKS with a TPM if there is one; sizes await the inventory S1
+- **Status:** accepted (2026-10-01), reviewed the same day for coherence: one new SSD of about 500 GB (single-disk ZFS pool, a mirror later), the small SSD for the system, the 2 TB disk for the offsite repository, the VMs and the NAS share, the 16 TB disk for the repositories of everything, the 8 TB disk for the media; LUKS with the TPM on the SSDs and the 2 TB disk
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (it comes before the backup tool because the layout decides what the tool can rely on)
 
@@ -14,7 +14,7 @@ The family's data (photos, documents, databases) does go offsite, and is also co
 ## Requirements
 
 - **Must:** a corrupted block is **noticed** (an error, not wrong data); a periodic check (scrub) finds latent damage before a restore needs the data;
-  works on NixOS with the pinned kernel; cheap local snapshots, so a mistaken delete or an overwrite is undone in seconds.
+  works on NixOS with the pinned kernel; cheap local snapshots, so a mistaken delete or an overwrite is undone in seconds (**a requirement at the time; the owner later chose to cover it with the Borg repositories instead, see the decision**).
 - **Should:** incremental replication between disks that sends only what changed; a way to back up to an **untrusted** remote without giving it the key;
   a modest memory footprint (the machine is also a media center); self-repair where a second copy exists.
 - **Won't:** RAID5/6-style parity on btrfs (not considered safe), and any setup that needs the owner to learn a storage stack before the data is safe.
@@ -69,7 +69,7 @@ finds that block on the raw device and overwrites 4 KiB of it, bypassing the fil
 
 ## Mirror experiment (2026-10-01): what a failed member costs
 
-The owner's layout uses a **mirror of two SSDs**, so the test that matters is not speed but what happens when a member dies. `lab/mirror-bakeoff.sh` (branch `exp/storage-mirror`) in the NixOS lab VM: a mirror of two 6 GB virtual disks, 400 MB written, a checksum list; plain and on LUKS.
+The first layout used a **mirror of two SSDs** (later reduced to one SSD now and a mirror when a second is bought), so the test that matters is not speed but what happens when a member dies, now and when the second SSD is added. `lab/mirror-bakeoff.sh` (branch `exp/storage-mirror`) in the NixOS lab VM: a mirror of two 6 GB virtual disks, 400 MB written, a checksum list; plain and on LUKS.
 
 | | btrfs RAID1 | ZFS mirror |
 |---|---|---|
@@ -87,79 +87,76 @@ The pgbench numbers are a toy and say only that neither is wildly slow; the repe
 **for a server that restarts without the owner, a mirror that refuses to mount with a missing member is a worse failure mode than one that comes up degraded and says so.**
 (An earlier run of this script was thrown away: the lab disks were still mounted from an old experiment and every command had silently landed on the system disk; the script now stops when a mirror is not created.)
 
-## Decision (2026-10-01)
+## Decision (final state, 2026-10-01)
 
-Taken by the assistant on the owner's delegation ("tell me which"), with the owner's layout and constraints; reversible until the disks are bought.
+How each point came about is under "How the decision changed" below.
 
-- **Layout: L2 with the owner's disks.**
-  - **Two SSDs in a mirror** for the system, the databases and the family's data. Sizes come from the inventory [S1](../gates/S1-storage-inventory.md) (budget up to about €250 for the pair).
-  - The **16 TB disk receives backups of everything**, the media library included, written sequentially.
-  - The **new 8 TB disk is the media library**, single (its second copy is the 16 TB disk).
-  - The **2 TB disk (taken as SMR)** is **not** a mirror member and holds **no databases**: it is at most a secondary local copy written sequentially.
-- **Filesystem: ZFS** (mirror on the two SSDs). Reasons, from the lab: it reports a lost member as DEGRADED and comes up degraded after a reboot, replacement is two commands, it has a native event daemon for notifications, and the toy run on PostgreSQL was faster. The offsite copy is a file-level Borg backup ([ADR 0007](0007-offsite-copy.md)), so ZFS's encrypted send to a remote is not needed and is not what tips it.
-  Costs accepted: the kernel stays on a line ZFS supports (the G1 run was on such a kernel), and the cache is **capped** (the machine is also a media center).
-- **Snapshots: none on a schedule** (revised on 2026-10-01 with the owner: the Borg repositories cover what a snapshot would undo, and snapshots cost space; [ADR 0004](0004-backup.md)). ZFS is still the choice, because the reasons in the table above do not depend on snapshots: checksums and scrub, a mirror that reports and boots degraded, two-command replacement, compression, and `zpool attach` to add the second SSD later.
-- **Encryption of the disks:** a **LUKS layer under the pool with the key held in the machine's TPM** (systemd's native route; tested as a layer under both filesystems in the lab, without a TPM) **if S1 shows a TPM**; **otherwise no local encryption** (the owner's choice), relying on the offsite copy being encrypted.
-  ZFS's own encryption is not used because it has no native TPM unlock.
-- **S1 has been run** ([results](../gates/S1-results.md)): there is a TPM (so LUKS with the key in it), the data is about 165 GB, and the sizes and the number of SSDs are the owner's choice among A, B and C below.
+**Disks and roles**
 
-## Update after S1 (2026-10-01): sizes, and what the SSDs cost
+| Disk | Role |
+|---|---|
+| **New SSD, about 500 GB** (the owner buys it; a single-disk ZFS pool for now) | the **primary**: the databases and the live data of the services (Immich, Nextcloud, Vaultwarden, Syncthing, the notes, WebDAV). Kept under about 80% full. |
+| **Existing small SSD (119 GB)** | the **system**, rebuilt from the flake |
+| **2 TB disk (SMR, 3.6 years old)** | the **Borg repository prepared for the offsite** (selected family data; [ADR 0004](0004-backup.md), [0007](0007-offsite-copy.md)); the **disks of the Incus virtual machines or whatever replaces it** (mostly throwaway tests where an SSD is wasted; **a VM that matters goes on the SSD**); a **local NAS share**; the **overflow** for static data (music, video) if the SSD fills |
+| **16 TB disk** | the **Borg repository of everything**, the **pgBackRest repository**, the media library's **plain second copy**, and the **Time Machine partition** (kept for now; encrypted by macOS, by the user of that backup) |
+| **New 8 TB disk** | the **media library** |
+
+Nothing on the 2 TB disk may be the only copy of anything that matters: the offsite repository is a second copy by definition, the NAS share is in the Borg repository of everything, and the VMs are replaceable. The ZFS-versus-LVM choice for Incus's storage belongs to phase 6.
+
+**Filesystem: ZFS.** From the lab: it reports a lost member as DEGRADED and comes up degraded after a reboot, replacement is two commands, it has a native event daemon for notifications (`services.zfs.zed`), and the toy run on PostgreSQL was faster. Costs accepted: the kernel stays on a line ZFS supports (the G1 run was on such a kernel) and the cache is **capped** (the machine is also a media center).
+The offsite copy is a file-level Borg backup, so ZFS's encrypted send is not needed and is not what tips it.
+
+**No scheduled snapshots, no replication of snapshots.** The Borg repositories cover what a snapshot would undo ([ADR 0004](0004-backup.md)). ZFS stays the choice because the reasons above do not depend on snapshots: checksums and scrub, a mirror that reports and boots degraded, two-command replacement, compression, and `zpool attach` to add the second SSD later.
+
+**Self-healing: deferred, and done properly later.** The owner does not want a partial scheme (`copies=2` on chosen datasets) that shrinks the 500 GB disk, and prefers the real one: **a second SSD of about 500 GB attached as a mirror** (`zpool attach`, online, no rebuild) when it can be bought; that also survives a dead disk. Until then ZFS **detects** corruption (a scrub, or a failed read, names the file) and the file is restored from Borg, or the database from pgBackRest.
+
+**Encryption of the disks (LUKS, the key in the machine's TPM)**
+
+| Disk | Encrypted | Why |
+|---|---|---|
+| Primary SSD | yes | personal data in clear |
+| 2 TB disk | yes | the NAS share and the VMs |
+| Small system SSD | **yes (proposed addition, to confirm)** | it holds the key that decrypts the secrets of the repository ([ADR 0003](0003-secrets.md)); left plain, a thief with the disk and the repository's secrets could read them |
+| 16 TB disk | **no** (the owner, 2026-10-01) | only encrypted repositories (Borg, pgBackRest), a plain media copy with nothing personal, and a Time Machine partition encrypted by macOS |
+| 8 TB media disk | no | films and series, nothing personal |
+
+What the TPM protects, and what it does not: it protects a **single disk that leaves the machine** (a theft of one disk, a disk sent back, a disk thrown away). It does **not** protect against someone taking the **whole machine**: the TPM releases the key at boot with no one typing anything. Closing that needs the boot chain signed and measured (**Secure Boot** with the key tied to it) or a passphrase at boot, which stops unattended reboots. **Secure Boot is postponed** by the owner, who expects it in the system eventually.
+
+## How the decision changed
+
+1. **The filesystem tests** (above): ext4 returns a damaged block as good data; btrfs and ZFS detect and repair; on a mirror ZFS reports and boots degraded.
+2. **First recommendation:** two SSDs in a ZFS mirror, with snapshots every 15 minutes replicated to the 16 TB disk and LUKS on three disks.
+3. **After S1** (the services' data is only 165 GB; second-hand SSDs are expensive) the options below were offered, and the owner chose **B with his own roles** for the disks.
+4. **The owner then dropped the snapshots** (his argument, accepted: Borg already holds what a snapshot would undo, and snapshots cost space) and **deferred self-healing** to a real second SSD.
+5. **Encryption:** the 16 TB disk was first to be encrypted; with snapshots replaced by Borg it holds only encrypted repositories, and the owner decided to skip it.
+
+### The options offered after S1
 
 The inventory ([results](../gates/S1-results.md)) changes the sizing. The services' data is **about 165 GB** (Immich 34, iCloud photos 56, WebDAV 48, Syncthing 25) and grows about 4 GB a month; the databases are a few GB. The machine has a **TPM**; the 2 TB disk is **confirmed SMR** (and old: 3.6 years of power-on time, 1,475 command timeouts).
 Second-hand SSDs are expensive today (about €200 for two of 1 TB, per the owner), and 1 TB each is more than the data needs. The options, from the same decisions:
 
 | | Cost | What a disk failure means | Notes |
 |---|---|---|---|
-| **A. Two SSDs in a ZFS mirror** (the decision above) | the most | the service keeps running; replacement is two commands | 500 GB each is already three times the data; 1 TB only if the Incus VM disks (200 GB today) are to live on the SSDs too |
-| **B. One SSD now, the second added later** (ZFS `copies=2` on the important datasets meanwhile) | about half of A, spent later when prices fall | **the server stops** until the SSD is replaced and restored from the 16 TB disk (hours; the owner accepted a few hours); data loss up to 15 minutes of files and 30 seconds of database | `zpool attach` turns the single disk into a mirror **online, with no rebuild**, so nothing is thrown away; `copies=2` makes ZFS **repair bad blocks** on a single disk (tested: ADR 0005's F2), not a dead disk |
+| **A. Two SSDs in a ZFS mirror** (the first recommendation) | the most | the service keeps running; replacement is two commands | 500 GB each is already three times the data; 1 TB only if the Incus VM disks (200 GB today) are to live on the SSDs too |
+| **B. One SSD now, the second added later** (ZFS `copies=2` on the important datasets meanwhile) | about half of A, spent later when prices fall | **the server stops** until the SSD is replaced and restored from the 16 TB disk (hours; the owner accepted a few hours); data loss up to the file-backup interval (then planned as 15 minutes, now one to two hours of Borg) and 30 seconds of database | `zpool attach` turns the single disk into a mirror **online, with no rebuild**, so nothing is thrown away; `copies=2` would make ZFS **repair bad blocks** on a single disk (tested: F2 above), not a dead disk; the owner later deferred it |
 | **C. No new SSD: the services on the large HDD, backups on the new 8 TB disk**, the system stays on the existing small SSD | nothing beyond the 8 TB | the large HDD dying stops the services until restored from the 8 TB copy | the two big disks hold **each other's backup** (services on one, media on the other); HDD latency is acceptable for a family-sized database (v0 already runs it on the SMR disk), but it is the slowest option |
 
 In every option the **existing small SSD stays the system disk** (the system is rebuilt from the flake, so it needs no mirror), the **2 TB SMR disk leaves the services' role** (it holds nothing a database or a pool should depend on), and the TPM route for LUKS is open.
 
-### Chosen layout (the owner, 2026-10-01): option B with these roles
 
-One new SSD of about 500 GB now; the second added later with `zpool attach` if the price allows.
-
-| Disk | Role |
-|---|---|
-| **New SSD, about 500 GB** (a single-disk ZFS pool for now; self-healing is deferred, see below) | the **primary, for what matters**: the databases and the live data of the services (Immich, Nextcloud, Vaultwarden, Syncthing, the notes, WebDAV). Kept under about 80% full. |
-| **Existing small SSD (119 GB)** | the system, rebuilt from the flake |
-| **2 TB disk (SMR, old)** | the **local copy before the offsite** (in v0, the local repository that is then mirrored to Proton Drive); the **disks of the Incus virtual machines, or of whatever virtualization replaces it**, because the owner's VMs are mostly throwaway tests where an SSD is wasted; a **local NAS share** for the LAN; and the **overflow** for static data (music, video) if the SSD fills. Anything that matters on the share is covered by the same snapshots as the rest. |
-| **16 TB disk** | the pgBackRest repository, the media library's second copy (plain), and (proposed) a Borg repository of everything; **no longer** a replica of snapshots ([ADR 0004](0004-backup.md)) |
-| **New 8 TB disk** | the media library |
-
-What the owner accepted by putting the VMs on the SMR disk: random writes from a busy VM can stall on it. It is fine for test machines; **a VM that matters goes on the SSD**. The ZFS-versus-LVM choice for Incus's storage belongs to phase 6.
-The SMR disk is old (3.6 years powered on, 1,475 command timeouts), so **nothing there may be the only copy of anything that matters**: the Borg staging repository is a second copy by definition, the NAS share is in the snapshots, and the VMs are replaceable.
-
-### Encryption of each disk (decided with the owner)
-
-The owner's proposal: do not encrypt the media disk (nothing personal), and perhaps not the backup disk (the Borg repository is already encrypted). My reading:
-
-- **Media disk: no encryption.** Agreed: films and series carry nothing personal.
-- **The backup disk is not "already encrypted"**, only the Borg and pgBackRest repositories on it are. The ZFS replicas of everything (photos, documents, database files, the Time Machine partition if kept there) arrive **in clear**, unless the source datasets are encrypted by ZFS and sent raw. So it **needs encryption if it holds those replicas**; it could skip it only if it held nothing but Borg and pgBackRest repositories.
-- **Every disk holding personal data in clear should be encrypted**: the primary SSD, the 2 TB disk (the NAS share, the VMs) and the 16 TB disk. If only some are encrypted, a thief who takes the whole machine gets the others, and encrypting the SSD alone achieves little.
-- **What LUKS with the key in the TPM protects, and what it does not.** It protects a **single disk that leaves the machine** (a theft of one disk, a failed disk sent back, a disk thrown away). It does **not** protect against someone taking the **whole machine**: the TPM releases the key at boot with no one typing anything. Closing that needs the boot chain signed and measured (Secure Boot with the key tied to it) or a passphrase at boot, which stops the unattended reboots the owner wants. That is a choice to make knowingly, not a gap to discover later.
-
-**Decision (2026-10-01, the owner agreed): SSD, 2 TB and 16 TB encrypted with LUKS and the TPM; the media disk left plain.** **Secure Boot is postponed** by the owner, who expects it to be part of the system eventually: it is what would make the TPM release the key only to the intended boot chain (pending). The 16 TB's encryption may be revisited if its contents change (see the question on what the backup disk holds, in [pending](../pending.md)).
-
-### Self-healing of the primary disk, and the other disks (2026-10-01, the owner)
-
-- **Self-healing is deferred.** The owner has the backups and does not want a cost that makes the 500 GB disk feel small. Two ways to get it later, in order of preference: **a second SSD attached as a mirror** (`zpool attach`, online; the real protection, which also survives a dead disk), or **`copies=2` on the small critical datasets only** (about 40 GB of data for about 40 GB more, applies only to data written after it is set, protects against bad blocks and not against a dead disk). Until then ZFS **detects** corruption (a scrub, or a failed read, names the file) and the file is restored from Borg, or the database from pgBackRest.
-- **The 16 TB disk no longer needs encryption for confidentiality**: it holds Borg and pgBackRest repositories (encrypted), the media copy (nothing personal) and the Time Machine partition (**kept there for now**; the owner says macOS encrypts it, which should be checked in the Time Machine settings). The encryption agreed earlier for it is therefore optional: **proposed to skip it** (one disk fewer to unlock through the TPM), waiting for the owner.
-- **The media disk is plain**, as agreed.
-
-## A hardware finding that affects the layout (2026-09-30)
+### A hardware finding that affects the layout (2026-09-30; the SMR is now confirmed)
 
 The disks seen from the live session (G1) are: a **small SATA SSD** as the system disk, the **large data disk**, and a **small 2.5-inch data disk**. The third disk is not installed yet.
 The manufacturer's documentation for the small disk's model family says it is **SMR** (shingled magnetic recording): it absorbs bursts of writes in a cache and rewrites whole bands later,
 so sustained **random writes are slow and their latency is unpredictable**. That is the profile of a database (WAL, checkpoints) and of a busy small-file workload, and of a ZFS resilver or a btrfs balance.
-Today that disk holds the Docker data, Postgres included. Whether it really is SMR should be confirmed against its datasheet; if it is:
+Today that disk holds the Docker data, Postgres included. It is **confirmed SMR** against the manufacturer's documentation, and it is old (3.6 years powered on, 1,475 command timeouts):
 
 - **do not put the databases or ZFS data on it.** The system SSD (small, but the databases are) or a **CMR** disk are the candidates;
 - it is fine as a **slow archive or a backup target that is written sequentially** (a `send`/`receive` of snapshots is sequential);
 - the capacity planning in S1 has to include how much the databases need, to see whether they fit on the SSD.
 
-## Layout proposals (to compare once the numbers are in)
+
+### The first layout proposals (superseded by the decision above)
 
 The owner has not decided the arrangement of the disks yet, so these are proposals to choose between, not a plan. The sizes come from [the inventory gate S1](../gates/S1-storage-inventory.md).
 Names below are roles, not the disks' real identities.
@@ -175,9 +172,20 @@ Names below are roles, not the disks' real identities.
 
 Both keep the rule that **a scrub that finds an error becomes an alert**, and both leave the library with exactly two local copies (the media disk and the backup disk), which is the intended trade-off.
 
+
 ## Consequences
 
-- Whichever of B or C is chosen, **ext4 is left for the data disks**: a corrupted block there is returned as good data and backed up as good data.
-- The media disk and the backup disk are scrubbed on a schedule, and a scrub that finds an error becomes an alert (phase 5).
-- The system disk is a separate, smaller decision (it only holds what the flake recreates).
-- The backup tool (ADR 0004) is chosen *after* this, because ZFS and btrfs bring their own snapshot replication, which covers the large-disk tier and leaves the file-level tools for the offsite tier.
+- **ext4 is left for the data disks**: a corrupted block there is returned as good data and backed up as good data.
+- **A scrub that finds an error becomes an alert** (phase 5), on every pool: the primary SSD, the media disk, the 16 TB disk and the 2 TB disk.
+- **What a failed disk means:**
+
+| Disk dies | Effect | Recovery |
+|---|---|---|
+| Primary SSD | the services stop until it is replaced | the database from the pgBackRest repository (about 30 seconds lost), the files from the Borg repository of everything (up to one or two hours lost); hours of work |
+| Media disk | none to the services | mount the plain copy on the 16 TB disk; Jellyfin comes back at once |
+| 16 TB disk | no service stops; the local copies are gone | the repositories are rebuilt from the live data; the offsite copy is untouched |
+| 2 TB disk | the VMs and the NAS share are gone | the share from the Borg repository of everything; the VMs are replaceable; the offsite repository is rebuilt from the live data |
+| System SSD | the server does not boot | rebuild from the flake; the secrets need the age key from Proton Pass or paper |
+
+- **The backup tools do not depend on ZFS features** ([ADR 0004](0004-backup.md)): pgBackRest and Borg are file-level, so the filesystem could change later without changing them.
+- **Revisit** when the second SSD is bought (a mirror by `zpool attach`), and when Secure Boot is taken up.

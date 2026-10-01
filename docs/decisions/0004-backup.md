@@ -15,7 +15,7 @@ and the bulk of `/mnt/nas`. No restore was ever rehearsed on a blank machine. Th
 - **Must:** a restore, done in the lab from an empty machine and a copy of the backup only, that brings back files **and** databases and is verified (not "the command ended"); encryption at rest for every copy, offsite included;
   no secret in clear text in any backup; the key or passphrase kept outside the server ([ADR 0003](0003-secrets.md)); a failed backup is noticed (mail or notification), and so is a backup that did not run.
 - **Should:** consistent database backups (a dump or a snapshot, never a copy of a live data directory); a way to know a backup is restorable without a full drill each time (a periodic verification); offsite copy that survives the loss of the house;
-  retention like v0's (7 daily, 4 weekly, 6 monthly); the host configuration is already in Git, so `/etc` needs no backup.
+  retention like v0's (7 daily, 4 weekly, 6 monthly) (**the owner later chose a few weeks, see the decision**); the host configuration is already in Git, so `/etc` needs no backup.
 - **Won't:** backing up the media library the same way as the family's data if it is not worth the space (to be decided per dataset), and a backup server that needs its own care.
 
 ## The owner's answers (2026-09-30)
@@ -24,16 +24,16 @@ and the bulk of `/mnt/nas`. No restore was ever rehearsed on a blank machine. Th
   becomes the **backup target for everything, library included**. So the backup design and the disk layout are one decision, not two (see "A question this opens" below).
 - **How much data may be lost:** **almost none for some services, where possible** (Postgres with properly configured WAL archiving), **a few hours where that is intelligent and sensible**.
   This replaces v0's single rule of "up to 24 hours" with tiers.
-- **Offsite destination:** **not decided, wants a comparison**. Proton Drive stays a candidate, not a given.
+- **Offsite destination:** **not decided, wants a comparison**. Proton Drive stays a candidate, not a given. (Settled later: [ADR 0007](0007-offsite-copy.md).)
 
 ### The tiers this implies
 
 | Tier | What | Target window | How it is reached |
 |---|---|---|---|
 | 1 | Databases: Immich (Postgres), Nextcloud (Postgres after the planned move from MariaDB) | minutes, through point-in-time recovery | WAL archiving plus periodic base backups with restore to a chosen moment, **or** crash-consistent snapshots every few minutes (see layer 2, option J) |
-| 1 | Vaultwarden (SQLite) | minutes | continuous replication of the SQLite file, or frequent consistent snapshots |
-| 2 | Family files: photos, documents, Nextcloud data, configuration | a few hours | incremental, encrypted snapshots several times a day |
-| 3 | Media library | a day or more is fine | scheduled to the big local disk; whether it goes offsite is open |
+| 1 | Vaultwarden (SQLite today) | minutes | **open for the owner**: move it to PostgreSQL (Vaultwarden supports it), so pgBackRest covers it and Borg never reads an open SQLite file; the alternatives are a `sqlite3 .backup` script (glue), continuous replication of the file, or accepting Borg reading it live |
+| 2 | Family files: photos, documents, Nextcloud data, configuration | a few hours | **decided: Borg every one to two hours** (incremental, encrypted, deduplicated) |
+| 3 | Media library | a day or more is fine | **decided: a plain copy on the 16 TB disk; it does not go offsite** |
 
 ## Options to consider
 
@@ -101,7 +101,7 @@ The agent (a downloaded binary started by hand with a token) is for databases th
 | Incremental backup | under a second, 0.06 MB (needs PostgreSQL 17 with `summarize_wal`) |
 | **Restore to T_good** | **correct to the second**: asked for 15:10:36 UTC, the dropped table is back (500,000 rows), the counter ends at 3756, its last row was committed at 15:10:35.981, no gaps. The UI picks seconds, not milliseconds. Prepared in 4.5 s plus 1.7 s to start ([picture](../evidence/databasus/03-restore-dialog.png)) |
 | **Restore to the latest point**, after a crash | **206 acknowledged commits lost** out of 4728, in line with the other two: the WAL is archived in completed segments every 30 s, which is the `archive_timeout` set on PostgreSQL |
-| Our own configuration | PostgreSQL: `wal_level`, `max_wal_senders`, `summarize_wal`, `archive_timeout` and two `pg_hba.conf` lines (6). NixOS: **13 lines** to declare the container, its volume and the firewall rule it needs to reach the host ([module](../../nixos/modules/databasus.nix) in the branch). Custom scripts: **0** |
+| Our own configuration | PostgreSQL: `wal_level`, `max_wal_senders`, `summarize_wal`, `archive_timeout` and two `pg_hba.conf` lines (6). NixOS: **13 lines** to declare the container, its volume and the firewall rule it needs to reach the host (the module is in the branch `exp/pitr-databasus`). Custom scripts: **0** |
 | Declared as code | the **container is**; its **configuration is not**: the first account, the schedules and the retention live in its own database. The web application has **no API documentation** (`/openapi.json` returns the application's own page), so configuration as code would mean reverse-engineering the calls of its UI |
 
 What the lab showed about running it:
@@ -152,13 +152,13 @@ Whether a maintained NixOS module exists is the test ([principles](../principles
 | PostgreSQL logical dumps | `services.postgresqlBackup` (pg_dump only, **no PITR**) | clean, weaker |
 | PostgreSQL WAL streaming | `services.postgresqlWalReceiver` (pg_receivewal **only**: no base backups, no restore) | clean but incomplete |
 | Litestream | a module exists | clean |
-| pgBackRest, WAL-G, Barman | packages only, **no module** found (WAL-G: users report systemd sandbox problems) | each needs a hand-written service and scheduling |
+| pgBackRest | **corrected in round 3: `services.pgbackrest` exists** (repositories, stanzas, backup jobs as timers) | clean for a remote repository; about six lines of ours for a local one |
+| WAL-G, Barman | packages only, **no module** found (WAL-G: users report systemd sandbox problems) | each needs a hand-written service and scheduling |
 | Databasus | not found in nixpkgs; a container image | runs through `virtualisation.oci-containers` (a native module): **tried, 13 lines**, image pinned by digest. The agent is not needed for a reachable database |
 
-So **there is no end-to-end native path to point-in-time recovery on NixOS today**, and the options E to H all need *some* definition of our own. That is not an automatic rejection: a service written straight from the tool's documentation
-(the standard `archive_command`, a timer for the full backup) is configuration, not a patch to the core. It is a **cost to measure**, and the bake-off below measures it.
+**Correction (round 3):** this table was written from a first search that missed `services.pgbackrest`. With it, **there is an end-to-end native path to point-in-time recovery on NixOS** (pgBackRest through its module); WAL-G and Barman have none and each needs *some* definition of our own, which is a cost to measure: the bake-off below measured it.
 
-## Proposed criteria, in this order (confirm or change before testing)
+## Criteria, in this order (confirmed by the owner on 2026-09-30, before any test)
 
 1. **Restore verified in the lab**: time to restore files and a database from an empty machine, and whether the result is correct (checksums, a database that starts and answers). For tier 1, also whether a database can be restored **to a chosen moment**.
 2. **Data-loss window actually reached** per tier (measured, not configured): the gap between the last change and the last restorable state.
@@ -168,10 +168,11 @@ So **there is no end-to-end native path to point-in-time recovery on NixOS today
 6. **Fit with NixOS and the offsite path** (Proton Drive or another target).
 7. **Effort and moving parts:** setup time, tools to keep updated, how much of it is declarative.
 
-## Scenario every option must run (the equivalent of the host spec)
+## The full-drill scenario (planned; it belongs to phase 7)
 
-A lab VM with a Postgres database, a directory of files with known checksums and an SQLite file; a backup; then the VM is destroyed, a new empty one is built from the flake, and only the backup copy
+The complete drill, planned for phase 7 and **not yet run**: a lab VM with a Postgres database, a directory of files with known checksums and an SQLite file; a backup; then the VM is destroyed, a new empty one is built from the flake, and only the backup copy
 and the key are given to it. Measured: backup time and size, time to restore, and whether every file and every row came back. Then the negative cases: wrong key, a damaged repository, a deleted archive.
+What **was** run is the point-in-time bake-off below and the offsite bake-off of [ADR 0007](0007-offsite-copy.md): each restores from a copy and a passphrase alone, but not yet onto a rebuilt machine.
 
 ## Round 2 (2026-09-30): PostgreSQL 14, sync, and object storage
 
@@ -206,7 +207,7 @@ How to read the losses: they are all of the same order and are bounded by `archi
 - **Barman** (server) restores fastest and is the most mature for a standby on another machine, but needs the most set-up: a catalog, a cron every minute and a first-WAL step. Its **synchronous** mode is real, and gives zero loss, but only with a manual step at recovery time.
 - **Barman Cloud** is simple to start (two commands, no server) and it needs **no catalog host**, but the restore is **not one command**: the recovery settings are hand-written, and the timeline pitfall above is easy to fall into. As documented, that is not "plug and play".
 - **Databasus** cannot deliver point-in-time recovery on PostgreSQL 14 at all. It becomes a candidate **only if Immich's database moves to PostgreSQL 17**, and its other costs stand.
-- **Snapshots** stay as the base layer under any of them.
+- **Snapshots** were first kept as the base layer under any of them; the owner later dropped scheduled snapshots (see the decision).
 
 ### The S3 endpoint itself
 
@@ -215,9 +216,9 @@ How to read the losses: they are all of the same order and are bounded by `archi
 
 ### What is still not tested
 
-- PostgreSQL 14 **with Immich's vector extension** in the restore (to read from Immich's documentation and test).
+- PostgreSQL 14 **with Immich's vector extension** in the restore (done afterwards: Immich's database with its vector extension was restored on PostgreSQL 17, [ADR 0006](0006-postgresql-version-and-immich.md)).
 - Databasus on 14 with logical (`pg_dump`) backups: it works by definition, but it is not point-in-time.
-- The offsite layer itself (restic, Borg or Kopia to an S3 bucket or an SSH server, against Proton Drive): **the next round**. The v0 mirror to Proton Drive is a custom, Borg-aware script; under P1 that has to be replaced by something native or recorded as an exception.
+- The offsite layer itself (restic, Borg or Kopia to an S3 bucket or an SSH server, against Proton Drive): **done afterwards, [ADR 0007](0007-offsite-copy.md)**. The v0 mirror to Proton Drive is a custom, Borg-aware script; under P1 that has to be replaced by something native or recorded as an exception.
 
 ## Round 3 (2026-09-30): what NixOS already provides, and the real Immich database
 
@@ -235,14 +236,12 @@ Searched and run in the lab ([ADR 0006](0006-postgresql-version-and-immich.md) h
 
 On the **real Immich schema** (PostgreSQL 17, native, pgBackRest through its module): a full backup of 167.5 MB into 53.3 MB; a point-in-time restore after deleting six assets brought the rows back in 4 s; **the six original files did not come back**, because Immich deletes them with the rows. **The database restore and the files must go back to the same moment.**
 
-## Still open
+## Questions settled along the way
 
 - ~~Are the criteria right?~~ Confirmed by the owner on 2026-09-30, with one addition: **no hybrid, crooked or manual solutions**, which became P1 and the third criterion.
-- ~~For tier 1, is recovery to an arbitrary second a requirement?~~ Answered 2026-09-30: recovery to minutes or hours is the floor, and **the more precise the better, at equal cleanliness and ease of maintenance**. So point-in-time recovery (E to H) is wanted as a strong *should*, and snapshots (J) stay as the baseline and for what is not PostgreSQL.
-- Containers are accepted for tools without a module (see [P1](../principles.md)); the owner prefers them where nothing native fits.
-
-Settled on 2026-09-30: the media library **does not go offsite** (the disk would be too large and too costly); the **filesystem experiment was wanted and is done**
-([ADR 0005](0005-storage-layout-and-filesystem.md)), and the backup tool is chosen after it.
+- ~~For tier 1, is recovery to an arbitrary second a requirement?~~ Answered 2026-09-30: minutes or hours is the floor, and **the more precise the better, at equal cleanliness**. Later the owner accepted up to 30 seconds of loss for the databases.
+- ~~Containers?~~ Accepted for tools without a module ([P1](../principles.md)); the owner prefers them where nothing native fits.
+- ~~Media offsite?~~ **No** (2026-09-30). ~~The filesystem experiment?~~ Done ([ADR 0005](0005-storage-layout-and-filesystem.md)). ~~The offsite destination?~~ [ADR 0007](0007-offsite-copy.md).
 
 ## Decision (2026-10-01)
 
@@ -257,19 +256,24 @@ Not chosen, and why:
 - **Barman and Barman Cloud:** no NixOS module (every unit, user and timer is ours to write), a separate catalog, and for Barman Cloud a restore that only fetches the base backup: the recovery settings are written by hand, and a test restore that archives into the same bucket silently truncates a later restore.
   Barman in synchronous mode gives zero loss only with a manual copy in the disaster path, and the owner does not need zero.
 - **Databasus:** no point-in-time recovery below PostgreSQL 17, the configuration lives in its own database, the restore key must be kept outside its volume, and its agent is deprecated. The GUI was not decisive for the owner.
-- **Snapshots of the filesystem alone:** not point-in-time; but they stay as the layer that restores **the files to the same moment** as the database ([ADR 0005](0005-storage-layout-and-filesystem.md)).
+- **Filesystem snapshots as the backup:** not point-in-time, and the owner dropped scheduled snapshots altogether (below); the restore of **the files to the same moment** as the database is done from Borg.
 
 **The files of the services** (Immich's library, and the others), revised twice on 2026-10-01 with the owner. **No periodic ZFS snapshots, and no replication of snapshots.** The owner's argument, which holds: what a snapshot would undo (a deleted or overwritten file) is already in the Borg repositories for anything older than the Borg interval, and a snapshot costs space for the blocks it keeps and complicates the pool; the only gap is a file created and destroyed within one or two hours.
 - **Borg every one to two hours** reads the files **as they are**, into two repositories:
   - **an offsite repository on the 2 TB disk** (the owner's choice): only the **selected** family data; it is the one mirrored to Proton Drive or pushed to Hetzner ([ADR 0007](0007-offsite-copy.md));
   - **a repository of everything on the 16 TB disk** (the owner's choice, confirmed): all service data, the NAS share and the configuration; **not** the databases (pgBackRest covers them), **not** the media (a plain copy), **not** the Time Machine partition, **not** the VM disks (replaceable; phase 6). Without it, everything outside the selection and outside pgBackRest would be in no repository at all.
-- **Why reading live files is acceptable without a snapshot:** the databases are in PostgreSQL (Immich, and Nextcloud after its planned move from MariaDB; Vaultwarden can use PostgreSQL too), so **no SQLite file has to be copied while it is open**, which in v0 needed `sqlite3 .backup` scripts. What remains is files that are rebuildable (Jellyfin's and Syncthing's own indexes) or that change rarely (photos). A file that changes during a Borg run is reported as a warning and picked up by the next run.
+- **Why reading live files is acceptable without a snapshot:** the databases are in PostgreSQL (Immich, and Nextcloud after its planned move from MariaDB; **Vaultwarden is the open one**: it can use PostgreSQL, and the owner has not yet decided to move it), so **no SQLite file has to be copied while it is open**, which in v0 needed `sqlite3 .backup` scripts. What remains is files that are rebuildable (Jellyfin's and Syncthing's own indexes) or that change rarely (photos). A file that changes during a Borg run is reported as a warning and picked up by the next run.
   If a consistent source is wanted later, one snapshot-creating block can be added in code without changing the rest.
 - **The database** is backed up by pgBackRest and restored to a moment matching a Borg archive.
 - **Media:** a plain copy on the 16 TB disk, not Borg (confirmed by "the rest of the proposal"): written once, incompressible, nothing personal, and the copy can be mounted directly if the media disk dies.
 A restore drill must bring back **both** the database and the files, because a database restored without the files left six originals missing in the lab.
 
-**Retention:** a few weeks, not v0's six months: weekly full and daily differential with pgBackRest (two full backups kept), and the file backups as in [ADR 0007](0007-offsite-copy.md).
+**How Borg is run (measured in the lab, `exp/borg-modules`):** through the NixOS module **`services.borgbackup.jobs.<name>`**, which writes the job's script itself and installs a timer: it **initializes the repository if it is missing** (`doInit`), creates the archive, **prunes** by the declared retention and **compacts**, with the passphrase read from a file (`passCommand`, a sops secret in production), `failOnWarnings = false` (a file that changes during the read is a warning, not a failure), and `startAt` for the schedule. Two jobs (the offsite repository and the repository of everything) are about a dozen lines each and **no script of ours**.
+In the lab three runs in one day left one archive per day (the pruning works) and a restore of the latest archive was identical to the source.
+`services.borgmatic` was also tried: it adds consistency checks (including an *extract* check) and monitoring hooks, but it **does not create the repository** (a manual `borgmatic repo-create`), which is a manual step under P1. So the plain module is the choice.
+What the module does **not** do, and is left to later phases: a periodic `borg check`, a verification restore, and a notification when a job fails (phase 5 and the restore drill of phase 7). **For a `repokey` repository, the key is inside the repository: export it (`borg key export`) and keep it with the passphrase** (Proton Pass and paper), or a damaged repository configuration loses the backup.
+
+**Retention:** a few weeks, not v0's six months: pgBackRest weekly full and daily differential (two full backups kept); Borg `keep-daily 7` and `keep-weekly 4`, no monthly.
 
 **Offsite:** [ADR 0007](0007-offsite-copy.md). **Disks and filesystem:** [ADR 0005](0005-storage-layout-and-filesystem.md).
 

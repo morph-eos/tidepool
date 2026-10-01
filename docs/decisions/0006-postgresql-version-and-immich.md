@@ -54,7 +54,7 @@ Cost and caveats of the documented procedure:
 |---|---|
 | Full backup | 167.5 MB of database into **53.3 MB** in the repository (zstd, encrypted), 18 s |
 | Point-in-time restore | uploaded a picture, noted T_good, waited for the WAL, **deleted six assets for good through Immich's API**, stopped PostgreSQL and restored to T_good: **assets 7 → 13, restore plus start 4 s**, Immich back up, search finds the restored pictures |
-| **What the restore does not bring back** | the **six original files**: Immich deletes the files on a permanent delete, so the rows came back and **the originals did not** (7 served, 6 missing). **A database restore must be paired with a restore of the files to the same moment**: the snapshot layer of ADR 0005 is what provides it |
+| **What the restore does not bring back** | the **six original files**: Immich deletes the files on a permanent delete, so the rows came back and **the originals did not** (7 served, 6 missing). **A database restore must be paired with a restore of the files to the same moment**: the Borg archives ([ADR 0004](0004-backup.md)) provide the files |
 
 ### What the NixOS pgBackRest module needs (found while running it)
 
@@ -105,4 +105,4 @@ So the native module is clean for a remote repository and **needs about six line
 ## Consequences
 
 - If C: the database belongs to the host flake, and its backups to the pgBackRest module; the restore drill of phase 7 includes the dump and restore for any **major** change.
-- Whatever is chosen: a database restore is paired with a **restore of the files to the same moment** (ADR 0005's snapshots), and this has to be part of the restore drill: a restore that brings back rows without the files is a silent failure.
+- Whatever is chosen: a database restore is paired with a **restore of the files to the same moment** (from the Borg archives, [ADR 0004](0004-backup.md)), and this has to be part of the restore drill: a restore that brings back rows without the files is a silent failure.

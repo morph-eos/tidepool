@@ -1,46 +1,47 @@
 # Pending items
 
-Things deliberately postponed, so they are not lost. Each has an owner decision or a gate behind it. Updated 2026-10-01.
+Things deliberately postponed, so they are not lost. Each has an owner decision or a gate behind it. Updated 2026-10-01, after the review of all the ADRs for coherence.
 
 ## Waiting for the owner
 
 | Item | Why it waits | Blocks |
 |---|---|---|
-| **Buy one SSD of about 500 GB** (chosen: option B with the owner's roles, [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); the second can follow later | the owner's money | the real layout |
-| **Secure Boot** (signed boot chain with the TPM key tied to it), postponed by the owner but expected in the system | what it takes on NixOS is not yet looked at | making the TPM unlock mean something against a stolen machine |
-| **Encryption of the 16 TB disk**: proposed to skip it, since it holds only encrypted repositories, a plain media copy and the Time Machine partition (macOS encrypts it: to be checked) | the owner agreed to LUKS on it earlier, before the design changed | [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) |
-| **Self-healing of the primary disk** (a second SSD, or `copies=2` on about 40 GB) | deferred by the owner for cost; revisit when SSD prices fall | [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) |
-| **Move Vaultwarden and Nextcloud to PostgreSQL** so that no SQLite or MariaDB file is backed up while open | the backup design assumes it ([ADR 0004](decisions/0004-backup.md)) | phase 4 |
-| (Only if Proton Drive fails its test) open the Hetzner Storage Box account and set its snapshot plan | a subscription and the console | the offsite copy if Proton Drive is not adopted ([ADR 0007](decisions/0007-offsite-copy.md)) |
-| Create the private repository for the non-secret variables and write the age key down (Proton Pass and paper) | the owner's accounts | closing phase 1 |
+| **Buy one SSD of about 500 GB** (chosen: [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); a second one later, as a mirror | the owner's money | the real layout |
+| **Confirm LUKS with the TPM on the small system SSD** (proposed: it holds the key that decrypts the repository's secrets) | not yet answered | [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) |
+| **Vaultwarden: move it to PostgreSQL**, or another way to back up its SQLite file | the backup design reads files live, so an open SQLite file is the one real risk | [ADR 0004](decisions/0004-backup.md) |
+| **Create the private repository** for the non-secret variables, and **write the age key and the Borg key exports down** (Proton Pass and paper) | the owner's accounts | closing phase 1 |
+| (Only if Proton Drive fails its test) **open the Hetzner Storage Box account** and set its snapshot plan | a subscription and the console | the offsite copy in that case ([ADR 0007](decisions/0007-offsite-copy.md)) |
+| **New services to add** next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
 
-## Waiting for the owner (application layer)
+## Deferred on purpose
 
-| Item | Why it waits | Blocks |
-|---|---|---|
-| New services to add next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
+| Item | Why |
+|---|---|
+| **Secure Boot** (a signed boot chain with the TPM key tied to it) | postponed by the owner, expected in the system eventually; what it takes on NixOS is not yet looked at. Until then the TPM protects a disk that leaves the machine, not the whole machine |
+| **Self-healing of the primary disk** | deferred by the owner: done properly, with a second SSD attached as a mirror when it can be bought ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
+| **Scheduled ZFS snapshots** | dropped by the owner: the Borg repositories cover what they would undo; can be added later in code ([ADR 0004](decisions/0004-backup.md)) |
 
 ## Gates and checks that need the real server or a maintenance window
 
 | Item | What it needs |
 |---|---|
 | G2, hardware transcoding with ffmpeg in a container | the server installed, a short maintenance window |
-| G3b, the Proton Drive CLI keeping its login in the keyring of a real desktop session | a desktop session on the real machine |
-| S1 health of the system SSD with `smartctl` (S1 ran without root; the v0 `smartcheck` log covers the two HDDs). The owner judges it not worth checking: lightly used and easy to replace | optional |
+| G3b, the Proton Drive CLI keeping its login in a real desktop session or headless | the real machine; part of the Proton Drive test below |
+| Health of the small system SSD with `smartctl` | optional: the owner judges it lightly used and easy to replace (S1 ran without root; the v0 `smartcheck` log covers the two HDDs) |
 
-## Lab work still to do
+## Lab and design work still to do
 
 | Item | Notes |
 |---|---|
-| The offsite layer against a **real provider** (Hetzner Storage Box or BorgBase over SSH, Backblaze B2 with object lock): real throughput, the first 200 GB upload, the provider's own append-only or no-delete key | lab results and prices are in [ADR 0007](decisions/0007-offsite-copy.md); needs an account, so after the owner chooses |
-| **Proton Drive as the first offsite candidate**: a small container with the official CLI and a dedicated repository of our own, tested against the seven criteria of [ADR 0007](decisions/0007-offsite-copy.md) (headless login, unattended and loud on failure, updates, size, restore, deletion, first upload) | one or two phases from now, on NixOS; rclone's Proton backend is unusable; the CLI's help shows only a browser login |
-| A restore drill that restores Borg data **from a Hetzner snapshot** (the read-only `/.zfs/snapshot` path), not only from the live repository | phase 7 |
-| Containers against native NixOS modules for each service (Immich, Jellyfin, Nextcloud, Vaultwarden, and the rest): lines of configuration, update, restore | phase 4 |
-| The real SSDs: sizes, TPM, LUKS and the ZFS mirror on the real machine (ADR 0005 is decided, its sizes are not) | after S1 |
-| The PostgreSQL 14 → 17 move, rehearsed **on the server** in a second instance with the old database kept as the way back (the owner will not hand over a real dump; size, time and index rebuild stay unmeasured until then) | phase 4, [ADR 0006](decisions/0006-postgresql-version-and-immich.md) |
+| **Proton Drive as the first offsite candidate**: a small container with the official CLI and a repository of our own, tested against the seven criteria of [ADR 0007](decisions/0007-offsite-copy.md) (headless login, unattended and loud on failure, updates, size, restore, deletion, first upload) | one or two phases from now, on NixOS; rclone's Proton backend is unusable; the CLI's help shows only a browser login. Enter it in [the exceptions register](exceptions.md) if adopted |
+| The offsite layer against a **real provider** (Hetzner Storage Box over SSH): real throughput, the first 200 GB upload | lab results and prices are in [ADR 0007](decisions/0007-offsite-copy.md); needs an account |
+| **The full restore drill on a rebuilt machine** (database and files to the same moment; Borg data also from a Hetzner snapshot, the read-only `/.zfs/snapshot` path) | phase 7; a database restore alone left six originals missing in the lab |
+| A periodic `borg check`, a verification restore, and a **notification when a backup job fails** | the Borg module does none of them; phase 5 and the restore drill |
+| The **PostgreSQL 14 → 17 move**, rehearsed **on the server** in a second instance with the old database kept as the way back | the owner will not hand over a real dump; size, time and index rebuild stay unmeasured until then; phase 4, [ADR 0006](decisions/0006-postgresql-version-and-immich.md) |
+| **Containers against native NixOS modules** for each service (Immich, Jellyfin, Nextcloud, Vaultwarden, and the rest): lines of configuration, update, restore | phase 4 |
+| Incus (or what replaces it) on ZFS or LVM, and where the VM disks live | phase 6 ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
+| The pgBackRest overrides for a local repository re-checked after every module update | listed in [the exceptions register](exceptions.md); the restore drill is the test |
 | The root `README.md` still describes v0 | rewrite when the first phase closes |
-| A restore drill that brings back the database **and the files to the same moment** | ADR 0006: a database restore alone left six originals missing |
-| The pgBackRest overrides for a local repository (two units, the repository's mode, `ReadWritePaths`) re-checked after every module update | the restore drill of phase 7 |
 
 ## Housekeeping
 
