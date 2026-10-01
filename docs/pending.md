@@ -14,7 +14,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **Services to carry over to v1** ([ADR 0008](decisions/0008-edge.md)): **Plex and icloudpd are dropped**; Syncthing stays with its sync port public and its GUI VPN-only; Jellyfin, Immich, Nextcloud, Vaultwarden and WebDAV (through nginx) move over; new services come after | phase 4 |
 | **Remove the test CNAME `_acme-challenge.test` at the DNS provider** (the two real CNAMEs are in place and served by all four nameservers) | the owner's DNS panel | tidiness |
 | **Bind the CAA record to the owner's own ACME account** (`accounturi`), after the first real issuance; check whether the provider's panel accepts CAA | needs the production account's address | hardening of the DNS challenge ([ADR 0008](decisions/0008-edge.md)) |
-| **Phase 5: confirm the heartbeat service** (proposed: Healthchecks.io, free plan) and **create the account and the check** ([ADR 0012](decisions/0012-observability.md)); email only through Brevo is decided | the owner's choice and account | closing phase 5 |
+| **Phase 5: create the Healthchecks.io account and the check** (decided: free plan), and keep its ping address as a sops secret ([ADR 0012](decisions/0012-observability.md)); email only through Brevo is decided | the owner's choice and account | closing phase 5 |
 | **New services to add** next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
 
 

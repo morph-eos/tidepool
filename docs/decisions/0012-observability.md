@@ -1,6 +1,6 @@
 # 0012. Observability: finding out that something broke without noticing by chance
 
-- **Status:** proposed (2026-10-01): notification by email only and Brevo as the relay are **decided by the owner**; waits for the owner on **which outside service watches the heartbeat**
+- **Status:** proposed (2026-10-01): accepted: email only, Brevo as the relay, and Healthchecks.io (hosted free plan) as the outside heartbeat; the owner confirmed each on 2026-10-01
 - **Date:** 2026-10-01
 - **Phase:** 5, Observability
 
@@ -31,7 +31,7 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 |---|---|---|
 | **A. Prometheus + Alertmanager** with exporters (node, postgres, blackbox, smartctl), **ntfy** for the push, Grafana optional | metrics, rules in YAML, routing and repetition of alerts | `services.prometheus` (and `.alertmanager`, `.exporters.*`), `services.ntfy-sh`, `services.grafana` |
 | **B. Gatus** | a single binary that probes endpoints and certificates by conditions and sends the alerts itself | `services.gatus` |
-| Not tested: Netdata, Monit, Uptime Kuma, Healthchecks (self-hosted, which would need its own outside watcher), Gotify | | |
+| Not tested: Netdata, Monit, Uptime Kuma, Healthchecks self-hosted (it would need its own outside watcher), Gotify | | |
 
 ## Results
 
@@ -80,9 +80,9 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 3. **P1:** modules, rules in files, no script, no secrets in the store.
 4. **Memory and moving parts.**
 
-## Proposed decision
+## Decision
 
-**A, Prometheus and Alertmanager with declared rules, as the only monitoring that raises alerts;** B is **not** adopted, because it covers one of the eight cases and A already does that case (the blackbox probe with its TLS check) with the same speed in the lab (76 s against 27 s: a difference of the `for:` values, not of the tools). Its 6 MiB are the argument for it, not its coverage.
+**Accepted. A, Prometheus and Alertmanager with declared rules, as the only monitoring that raises alerts;** B is **not** adopted, because it covers one of the eight cases and A already does that case (the blackbox probe with its TLS check) with the same speed in the lab (76 s against 27 s: a difference of the `for:` values, not of the tools). Its 6 MiB are the argument for it, not its coverage.
 
 - **Exporters:** node (with the `systemd` collector), postgres, blackbox (HTTPS with certificate expiry; DNS for the CAA record), and **smartctl** for the numbers; `smartd` keeps mailing by itself, so a SMART warning has two independent paths.
 - **Rules (declared as YAML, in the repository):** `UnitFailed`, `EndpointDown`, `CertificateExpiring` (production: **14 days**), `CaaMissing`, `DiskAlmostFull`, `MemoryPressure`, `PostgresArchiveFailing`, `TimerStale` (the pattern for every backup timer, with the "never triggered" guard) and the heartbeat `Watchdog`.
@@ -91,7 +91,7 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 - **Grafana: not by default** (217 MiB, and nobody opens a dashboard to find a failure); it is one `enable` and the data source is provisioned when the owner wants to look at trends.
 - **No Loki** in this phase.
 
-## Heartbeat services compared (from the vendors' pages, 2026-10-01; **not tested**)
+## Heartbeat services compared (from the vendors' pages read on 2026-10-01 with WebFetch: healthchecks.io/pricing, /about and the docs; deadmanssnitch.com/plans; uptimerobot.com/pricing and /terms; betterstack.com/pricing and its heartbeat docs; **not tested**)
 
 | Service | Free plan | Alert path | Notes |
 |---|---|---|---|
@@ -102,9 +102,9 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 
 **Reading:** all four do the one thing needed (a missing ping raises an alert by their own mail, independent of Brevo). **Healthchecks.io fits best:** the purpose-built tool, a 20-check free plan of which we use one, a documented grace time, and **an escape hatch with no lock-in** (the same software can be self-hosted on a VPS if the free plan ever goes away). UptimeRobot is the runner-up; Dead Man's Snitch's single free check is just enough but with no room to grow. **Not measured:** the minimum ping period on the free plan, the real alert delay, and the mail's deliverability (it could land in spam: the owner adds the sender to contacts).
 
-## Proposed heartbeat: Healthchecks.io, hosted free plan
+## Decision: heartbeat on Healthchecks.io, hosted free plan (confirmed by the owner)
 
-One check with a short period and a grace time of a few minutes; Alertmanager's `Watchdog` calls its ping address (a secret, read from a sops file, not in the Nix store). It receives the fact that a ping arrived. **Waits for the owner's confirmation.**
+One check with a short period and a grace time of a few minutes; Alertmanager's `Watchdog` calls its ping address (a secret, read from a sops file, not in the Nix store). It receives the fact that a ping arrived.
 
 ## Consequences
 
