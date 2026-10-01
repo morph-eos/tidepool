@@ -126,6 +126,23 @@ What the TPM protects, and what it does not (the owner asked: if every login nee
 - **What makes the owner's reasoning true** is therefore: **Secure Boot enforced with a signed boot image** (the key sealed to it, ideally also to the kernel image), the boot loader's command-line editor disabled, and a firmware password; then the thief can only boot the intended system, and the login password protects the data. **Or a PIN at boot** (`--tpm2-with-pin`), which stops unattended reboots. A third way, for later, is unlocking over the home network from another device (Tang with Clevis), so a machine carried out of the house stays locked.
 - **So today** (Secure Boot postponed), the encryption protects against the **disk-only** cases: a stolen or returned or discarded disk. It should not be described as protecting a stolen machine until Secure Boot is in place. Secure Boot moves from "nice to have" to "the thing that makes the encryption mean something against a stolen machine".
 
+## Open question (2026-10-01): is a second copy of the media library worth a disk?
+
+The plan buys an **8 TB disk** (used, about €140) for the media library, so that the 16 TB disk holds its second copy. The library is **1.4 TB** today, of films and series (nothing personal, and the owner is unsure a personal library keeps its point when streaming exists). Options:
+
+| | What it means |
+|---|---|
+| **A. Buy the 8 TB disk** (the plan) | two copies of the media; the 16 TB disk is free of the media's primary role; also the room to move the 16 TB disk's data while it is reformatted |
+| **B. Buy nothing now** | the media stays on the 16 TB disk, **one copy**, next to the Borg and pgBackRest repositories; a failure of that disk loses the media **and** the local repositories at once, while the family's data still has the SSD, the offsite repository on the 2 TB disk and the offsite copy |
+| **C. A smaller used disk** (2 to 4 TB, sized to the library) | a second copy of the media for less than the 8 TB, and a place to hold the 16 TB disk's data meanwhile; less room to grow |
+| **D. A second copy only of what is hard to replace** | what cannot be fetched again belongs in the Borg repositories or the offsite copy, not in the media library |
+
+Two things that matter and are easy to miss:
+- **Converting the 16 TB disk to ZFS needs somewhere to hold its data meanwhile** (about 3.2 TB: media 1.4, the local Borg repositories 1.1, Time Machine 0.7). The 2 TB disk is too small, so **some disk of at least 4 TB is needed at least during the move**, or the 16 TB disk stays ext4. Staying ext4 would be acceptable for it: Borg and pgBackRest checksum their own data, and a flipped bit in a film is a glitch, not a loss; ZFS is needed where the family's data lives (the SSDs).
+- A hard disk's chance of failing in a given year is of the order of 1 to 2 percent (published fleet statistics; general knowledge). The 16 TB disk has about 9,600 hours and a clean SMART report.
+
+Decision: **pending the owner.**
+
 ## How the decision changed
 
 1. **The filesystem tests** (above): ext4 returns a damaged block as good data; btrfs and ZFS detect and repair; on a mirror ZFS reports and boots degraded.
