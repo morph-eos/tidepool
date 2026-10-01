@@ -116,6 +116,32 @@ Second-hand SSDs are expensive today (about €200 for two of 1 TB, per the owne
 
 In every option the **existing small SSD stays the system disk** (the system is rebuilt from the flake, so it needs no mirror), the **2 TB SMR disk leaves the services' role** (it holds nothing a database or a pool should depend on), and the TPM route for LUKS is open.
 
+### Chosen layout (the owner, 2026-10-01): option B with these roles
+
+One new SSD of about 500 GB now; the second added later with `zpool attach` if the price allows.
+
+| Disk | Role |
+|---|---|
+| **New SSD, about 500 GB** (a single-disk ZFS pool for now, `copies=2` on the important datasets) | the **primary, for what matters**: the databases and the live data of the services (Immich, Nextcloud, Vaultwarden, Syncthing, the notes, WebDAV). Kept under about 80% full. |
+| **Existing small SSD (119 GB)** | the system, rebuilt from the flake |
+| **2 TB disk (SMR, old)** | the **local copy before the offsite** (in v0, the local repository that is then mirrored to Proton Drive); the **disks of the Incus virtual machines, or of whatever virtualization replaces it**, because the owner's VMs are mostly throwaway tests where an SSD is wasted; a **local NAS share** for the LAN; and the **overflow** for static data (music, video) if the SSD fills. Anything that matters on the share is covered by the same snapshots as the rest. |
+| **16 TB disk** | the backup of everything, by ZFS snapshots every 15 minutes ([ADR 0004](0004-backup.md)); the media library's second copy |
+| **New 8 TB disk** | the media library |
+
+What the owner accepted by putting the VMs on the SMR disk: random writes from a busy VM can stall on it. It is fine for test machines; **a VM that matters goes on the SSD**. The ZFS-versus-LVM choice for Incus's storage belongs to phase 6.
+The SMR disk is old (3.6 years powered on, 1,475 command timeouts), so **nothing there may be the only copy of anything that matters**: the Borg staging repository is a second copy by definition, the NAS share is in the snapshots, and the VMs are replaceable.
+
+### Encryption of each disk (proposed, waiting for the owner)
+
+The owner's proposal: do not encrypt the media disk (nothing personal), and perhaps not the backup disk (the Borg repository is already encrypted). My reading:
+
+- **Media disk: no encryption.** Agreed: films and series carry nothing personal.
+- **The backup disk is not "already encrypted"**, only the Borg and pgBackRest repositories on it are. The ZFS replicas of everything (photos, documents, database files, the Time Machine partition if kept there) arrive **in clear**, unless the source datasets are encrypted by ZFS and sent raw. So it **needs encryption if it holds those replicas**; it could skip it only if it held nothing but Borg and pgBackRest repositories.
+- **Every disk holding personal data in clear should be encrypted**: the primary SSD, the 2 TB disk (the NAS share, the VMs) and the 16 TB disk. If only some are encrypted, a thief who takes the whole machine gets the others, and encrypting the SSD alone achieves little.
+- **What LUKS with the key in the TPM protects, and what it does not.** It protects a **single disk that leaves the machine** (a theft of one disk, a failed disk sent back, a disk thrown away). It does **not** protect against someone taking the **whole machine**: the TPM releases the key at boot with no one typing anything. Closing that needs the boot chain signed and measured (Secure Boot with the key tied to it) or a passphrase at boot, which stops the unattended reboots the owner wants. That is a choice to make knowingly, not a gap to discover later.
+
+Decision needed from the owner: **encrypt SSD, 2 TB and 16 TB with LUKS and the TPM (my recommendation), leave the media disk plain**; or encrypt nothing locally and rely on the offsite copy being encrypted ([ADR 0007](0007-offsite-copy.md)).
+
 ## A hardware finding that affects the layout (2026-09-30)
 
 The disks seen from the live session (G1) are: a **small SATA SSD** as the system disk, the **large data disk**, and a **small 2.5-inch data disk**. The third disk is not installed yet.

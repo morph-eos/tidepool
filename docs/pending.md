@@ -6,7 +6,8 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 
 | Item | Why it waits | Blocks |
 |---|---|---|
-| **Choose the SSD option** (A: two SSDs, B: one now and one later, C: none) in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) | the owner's money and risk | the real layout |
+| **Buy one SSD of about 500 GB** (chosen: option B with the owner's roles, [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); the second can follow later | the owner's money | the real layout |
+| **Decide the encryption of each disk** (proposed: LUKS with the TPM on the SSD, the 2 TB and the 16 TB; the media disk plain) | [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) explains what the TPM does and does not protect | the disk set-up |
 | (Only if Proton Drive fails its test) open the Hetzner Storage Box account and set its snapshot plan | a subscription and the console | the offsite copy if Proton Drive is not adopted ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | Create the private repository for the non-secret variables and write the age key down (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 
@@ -22,7 +23,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 |---|---|
 | G2, hardware transcoding with ffmpeg in a container | the server installed, a short maintenance window |
 | G3b, the Proton Drive CLI keeping its login in the keyring of a real desktop session | a desktop session on the real machine |
-| S1 health of the system SSD and the large disk with `smartctl` (S1 ran without root: the v0 `smartcheck` log covers the two HDDs only) | a `sudo` password, or the owner running `sudo smartctl -a` on the three disks |
+| S1 health of the system SSD with `smartctl` (S1 ran without root; the v0 `smartcheck` log covers the two HDDs). The owner judges it not worth checking: lightly used and easy to replace | optional |
 
 ## Lab work still to do
 
