@@ -1,6 +1,6 @@
 # 0004. Backups: the tool and the restore drill
 
-- **Status:** accepted (2026-10-01): pgBackRest through its NixOS module; snapshots every 15 minutes for the files; retention of a few weeks
+- **Status:** accepted (2026-10-01): pgBackRest through its NixOS module; snapshots every 15 minutes kept short, and Borg every one to two hours from a snapshot for the files (no replication of snapshots); retention of a few weeks
 - **Date:** 2026-09-29, updated 2026-09-30
 - **Phase:** 2, Backup
 
@@ -259,7 +259,13 @@ Not chosen, and why:
 - **Databasus:** no point-in-time recovery below PostgreSQL 17, the configuration lives in its own database, the restore key must be kept outside its volume, and its agent is deprecated. The GUI was not decisive for the owner.
 - **Snapshots of the filesystem alone:** not point-in-time; but they stay as the layer that restores **the files to the same moment** as the database ([ADR 0005](0005-storage-layout-and-filesystem.md)).
 
-**The files of the services** (Immich's library, and the others): filesystem snapshots **every 15 minutes**, with the database restored to a moment matching a snapshot. A restore drill must bring back **both**, because a database restored without the files left six originals missing in the lab.
+**The files of the services** (Immich's library, and the others), revised on 2026-10-01 with the owner (the replication of snapshots to another disk is **dropped**, because Borg does that job, encrypted and with history):
+- **ZFS snapshots on the SSD every 15 minutes, kept short**: an undo button, and a consistent source for the file backup. Long history is Borg's job, not the snapshots'.
+- **Borg every one to two hours, read from a snapshot** (never from live files), into a **repository prepared for the offsite on the 2 TB disk** (the owner's choice; it is what is mirrored to Proton Drive or pushed to Hetzner, [ADR 0007](0007-offsite-copy.md)).
+- **Proposed, not yet confirmed:** the same job also writes a second repository of everything on the 16 TB disk, because the 2 TB disk is old and the owner asked for a backup of everything there.
+- **The database** is not part of these file backups: pgBackRest is its backup; it is restored to a moment matching a Borg archive.
+- **Media:** a plain copy on the 16 TB disk, not Borg (proposed; see the owner's open questions in [pending](../pending.md)).
+A restore drill must bring back **both** the database and the files, because a database restored without the files left six originals missing in the lab.
 
 **Retention:** a few weeks, not v0's six months: weekly full and daily differential with pgBackRest (two full backups kept), and the file backups as in [ADR 0007](0007-offsite-copy.md).
 

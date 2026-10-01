@@ -98,7 +98,7 @@ Taken by the assistant on the owner's delegation ("tell me which"), with the own
   - The **2 TB disk (taken as SMR)** is **not** a mirror member and holds **no databases**: it is at most a secondary local copy written sequentially.
 - **Filesystem: ZFS** (mirror on the two SSDs). Reasons, from the lab: it reports a lost member as DEGRADED and comes up degraded after a reboot, replacement is two commands, it has a native event daemon for notifications, and the toy run on PostgreSQL was faster. The offsite copy is a file-level Borg backup ([ADR 0007](0007-offsite-copy.md)), so ZFS's encrypted send to a remote is not needed and is not what tips it.
   Costs accepted: the kernel stays on a line ZFS supports (the G1 run was on such a kernel), and the cache is **capped** (the machine is also a media center).
-- **Snapshots:** `services.sanoid` every 15 minutes on the datasets of the services ([ADR 0004](0004-backup.md)) and `services.syncoid` to the 16 TB disk.
+- **Snapshots:** `services.sanoid` every 15 minutes, kept short, on the datasets of the services ([ADR 0004](0004-backup.md)); **no replication of them** to another disk (revised on 2026-10-01: Borg does that job). `services.syncoid` stays only if the media copy on the 16 TB disk is made by ZFS replication.
 - **Encryption of the disks:** a **LUKS layer under the pool with the key held in the machine's TPM** (systemd's native route; tested as a layer under both filesystems in the lab, without a TPM) **if S1 shows a TPM**; **otherwise no local encryption** (the owner's choice), relying on the offsite copy being encrypted.
   ZFS's own encryption is not used because it has no native TPM unlock.
 - **S1 has been run** ([results](../gates/S1-results.md)): there is a TPM (so LUKS with the key in it), the data is about 165 GB, and the sizes and the number of SSDs are the owner's choice among A, B and C below.
@@ -125,7 +125,7 @@ One new SSD of about 500 GB now; the second added later with `zpool attach` if t
 | **New SSD, about 500 GB** (a single-disk ZFS pool for now, `copies=2` on the important datasets) | the **primary, for what matters**: the databases and the live data of the services (Immich, Nextcloud, Vaultwarden, Syncthing, the notes, WebDAV). Kept under about 80% full. |
 | **Existing small SSD (119 GB)** | the system, rebuilt from the flake |
 | **2 TB disk (SMR, old)** | the **local copy before the offsite** (in v0, the local repository that is then mirrored to Proton Drive); the **disks of the Incus virtual machines, or of whatever virtualization replaces it**, because the owner's VMs are mostly throwaway tests where an SSD is wasted; a **local NAS share** for the LAN; and the **overflow** for static data (music, video) if the SSD fills. Anything that matters on the share is covered by the same snapshots as the rest. |
-| **16 TB disk** | the backup of everything, by ZFS snapshots every 15 minutes ([ADR 0004](0004-backup.md)); the media library's second copy |
+| **16 TB disk** | the pgBackRest repository, the media library's second copy (plain), and (proposed) a Borg repository of everything; **no longer** a replica of snapshots ([ADR 0004](0004-backup.md)) |
 | **New 8 TB disk** | the media library |
 
 What the owner accepted by putting the VMs on the SMR disk: random writes from a busy VM can stall on it. It is fine for test machines; **a VM that matters goes on the SSD**. The ZFS-versus-LVM choice for Incus's storage belongs to phase 6.
