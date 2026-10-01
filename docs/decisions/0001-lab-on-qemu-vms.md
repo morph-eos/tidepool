@@ -46,6 +46,10 @@ Measured on the workstation (12 threads, KVM accessible, image `ubuntu-24.04-ser
 The restore was verified with a marker file: present before, gone after. A first check was wrong (it tested a path the guest user could not read), which is why the
 check now creates the marker in a world-readable place.
 
+## Later use (added 2026-10-01)
+
+The measurements above are for the Ubuntu 24.04 cloud image, which phase 1 used. After [ADR 0002](0002-host-as-code.md) chose NixOS, the same `lab/vm.sh` runs the NixOS lab VM (`host-n`, installed by `lab/nixos-install.sh`) for every later phase; the create, snapshot and restore times were **not re-measured for NixOS** (the install takes 229 s, [ADR 0002](0002-host-as-code.md)). Two lab habits were added by experience: a snapshot must cover **every disk**, and rebuilds run as `systemd-run` units because a tool call that exceeds ten minutes is moved to the background and can leave the configuration half copied.
+
 ## Decision
 
 QEMU/KVM with `lab/vm.sh`. The one sentence that tips it: it works today with zero privileges, and switching to Incus later means replacing one thin script.

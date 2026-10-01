@@ -17,3 +17,7 @@ lab/vm.sh destroy lab0
 - Each VM gets a block of localhost ports: SSH on `2200`, HTTP on `+1`, HTTPS on `+2` (then `2210`, `2220`, ... for the next VM).
 - The guest sees the workstation as `10.0.2.2` and reaches the Internet through QEMU's user-mode NAT.
 - Needs `qemu-system-x86_64`, `qemu-img`, `python3`, `curl`, `ssh` and read/write access to `/dev/kvm`. No root.
+
+## Scripts of the experiments
+
+Every ADR names the script that produced its numbers (`lab/<phase>-bakeoff.sh` and friends); the ones that are generic (`nixos-install.sh`, `*-bakeoff.sh`, `immich-seed.sh`) are in this directory. The scripts that drive one rejected candidate (for example `lab/databasus/`, the UI automation of Databasus) stay on that candidate's experiment branch (`exp/<phase>-<candidate>`, tag `exp-<phase>-<candidate>`).
