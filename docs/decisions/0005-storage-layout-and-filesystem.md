@@ -101,7 +101,20 @@ Taken by the assistant on the owner's delegation ("tell me which"), with the own
 - **Snapshots:** `services.sanoid` every 15 minutes on the datasets of the services ([ADR 0004](0004-backup.md)) and `services.syncoid` to the 16 TB disk.
 - **Encryption of the disks:** a **LUKS layer under the pool with the key held in the machine's TPM** (systemd's native route; tested as a layer under both filesystems in the lab, without a TPM) **if S1 shows a TPM**; **otherwise no local encryption** (the owner's choice), relying on the offsite copy being encrypted.
   ZFS's own encryption is not used because it has no native TPM unlock.
-- **Still provisional until S1 is run:** the sizes of the SSDs, whether there is a TPM, and whether the family's data fits on the mirror.
+- **S1 has been run** ([results](../gates/S1-results.md)): there is a TPM (so LUKS with the key in it), the data is about 165 GB, and the sizes and the number of SSDs are the owner's choice among A, B and C below.
+
+## Update after S1 (2026-10-01): sizes, and what the SSDs cost
+
+The inventory ([results](../gates/S1-results.md)) changes the sizing. The services' data is **about 165 GB** (Immich 34, iCloud photos 56, WebDAV 48, Syncthing 25) and grows about 4 GB a month; the databases are a few GB. The machine has a **TPM**; the 2 TB disk is **confirmed SMR** (and old: 3.6 years of power-on time, 1,475 command timeouts).
+Second-hand SSDs are expensive today (about €200 for two of 1 TB, per the owner), and 1 TB each is more than the data needs. The options, from the same decisions:
+
+| | Cost | What a disk failure means | Notes |
+|---|---|---|---|
+| **A. Two SSDs in a ZFS mirror** (the decision above) | the most | the service keeps running; replacement is two commands | 500 GB each is already three times the data; 1 TB only if the Incus VM disks (200 GB today) are to live on the SSDs too |
+| **B. One SSD now, the second added later** (ZFS `copies=2` on the important datasets meanwhile) | about half of A, spent later when prices fall | **the server stops** until the SSD is replaced and restored from the 16 TB disk (hours; the owner accepted a few hours); data loss up to 15 minutes of files and 30 seconds of database | `zpool attach` turns the single disk into a mirror **online, with no rebuild**, so nothing is thrown away; `copies=2` makes ZFS **repair bad blocks** on a single disk (tested: ADR 0005's F2), not a dead disk |
+| **C. No new SSD: the services on the large HDD, backups on the new 8 TB disk**, the system stays on the existing small SSD | nothing beyond the 8 TB | the large HDD dying stops the services until restored from the 8 TB copy | the two big disks hold **each other's backup** (services on one, media on the other); HDD latency is acceptable for a family-sized database (v0 already runs it on the SMR disk), but it is the slowest option |
+
+In every option the **existing small SSD stays the system disk** (the system is rebuilt from the flake, so it needs no mirror), the **2 TB SMR disk leaves the services' role** (it holds nothing a database or a pool should depend on), and the TPM route for LUKS is open.
 
 ## A hardware finding that affects the layout (2026-09-30)
 

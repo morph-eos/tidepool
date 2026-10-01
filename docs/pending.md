@@ -6,7 +6,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 
 | Item | Why it waits | Blocks |
 |---|---|---|
-| Run the S1 inventory on the server (read-only, about ten minutes; now also asks for a TPM, memory and boot mode) | needs the server | the sizes of the SSDs, the encryption decision, the final layout |
+| **Choose the SSD option** (A: two SSDs, B: one now and one later, C: none) in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) | the owner's money and risk | the real layout |
 | Open the Hetzner Storage Box account and set its snapshot plan | a subscription and the console | the first offsite upload ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | Create the private repository for the non-secret variables and write the age key down (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 
@@ -22,8 +22,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 |---|---|
 | G2, hardware transcoding with ffmpeg in a container | the server installed, a short maintenance window |
 | G3b, the Proton Drive CLI keeping its login in the keyring of a real desktop session | a desktop session on the real machine |
-| S1, read-only inventory of the disks (models, SMART, usage, RAM) | a run on the server, about 10 minutes |
-| Confirming the small disk is SMR against its datasheet | the datasheet of the model (taken as SMR for now) |
+| S1 health of the system SSD and the large disk with `smartctl` (S1 ran without root: the v0 `smartcheck` log covers the two HDDs only) | a `sudo` password, or the owner running `sudo smartctl -a` on the three disks |
 
 ## Lab work still to do
 
