@@ -1,6 +1,6 @@
 # 0012. Observability: finding out that something broke without noticing by chance
 
-- **Status:** proposed (2026-10-01): waits for the owner on **how he wants to be notified** and **which outside service watches the heartbeat**
+- **Status:** proposed (2026-10-01): notification by email only and Brevo as the relay are **decided by the owner**; waits for the owner on **which outside service watches the heartbeat**
 - **Date:** 2026-10-01
 - **Phase:** 5, Observability
 
@@ -86,16 +86,25 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 
 - **Exporters:** node (with the `systemd` collector), postgres, blackbox (HTTPS with certificate expiry; DNS for the CAA record), and **smartctl** for the numbers; `smartd` keeps mailing by itself, so a SMART warning has two independent paths.
 - **Rules (declared as YAML, in the repository):** `UnitFailed`, `EndpointDown`, `CertificateExpiring` (production: **14 days**), `CaaMissing`, `DiskAlmostFull`, `MemoryPressure`, `PostgresArchiveFailing`, `TimerStale` (the pattern for every backup timer, with the "never triggered" guard) and the heartbeat `Watchdog`.
-- **Notification:** critical alerts **by mail and by push (ntfy)**; the others by mail only; `repeat_interval` in hours. The mail goes through an SMTP relay of the owner's choice (credentials as a sops secret).
+- **Notification: email only** (the owner's choice, 2026-10-01): every alert goes by mail, `repeat_interval` in hours. **ntfy and alertmanager-ntfy are left out** of the production module (about 16 MiB and two services fewer); they stay in the experiment branch and can be added later in a few lines. The mail goes through **Brevo's SMTP relay**, which **already works for the owner in v0**; the SMTP key is a sops secret, and the SPF and DKIM records Brevo asks for sit in the owner's DNS.
 - **The heartbeat goes to an outside dead-man's-switch** (a free tier of a service such as Healthchecks.io, or the owner's own address on another host): this is the **only case where the monitoring depends on a third party**, and it receives **nothing but the fact that a ping arrived**.
 - **Grafana: not by default** (217 MiB, and nobody opens a dashboard to find a failure); it is one `enable` and the data source is provisioned when the owner wants to look at trends.
 - **No Loki** in this phase.
 
-## Open questions for the owner
+## Heartbeat services compared (from the vendors' pages, 2026-10-01; **not tested**)
 
-1. **How do you want to be notified?** Email only; email and a push by ntfy (the push needs the VPN on the phone, or the app of the upstream relay); or something else.
-2. **Which outside service for the heartbeat?** A free Healthchecks.io account (the data it sees: that pings arrive), or no outside party at all, in which case **a dead server is noticed only when you notice it**.
-3. **Which SMTP relay** sends the mail (the account of your domain at the DNS provider, a Proton address, or another)?
+| Service | Free plan | Alert path | Notes |
+|---|---|---|---|
+| **Healthchecks.io** | 20 checks, 100 log entries per check; email alerts (SMS, WhatsApp and phone calls are paid) | its own mail | built for exactly this (period, grace time, cron schedules); **open source (BSD) and self-hostable**; runs on Hetzner bare metal, one-person company in Latvia; stores only the pings and notification records; the paid "Supporter" plan ($5) adds nothing but support |
+| UptimeRobot | 50 monitors, 5-minute interval, **heartbeat monitors included**; email, SMS and voice need credits; usable for any purpose, commercial included | its own mail | a general uptime tool, heartbeat is a side feature; paid from $108 a year |
+| Better Stack | 10 monitors, email and Slack alerts; **heartbeats on the free plan not confirmed** by the pages read | its own mail | the heavier incident-management product |
+| Dead Man's Snitch | **one** snitch | its own mail | enough for a single heartbeat; $5 a month for three |
+
+**Reading:** all four do the one thing needed (a missing ping raises an alert by their own mail, independent of Brevo). **Healthchecks.io fits best:** the purpose-built tool, a 20-check free plan of which we use one, a documented grace time, and **an escape hatch with no lock-in** (the same software can be self-hosted on a VPS if the free plan ever goes away). UptimeRobot is the runner-up; Dead Man's Snitch's single free check is just enough but with no room to grow. **Not measured:** the minimum ping period on the free plan, the real alert delay, and the mail's deliverability (it could land in spam: the owner adds the sender to contacts).
+
+## Proposed heartbeat: Healthchecks.io, hosted free plan
+
+One check with a short period and a grace time of a few minutes; Alertmanager's `Watchdog` calls its ping address (a secret, read from a sops file, not in the Nix store). It receives the fact that a ping arrived. **Waits for the owner's confirmation.**
 
 ## Consequences
 
