@@ -1,6 +1,6 @@
 # 0012. Observability: finding out that something broke without noticing by chance
 
-- **Status:** proposed (2026-10-01): accepted: email only, Brevo as the relay, and Healthchecks.io (hosted free plan) as the outside heartbeat; the owner confirmed each on 2026-10-01
+- **Status:** accepted (2026-10-01): email only, Brevo as the relay, and Healthchecks.io (hosted free plan) as the outside heartbeat; the owner confirmed each on 2026-10-01
 - **Date:** 2026-10-01
 - **Phase:** 5, Observability
 
