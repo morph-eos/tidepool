@@ -134,18 +134,3 @@ CONF
     r=$($NG -t -c /tmp/bad.conf 2>&1 | head -n 2 | tr '\n' ' ')
     say "E13: a literal upstream name that does not resolve: ${r}"
 fi
-
-# ---------------------------------------------------------------- E14 (needs short-lived certificates: the lab's Pebble issues 20-minute ones)
-if want E14; then
-    ser() { echo | timeout 5 openssl s_client -connect 127.0.0.1:443 -servername "$1" 2>/dev/null | openssl x509 -noout -serial; }
-    first=$(ser plain.lab.test)
-    ( (sleep 900; echo hello) | timeout 1000 websocat -k -n1 wss://ws.lab.test/ > /tmp/e14.ws 2>&1 ) &
-    WS=$!
-    t0=$(now); changed="no renewal seen in 20 minutes"
-    for i in $(seq 1 80); do
-        sleep 15; cur=$(ser plain.lab.test)
-        [ "$cur" != "$first" ] && { changed="renewed after $(el "$t0") s"; break; }
-    done
-    wait $WS
-    say "E14: the certificate was ${changed}; a WebSocket opened before it, idle for 15 minutes, answered: $(head -n 1 /tmp/e14.ws)"
-fi
