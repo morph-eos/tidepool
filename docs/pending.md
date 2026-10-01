@@ -7,7 +7,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | Item | Why it waits | Blocks |
 |---|---|---|
 | **Choose the SSD option** (A: two SSDs, B: one now and one later, C: none) in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) | the owner's money and risk | the real layout |
-| Open the Hetzner Storage Box account and set its snapshot plan | a subscription and the console | the first offsite upload ([ADR 0007](decisions/0007-offsite-copy.md)) |
+| (Only if Proton Drive fails its test) open the Hetzner Storage Box account and set its snapshot plan | a subscription and the console | the offsite copy if Proton Drive is not adopted ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | Create the private repository for the non-secret variables and write the age key down (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 
 ## Waiting for the owner (application layer)
@@ -29,7 +29,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | Item | Notes |
 |---|---|
 | The offsite layer against a **real provider** (Hetzner Storage Box or BorgBase over SSH, Backblaze B2 with object lock): real throughput, the first 200 GB upload, the provider's own append-only or no-delete key | lab results and prices are in [ADR 0007](decisions/0007-offsite-copy.md); needs an account, so after the owner chooses |
-| The official Proton Drive CLI as an optional second copy (or dropping it) | rclone's Proton backend is unusable (CAPTCHA, broken uploads, no maintainer); the CLI needs the owner's login and gate G3b |
+| **Proton Drive as the first offsite candidate**: a small container with the official CLI and a dedicated repository of our own, tested against the seven criteria of [ADR 0007](decisions/0007-offsite-copy.md) (headless login, unattended and loud on failure, updates, size, restore, deletion, first upload) | one or two phases from now, on NixOS; rclone's Proton backend is unusable; the CLI's help shows only a browser login |
 | A restore drill that restores Borg data **from a Hetzner snapshot** (the read-only `/.zfs/snapshot` path), not only from the live repository | phase 7 |
 | Containers against native NixOS modules for each service (Immich, Jellyfin, Nextcloud, Vaultwarden, and the rest): lines of configuration, update, restore | phase 4 |
 | The real SSDs: sizes, TPM, LUKS and the ZFS mirror on the real machine (ADR 0005 is decided, its sizes are not) | after S1 |

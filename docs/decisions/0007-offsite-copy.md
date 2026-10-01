@@ -1,6 +1,6 @@
 # 0007. The offsite copy
 
-- **Status:** accepted (2026-10-01): Borg to a Hetzner Storage Box with the provider's snapshots; Proton Drive only as an optional second copy, to be checked on the server
+- **Status:** accepted in part (2026-10-01): Borg is the tool and Hetzner Storage Box the clean reference and fallback; **Proton Drive through a small container of our own is tested first**, against criteria fixed now; the destination is settled by that test
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (layer 3 of [ADR 0004](0004-backup.md))
 
@@ -74,19 +74,26 @@ The amounts sent are the same for every tool (the changed data, deduplicated); o
 3. **Cost** for 200 GB to 1 TB, with no other subscription needed.
 4. **Moving parts** and what an update costs.
 
-## Decision (2026-10-01)
+## Decision (2026-10-01, revised the same day)
 
-- **Borg over SSH to a Hetzner Storage Box** (the 1 TB plan, about €3.20 a month before VAT, as reported on 2026-09-30). Borg has a native NixOS module with a timer, the passphrase and the SSH key are secrets delivered by the mechanism of [ADR 0003](0003-secrets.md), and the copy is encrypted on the client.
-- **Protection against a stolen credential or a mistake: the provider's own snapshots, not an append-only key.** Hetzner's Storage Box takes **automatic snapshots on a schedule** (10 slots on the 1 TB plan), readable over SSH only under `/.zfs/snapshot` and **read-only there**; removing one needs the Hetzner account, which the server never holds.
-  This gives the protection of append-only **without a privileged prune job run by hand from another machine**, which would be a manual step in steady state (against P1). The snapshot plan is configured once in Hetzner's console (and exists as an API, so it can be put in code later); snapshots hold the data Borg deletes when it prunes, so they cost space.
-  Hetzner's documentation does not describe restricting a key to `borg serve --append-only`; that is not relied on.
-- **Retention: a few weeks**, not v0's six months: Borg `keep-daily 7` and `keep-weekly 4`, no monthly (the owner's choice).
+The owner's order of preference: **Proton Drive first, if it can be made clean enough; Hetzner as the alternative**. Proton Drive is already part of the plan the owner pays for, so it costs nothing more. Hetzner is the cleanest solution and stays the **reference and the fallback**. The tool for the files is **Borg** in both cases.
+
+- **Reference and fallback: Borg over SSH to a Hetzner Storage Box** (the 1 TB plan, about €3.20 a month before VAT, as reported on 2026-09-30). A native NixOS module with a timer; the passphrase and SSH key are secrets delivered by the mechanism of [ADR 0003](0003-secrets.md); encrypted on the client. **Protection against a stolen credential or a mistake: the provider's automatic snapshots** (10 slots on this plan, read-only over SSH under `/.zfs/snapshot`, removable only through the Hetzner account, which the server never holds); no append-only key and no privileged prune job run by hand. Hetzner does not document restricting a key to `borg serve --append-only`, so that is not relied on.
+- **To test first: Proton Drive, through a small container that holds the official CLI and a dedicated repository of our own** (the code and its tests live in that repository; the image is built from it and pinned by digest). The container's job is the one v0's script has: keep a copy of the local Borg repository on Proton Drive and say so loudly when it cannot.
+  Under [P1](../principles.md) this is a custom component: an **exception to enter in [the register](../exceptions.md)** if it is adopted, with what it is, why there is no native way, who keeps it up to date and the test that runs at every update.
+  It is tested **one or two phases from now**, once the server runs on NixOS, against criteria fixed **now, before testing**:
+  1. **Headless login:** the CLI can authenticate and keep its session without a desktop session or the desktop keyring (its help shows `auth login` opening a browser, with the session in the user's keyring; whether a container can hold it in a volume, or log in with a token, is unknown).
+  2. **Unattended:** it runs from a timer, survives a reboot and an expired session, and **fails loudly** (a notification) when the login lapses instead of silently stopping, which is what Databasus did when its key was lost.
+  3. **Updates:** a new version of the CLI needs no change in our code, only the test below; the image is pinned by digest and rebuilt on purpose.
+  4. **Size:** the repository's own code stays small and readable; a number is fixed when the first version exists (v0's script is the baseline to beat).
+  5. **Restore:** a full restore of the Borg data **from Proton** is rehearsed byte for byte, as in the lab for the other candidates.
+  6. **Deletion:** what Proton's trash and file versions give against a deleted or overwritten file is **measured** (Hetzner's snapshots are the bar).
+  7. **First upload:** about 200 GB at the real uplink, and whether Proton's limits allow it.
+  If it meets these, it is adopted (and Hetzner is not opened). **If it fails any must-have (1, 2 or 5), Hetzner is the answer.**
+- **Retention: a few weeks**, not v0's six months: Borg `keep-daily 7` and `keep-weekly 4`, no monthly.
 - **Custody of the repository passphrase:** as the age key: Proton Pass, with a printed copy if possible.
-- **Not Kopia** (no module, no append-only). **Not restic to S3** for now: equal in the lab; Borg to a Borg-native server needs no object-lock configuration and gives the cheapest step for 1 TB.
-- **Proton Drive**: **not the offsite copy.** It remains an *option to investigate* as an **optional second copy** with the official CLI, possibly in a custom container image if (and only if) the CLI can authenticate without a desktop session, which its help does not show (`auth login` opens a browser and keeps the session in the user's keyring). That is checked with gate G3b on the real server; if it cannot be made headless, it is dropped rather than kept as a script. An image built by us would itself be an entry in [the register](../exceptions.md).
-- **The databases** can also go offsite through pgBackRest's own second repository on the same destination (SFTP); whether to do that, or rely on the Borg copy of pgBackRest's repository directory, is decided when the databases are moved (phase 4).
-
-Open for the owner's later choice: the **Hetzner account and the snapshot plan** need to exist before the first real upload, and the first upload (about 200 GB) should be timed against the real uplink.
+- **Not Kopia** (no module, no append-only). **Not restic to S3** for now: equal in the lab; Borg gives the cheapest step for 1 TB at Hetzner.
+- **The databases** can also go offsite through pgBackRest's own second repository on a destination it can write to (SFTP or S3, so Hetzner, not Proton Drive); whether to do that, or rely on the Borg copy of pgBackRest's repository directory, is decided when the databases are moved (phase 4).
 
 ## Consequences
 
