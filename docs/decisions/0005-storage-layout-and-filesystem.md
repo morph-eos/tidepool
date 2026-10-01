@@ -98,7 +98,7 @@ Taken by the assistant on the owner's delegation ("tell me which"), with the own
   - The **2 TB disk (taken as SMR)** is **not** a mirror member and holds **no databases**: it is at most a secondary local copy written sequentially.
 - **Filesystem: ZFS** (mirror on the two SSDs). Reasons, from the lab: it reports a lost member as DEGRADED and comes up degraded after a reboot, replacement is two commands, it has a native event daemon for notifications, and the toy run on PostgreSQL was faster. The offsite copy is a file-level Borg backup ([ADR 0007](0007-offsite-copy.md)), so ZFS's encrypted send to a remote is not needed and is not what tips it.
   Costs accepted: the kernel stays on a line ZFS supports (the G1 run was on such a kernel), and the cache is **capped** (the machine is also a media center).
-- **Snapshots:** `services.sanoid` every 15 minutes, kept short, on the datasets of the services ([ADR 0004](0004-backup.md)); **no replication of them** to another disk (revised on 2026-10-01: Borg does that job). `services.syncoid` stays only if the media copy on the 16 TB disk is made by ZFS replication.
+- **Snapshots: none on a schedule** (revised on 2026-10-01 with the owner: the Borg repositories cover what a snapshot would undo, and snapshots cost space; [ADR 0004](0004-backup.md)). ZFS is still the choice, because the reasons in the table above do not depend on snapshots: checksums and scrub, a mirror that reports and boots degraded, two-command replacement, compression, and `zpool attach` to add the second SSD later.
 - **Encryption of the disks:** a **LUKS layer under the pool with the key held in the machine's TPM** (systemd's native route; tested as a layer under both filesystems in the lab, without a TPM) **if S1 shows a TPM**; **otherwise no local encryption** (the owner's choice), relying on the offsite copy being encrypted.
   ZFS's own encryption is not used because it has no native TPM unlock.
 - **S1 has been run** ([results](../gates/S1-results.md)): there is a TPM (so LUKS with the key in it), the data is about 165 GB, and the sizes and the number of SSDs are the owner's choice among A, B and C below.
@@ -122,7 +122,7 @@ One new SSD of about 500 GB now; the second added later with `zpool attach` if t
 
 | Disk | Role |
 |---|---|
-| **New SSD, about 500 GB** (a single-disk ZFS pool for now, `copies=2` on the important datasets) | the **primary, for what matters**: the databases and the live data of the services (Immich, Nextcloud, Vaultwarden, Syncthing, the notes, WebDAV). Kept under about 80% full. |
+| **New SSD, about 500 GB** (a single-disk ZFS pool for now; self-healing is deferred, see below) | the **primary, for what matters**: the databases and the live data of the services (Immich, Nextcloud, Vaultwarden, Syncthing, the notes, WebDAV). Kept under about 80% full. |
 | **Existing small SSD (119 GB)** | the system, rebuilt from the flake |
 | **2 TB disk (SMR, old)** | the **local copy before the offsite** (in v0, the local repository that is then mirrored to Proton Drive); the **disks of the Incus virtual machines, or of whatever virtualization replaces it**, because the owner's VMs are mostly throwaway tests where an SSD is wasted; a **local NAS share** for the LAN; and the **overflow** for static data (music, video) if the SSD fills. Anything that matters on the share is covered by the same snapshots as the rest. |
 | **16 TB disk** | the pgBackRest repository, the media library's second copy (plain), and (proposed) a Borg repository of everything; **no longer** a replica of snapshots ([ADR 0004](0004-backup.md)) |
@@ -141,6 +141,12 @@ The owner's proposal: do not encrypt the media disk (nothing personal), and perh
 - **What LUKS with the key in the TPM protects, and what it does not.** It protects a **single disk that leaves the machine** (a theft of one disk, a failed disk sent back, a disk thrown away). It does **not** protect against someone taking the **whole machine**: the TPM releases the key at boot with no one typing anything. Closing that needs the boot chain signed and measured (Secure Boot with the key tied to it) or a passphrase at boot, which stops the unattended reboots the owner wants. That is a choice to make knowingly, not a gap to discover later.
 
 **Decision (2026-10-01, the owner agreed): SSD, 2 TB and 16 TB encrypted with LUKS and the TPM; the media disk left plain.** **Secure Boot is postponed** by the owner, who expects it to be part of the system eventually: it is what would make the TPM release the key only to the intended boot chain (pending). The 16 TB's encryption may be revisited if its contents change (see the question on what the backup disk holds, in [pending](../pending.md)).
+
+### Self-healing of the primary disk, and the other disks (2026-10-01, the owner)
+
+- **Self-healing is deferred.** The owner has the backups and does not want a cost that makes the 500 GB disk feel small. Two ways to get it later, in order of preference: **a second SSD attached as a mirror** (`zpool attach`, online; the real protection, which also survives a dead disk), or **`copies=2` on the small critical datasets only** (about 40 GB of data for about 40 GB more, applies only to data written after it is set, protects against bad blocks and not against a dead disk). Until then ZFS **detects** corruption (a scrub, or a failed read, names the file) and the file is restored from Borg, or the database from pgBackRest.
+- **The 16 TB disk no longer needs encryption for confidentiality**: it holds Borg and pgBackRest repositories (encrypted), the media copy (nothing personal) and the Time Machine partition (**kept there for now**; the owner says macOS encrypts it, which should be checked in the Time Machine settings). The encryption agreed earlier for it is therefore optional: **proposed to skip it** (one disk fewer to unlock through the TPM), waiting for the owner.
+- **The media disk is plain**, as agreed.
 
 ## A hardware finding that affects the layout (2026-09-30)
 
