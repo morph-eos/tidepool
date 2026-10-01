@@ -1,6 +1,6 @@
 # 0009. Remote access: a personal VPN
 
-- **Status:** proposed (lab results in; recommendation below; waiting for the owner's list of what is public and what is VPN-only)
+- **Status:** accepted (2026-10-01): plain WireGuard through the NixOS module; Tailscale as the fallback; the split public / VPN-only is in [ADR 0008](0008-edge.md)
 - **Date:** 2026-10-01
 - **Phase:** 3, Edge (it answers "what is reachable from outside, and how")
 
@@ -60,9 +60,9 @@ What running it showed:
 4. **Works where the owner is:** a public address and port forwarding today; what happens behind CGNAT.
 5. **Moving parts and the owner's effort per device.**
 
-## Decision
+## Decision (2026-10-01, confirmed by the owner)
 
-_Recommended, pending the owner's list: **A, plain WireGuard through the NixOS module**._
+**A, plain WireGuard through the NixOS module.**
 - It meets criterion 1 with **20 lines and no third party**; the split of criterion 2 holds in every check; adding a device is **3 lines** and a key pair generated on the device (a QR code for a phone), and removing it is deleting the lines.
 - **The owner's port forwarding makes it work**: one UDP port on the router, in place of the range 3000-3099 and the Incus API that v0 exposes.
 - **Fallback: Tailscale** (`services.tailscale`), if the house ever sits behind carrier-grade NAT or the owner prefers a zero-maintenance phone experience; its cost is that the coordination server is a third party (and a Tailscale account), which Headscale removes at the price of running it. Switching later is a change of the module, not of the design (the VPN-only names listen on the VPN address in both).

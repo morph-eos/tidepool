@@ -1,6 +1,6 @@
 # 0010. How the services of virtual machines reach the outside
 
-- **Status:** proposed (lab results in; recommendation below; the choice of the VM manager itself belongs to phase 6)
+- **Status:** accepted (2026-10-01): a VM service is private by default and public only by a line in the flake; the choice of the VM manager itself belongs to phase 6
 - **Date:** 2026-10-01
 - **Phase:** 3, Edge (with phase 6, Network and VMs)
 
@@ -59,9 +59,9 @@ What running it showed:
 4. **Public services are possible and explicit.**
 5. **Lines of our own and moving parts.**
 
-## Decision
+## Decision (2026-10-01, confirmed by the owner)
 
-_Recommended, pending the owner._ **A VM service is private by default and public only by a line.**
+**A VM service is private by default and public only by a line.**
 - **Everything the owner does with a VM goes through the VPN: M2** (the subnet routed over the VPN, with one forwarding rule): SSH, databases, any port, any protocol, **no per-VM configuration**, and it is the answer for the 90% of test and temporary machines.
 - **Web names for the VMs' services: M3**, one wildcard virtual host on the VPN address, so `<vm>.vm.<domain>` works as soon as the VM exists; it needs the wildcard certificate (DNS challenge) or a private CA.
 - **A VM service that must be public (the few): M4**, an explicit and reviewed line: **a virtual host for a web service**, or **a DNAT line for raw TCP and UDP**, with the VM's address pinned. It is a few lines per service and **it is visible in the flake and in review, which is the point**; it is "more complicated" only in that a public service has to be written down.

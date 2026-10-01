@@ -11,8 +11,8 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | (Only if Proton Drive fails its test) **open the Hetzner Storage Box account** and set its snapshot plan | a subscription and the console | the offsite copy in that case ([ADR 0007](decisions/0007-offsite-copy.md)) |
 | **Set a firmware password** (and keep the boot loader's command-line editor off: with lanzaboote on NixOS it is) | the owner will do it | what makes the disk encryption protect a stolen machine ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | **Services to carry over to v1** ([ADR 0008](decisions/0008-edge.md)): **Plex is dropped**; **Syncthing** stays with its sync port public and its GUI VPN-only; Jellyfin, Immich, Nextcloud, Vaultwarden, WebDAV stay (the owner may add others) | phase 4 |
-| **Choose which acme-dns** for the DNS challenge ([ADR 0008](decisions/0008-edge.md)): the public one (hardened with `allowfrom` and a CAA `accounturi`), one on the home server (port 53 public), or deSEC (untested); then **register the real accounts and add the two real CNAME records** (the domain's names; the VM names) and remove the test CNAME `_acme-challenge.test` | the owner's choice | phase 3 |
-| **Confirm the phase 3 recommendations** (nginx with the NixOS ACME module; plain WireGuard; private-by-default VM services) so the three ADRs can be accepted | the owner | closing phase 3 |
+| **Add the two CNAME records at the DNS provider** (the names are in the owner's private secrets folder and were given in the session), **and remove the test one** (`_acme-challenge.test`) | the owner's DNS panel; the registrations are done | the real certificates, at the first deployment |
+| **A CAA record bound to the owner's own ACME account** (`accounturi`), after the first real issuance; check whether the provider's panel accepts CAA | needs the production account's address | hardening of the DNS challenge ([ADR 0008](decisions/0008-edge.md)) |
 | **New services to add** next to the v0 ones (for example a replacement for Trakt) | application layer, not infrastructure | phase 4 |
 
 
