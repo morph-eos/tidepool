@@ -118,6 +118,16 @@ One check with a short period and a grace time of a few minutes; Alertmanager's 
 
 **What the lab taught about Alertmanager timing.** It resends a notification only at a **`group_interval` tick**, and only if **`repeat_interval` has already elapsed**: with the two equal, the tick comes a few milliseconds early and a tick is skipped. Measured: with both at 2 minutes the heartbeat went **every 4 minutes**; with `repeat_interval` 1 minute and `group_interval` 2 minutes it goes **every 2 minutes**. (The 2-minute figure of the first round came from this same effect.) The routes now set both explicitly.
 
+**Brevo's 300 mails a day** (the owner's question). What sends mail through the relay: the **mail-path heartbeat, 4 a day**; every real alert group, once when it starts (`group_wait` 30 s) and again every 12 hours while it keeps firing (`repeat_interval`); **no mail when an alert resolves** (`send_resolved` is false for email in the live configuration, checked). Alerts are grouped by name, so one mail covers all the instances of one alert.
+
+| Day | Mails |
+|---|---|
+| A quiet day | 4 (heartbeat) and 0-3 alerts: **under 10, about 3% of the limit** |
+| A bad day: **everything at once** (13 alert names, all firing for the whole day) | 13 groups x 2 (start and one repeat) + 4 = **about 30, 10%** |
+| One alert flapping all day | each cycle needs the rule's wait to pass again; with the groups' interval at 5 minutes it could be about 130 a day, **43%** by itself. **The default route's `group_interval` is now 30 minutes**: at most one mail per half hour per alert name, **48 a day** at the very worst |
+
+So **we are far under the limit**, even in a bad case. Two things the alerts do not count: **other mail through the same Brevo account** (Vaultwarden's and Nextcloud's own mail, v0's scripts): a few a day, to be added to the 4; and **if the limit is ever hit, the heartbeat mails are dropped too**, which Healthchecks then reports as a broken mail path, which would be true.
+
 **Not tested:** a real mail through Brevo, Healthchecks receiving an email ping and alerting on its silence, the 18-hour detection time.
 
 ## Consequences

@@ -6,12 +6,15 @@ let
     encryption = { mode = "repokey-blake2"; passCommand = "cat ${config.sops.secrets.borg-passphrase.path}"; };
     compression = "lz4";
     startAt = "hourly";
-    prune.keep = { daily = 7; weekly = 4; };
+    # Every hourly archive for 3 days, then one a day until the 14th day, then one a week for 4 weeks (measured on archives with made-up dates: 87 kept, the oldest 40 days old).
+    # 14 days is the longest a pgBackRest point-in-time restore can reach (two weekly full backups kept), so a database restored to any moment in that window finds files at least from the same day;
+    # inside the first 3 days it finds files from the same hour. (`within` does not count toward `daily`: the daily days come after it.)
+    prune.keep = { within = "3d"; daily = 11; weekly = 4; };
     failOnWarnings = false;   # a file that changes while it is read is a warning, not a failure
     # The weekly full check (verify.nix) holds the repository exclusively; the job waits for it instead of failing. A waiting job looks again once a minute (measured).
-    # The wait is also the alarm time: a backup blocked longer than this fails and raises UnitFailed. 4 hours is about 4 times what the check should take on the real data
-    # (the lab verified 177 MB/s, about 16 minutes for 165 GB; the real disk and CPU are unmeasured).
-    extraArgs = [ "--lock-wait" "14400" ];
+    # 12 hours: the check of a repository of 1 TB on a slow disk (50 MB/s) takes about 5.6 hours (ADR 0015), so this is twice the worst case computed.
+    # A wait that long must not hide a hung check: the rule BackupJobRunningLong (observability.nix) warns when a backup unit has been running for 8 hours.
+    extraArgs = [ "--lock-wait" "43200" ];
   };
 in
 {

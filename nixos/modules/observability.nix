@@ -57,6 +57,12 @@ let
       - alert: PgBackrestStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"pgbackrest-.*\\.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
         labels: { severity: critical }
+      # a backup unit that has been running for hours: a first backup of a very large library, or a check that hangs while the backups wait for it (they wait up to 12 hours)
+      - alert: BackupJobRunningLong
+        expr: node_systemd_unit_state{name=~"borgbackup-job-.*\\.service|borgmatic\\.service|pgbackrest-restore-test\\.service", state="active"} == 1
+        for: ${if cfg.lab then "2m" else "8h"}
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.name }} has been running for a long time" }
       # the verification jobs of verify.nix must keep running: a check nobody runs is no check
       - alert: BorgChecksStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name="borgmatic.timer"} > 691200) and on() (time() - node_boot_time_seconds > 691200)   # the timer is weekly: 8 days
@@ -102,7 +108,7 @@ in
       configuration = {
         route = {
           receiver = "mail";
-          group_by = [ "alertname" ]; group_wait = "30s"; group_interval = "5m"; repeat_interval = "12h";
+          group_by = [ "alertname" ]; group_wait = "30s"; group_interval = "30m"; repeat_interval = "12h";   # 30m: a flapping alert is at most one mail per half hour per alert name (Brevo's free plan allows 300 mails a day)
           routes = [
             # the Watchdog goes two ways: a webhook ping every 2 minutes (a dead machine or a dead Alertmanager is noticed within minutes) ...
             { matchers = [ "severity = heartbeat" ]; receiver = "heartbeat"; repeat_interval = "1m"; group_interval = "2m"; group_wait = "0s"; continue = true; }

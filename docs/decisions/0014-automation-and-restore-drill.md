@@ -51,8 +51,8 @@ Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](00
 
 | Measure | Result |
 |---|---|
-| **Rebuild from blank to a booted system** | **547-559 s** (`nixos-install` 447-468 s of it): the system disk and the SSD wiped and made by disko, **the two large disks untouched** |
-| **Restore to the end of the checks** | **167-169 s** from the first command on the rebuilt machine (services start, 87 files from Borg, the database restored in **20-21 s**, the rest) |
+| **Rebuild from blank to a booted system** | **547-559 s** (**930 s** once, on a slow day of the lab's link; the installer's downloads now have a stall timeout, after one hung for 38 minutes) (`nixos-install` 447-468 s of it): the system disk and the SSD wiped and made by disko, **the two large disks untouched** |
+| **Restore to the end of the checks** | **167-169 s** (240 s on the run with the hourly archives and the longer waits, which also passed) from the first command on the rebuilt machine (services start, 87 files from Borg, the database restored in **20-21 s**, the rest) |
 | Immich | **18 assets, as at T_GOOD** (the three deleted afterwards are back) and **all 18 originals are served**: the database and the files came back to the same moment |
 | Databases | the markers of Immich, Vaultwarden and Nextcloud read `before, after-backup1`: **no `damage`** |
 | Nextcloud, WebDAV | the five files as at T_GOOD, **the deleted ones back with their content** |

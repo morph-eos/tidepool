@@ -76,7 +76,10 @@ ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 'cat > ~/age.key' < "$AGE_KE
 log "partitioning, formatting, installing (downloads the system: this is the long step)"
 ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR bash -s" <<'REMOTE'
 set -euo pipefail
-export NIX_CONFIG='experimental-features = nix-command flakes'
+export NIX_CONFIG='experimental-features = nix-command flakes
+download-attempts = 60
+stalled-download-timeout = 60
+connect-timeout = 15'   # the lab's link drops downloads now and then: a failed download otherwise ends in "dependency failed"
 # Lock the inputs first, as the normal user: if nixos-install creates flake.lock itself (as root) the hash of the
 # flake directory changes in the middle of the evaluation and it fails with "NAR hash mismatch".
 nix flake lock path:$HOME/nixos

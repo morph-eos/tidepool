@@ -275,6 +275,8 @@ What the module does **not** do, and is left to later phases: a periodic `borg c
 
 **Retention:** a few weeks, not v0's six months: pgBackRest weekly full and daily differential (two full backups kept); Borg `keep-daily 7` and `keep-weekly 4`, no monthly.
 
+**Retention, revised 2026-10-02 at the owner's request** (hourly archives were wanted for the last two or three days): Borg `within 3d`, `daily 11`, `weekly 4`, no monthly. Measured on archives with made-up dates: **87 kept** per repository, **every hour for 3 days**, at least one a day until the 14th day, one a week after that, the oldest about 40 days old. The 14 days are what a pgBackRest point-in-time restore can reach (two weekly full backups kept, so 7 to 14 days), which keeps the two coherent: a database restored to any moment in its window finds files from the same day, and from the same hour in the last 3 days. (`keep-daily 7` alone, as before, kept **one archive a day and no hourly ones**: after a day of hourly runs 2 archives were left.) Not measured: the cost of the archive check with 87 archives of a real library.
+
 **Offsite:** [ADR 0007](0007-offsite-copy.md). **Disks and filesystem:** [ADR 0005](0005-storage-layout-and-filesystem.md).
 
 Revisit if the local-repository overrides turn out to break on a module update (the restore drill of phase 7 is what would show it), or if a stricter loss limit is wanted.

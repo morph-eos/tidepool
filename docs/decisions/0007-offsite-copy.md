@@ -90,7 +90,7 @@ The owner's order of preference: **Proton Drive first, if it can be made clean e
   6. **Deletion:** what Proton's trash and file versions give against a deleted or overwritten file is **measured** (Hetzner's snapshots are the bar).
   7. **First upload:** about 200 GB at the real uplink, and whether Proton's limits allow it.
   If it meets these, it is adopted (and Hetzner is not opened). **If it fails any must-have (1, 2 or 5), Hetzner is the answer.**
-- **Retention: a few weeks**, not v0's six months: Borg `keep-daily 7` and `keep-weekly 4`, no monthly.
+- **Retention: a few weeks**, not v0's six months: Borg `within 3d`, `daily 11` and `weekly 4`, no monthly (revised on 2026-10-02, [ADR 0004](0004-backup.md)).
 - **Custody of the repository passphrase:** as the age key: Proton Pass, with a printed copy if possible.
 - **Not Kopia** (no module, no append-only). **Not restic to S3** for now: equal in the lab; Borg gives the cheapest step for 1 TB at Hetzner.
 - **The databases** can also go offsite through pgBackRest's own second repository on a destination it can write to (SFTP or S3, so Hetzner, not Proton Drive); whether to do that, or rely on the Borg copy of pgBackRest's repository directory, is decided when the databases are moved (phase 4).

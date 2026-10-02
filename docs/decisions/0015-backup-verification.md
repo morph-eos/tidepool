@@ -95,7 +95,23 @@ The owner asked for the full data check every week; the jobs wait at most `--loc
 
 **How long will the check take?** The lab verified the 4 GB in **23 s, 177 MB/s** (segment checksums alone: 890 MB/s). At the same speed **165 GB would take about 16 minutes**; a spinning disk and a slower CPU could make that several times longer. It is an extrapolation, to be replaced by the first real run.
 
-**Decision (the best of the three for the owner's requirement): A, with `--lock-wait 14400` (4 hours) on both jobs.** It keeps the check exactly as the owner asked (every byte, every week), needs no code, and 4 hours is about four times the extrapolated duration. The wait is also **the alarm time**: a backup blocked for more than 4 hours fails and raises `UnitFailed`; a longer wait would hide a hung check, because the timer-based staleness rule sees the timer firing hourly even while the job waits. D stays available as a **lighter daily addition** if the weekly check ever proves too long; F is rejected.
+**Decision (revised the same day, see the next section): A, a long `--lock-wait`, now 12 hours, with an alarm of its own for a backup unit that runs for hours.** D stays available as a lighter daily addition if the weekly check ever proves too long; F is rejected.
+
+### How long can a backup or a check take at most? (2026-10-02, the owner's question)
+
+The wait must cover the longest legitimate time the repository stays locked. The holders are the weekly check (it reads every byte of the repository), a first backup of a large library, and a restore. Estimated from the lab's measured speeds and a size that grows; **every figure is an estimate**, the real disk and CPU are unmeasured, and the repository is taken as about the size of the live data.
+
+| Repository size | at 177 MB/s (the lab) | at 100 MB/s | at 50 MB/s (slow disk, fragmentation, slow CPU) |
+|---|---|---|---|
+| **165 GB (today)** | 16 minutes | 28 minutes | 55 minutes |
+| **400 GB** (about 5 years at the 4 GB a month of [ADR 0005](0005-storage-layout-and-filesystem.md)) | 38 minutes | 67 minutes | 2.2 hours |
+| **1 TB** (a change of habit, for example videos) | 1.6 hours | 2.8 hours | **5.6 hours** |
+
+A first backup of the same sizes writes to the 16 TB disk and takes about the same. So **the old 2 hours was too little already for 400 GB on a slow disk, and 4 hours too little for 1 TB at 50 MB/s**. A fixed number is also a trade-off, because **the wait is the alarm time**: a backup that waits longer than it fails and raises `UnitFailed`, but the timer-based staleness rule sees the timer firing every hour **while the job waits**, so a hung check would hide for the whole wait.
+
+**Decision: `--lock-wait 43200` (12 hours) on both Borg jobs and on borgmatic's own `lock_wait`** (twice the worst case above, 5.6 hours), **plus a new rule `BackupJobRunningLong`: a Borg job, a borgmatic run or the restore test that has been `active` for 8 hours warns by mail.** So the patience can be generous without hiding a hang. Tested in the lab with the rule's wait cut to 2 minutes: see the results below. If the repositories grow past about 1 TB, the first real runs will say so; the alert is what tells.
+
+**Tested (lab, the rule's wait cut to 2 minutes):** a holder took the exclusive lock of the repository of everything for 6 minutes and the hourly job was started: the job **waited** (active), `BackupJobRunningLong` was **pending for 2 minutes, then firing, and the mail arrived 15 seconds later**; when the lock was released the job **finished with success** and the alert **cleared by itself**. In production the rule waits 8 hours.
 
 **One schedule only.** borgmatic had two schedules working against each other: a **daily timer** and, inside the configuration, `frequency` and `only_run_on`. Measured on paper and in the unit: a check that ends at 04:50 is *less than a week* before the next 04:30, so the weekly check would drift by a day each week; and a Sunday missed by a powered-off machine (the timer is `Persistent`) would be skipped silently, with `BorgChecksStale` quiet because the timer still fires every day. Now **the timer is weekly (Sunday 04:30, `Persistent`) and every run does all the checks**; `BorgChecksStale` waits 8 days. (The borgmatic package also delays its start by one minute: a service run takes about a minute even on a tiny repository.)
 
