@@ -54,7 +54,7 @@ The workstation's CPU is AMD with **nested virtualization on** (checked), so rea
 
 ## Results
 
-`lab/vms-bakeoff.sh`, `lab/vms-engines-bakeoff.sh` (driven by `lab/vms-engines-run.sh`), `lab/vms-others-bakeoff.sh` and `lab/vms-cycle-bakeoff.sh`, in a fresh NixOS lab VM `host-v` (4 cores, 6 GB, a 60 GB system disk and a 30 GB data disk that holds the ZFS pool; branch `exp/vms-incus`, tag `exp-vms-incus`). **The VMs inside it run on nested KVM** (the workstation's CPU has it on), so their speeds are lower than on the real machine. Image downloads ran at about 2 MB/s in the lab and are timed apart.
+`lab/vms-bakeoff.sh`, `lab/vms-engines-bakeoff.sh` (driven by `lab/vms-engines-run.sh`), `lab/vms-others-bakeoff.sh` and `lab/vms-cycle-bakeoff.sh` (and `lab/vms-lvm-vm-bakeoff.sh` for the LVM VM column), in a fresh NixOS lab VM `host-v` (4 cores, 6 GB, a 60 GB system disk and a 30 GB data disk that holds the ZFS pool; branch `exp/vms-incus`, tag `exp-vms-incus`). **The VMs inside it run on nested KVM** (the workstation's CPU has it on), so their speeds are lower than on the real machine. Image downloads ran at about 2 MB/s in the lab and are timed apart.
 
 ### R1. What Incus runs from one tool
 
