@@ -9,12 +9,14 @@ let
     skip_actions = [ "repo-create" "create" "prune" "compact" ];   # the backups themselves are the Borg jobs' business (backup.nix)
     lock_wait = 7200;
   };
+  # the timer below is the only schedule: weekly, Sunday night. Every run does all three checks (`data` implies `archives`): every byte of every archive, once a week
+  # (the owner's choice, 2026-10-02). No `frequency` or `only_run_on` here: a second schedule inside borgmatic drifted by a day a week and could skip a missed Sunday silently.
   checks = [
-    { name = "repository"; frequency = "1 week"; only_run_on = [ "Sunday" ]; }
-    { name = "extract"; frequency = "1 week"; only_run_on = [ "Sunday" ]; }
-    # every byte of every archive, once a week, on Sunday (the owner's choice, 2026-10-02); `data` implies the `archives` check
-    { name = "data"; frequency = "1 week"; only_run_on = [ "Sunday" ]; }
+    { name = "repository"; }
+    { name = "extract"; }
+    { name = "data"; }
   ];
+
 in
 {
   services.borgmatic = {
@@ -32,7 +34,7 @@ in
       };
     };
   };
-  systemd.timers.borgmatic.timerConfig = { OnCalendar = [ "" "*-*-* 04:30:00" ]; Persistent = true; };   # the empty entry resets the package's own "daily"
+  systemd.timers.borgmatic.timerConfig = { OnCalendar = [ "" "Sun *-*-* 04:30:00" ]; Persistent = true; };   # the empty entry resets the package's own "daily"
 
   systemd.services.pgbackrest-restore-test = {
     description = "Restore the latest pgBackRest backup into a scratch directory and check it";

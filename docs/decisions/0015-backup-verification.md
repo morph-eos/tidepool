@@ -82,6 +82,23 @@ Failure detection, on a copy of the repository with one backup file overwritten:
 - **The exceptions register gets an entry** (2) for the restore-test unit: it is a script of ours (about 20 lines) with no native way to do what it does.
 - **Not adopted:** B (two manual pieces for a check that needs live-file tolerances anyway).
 
+## The patience of the Borg jobs, and the weekly check (2026-10-02, follow-up)
+
+The owner asked for the full data check every week; the jobs wait at most `--lock-wait` for the repository, and 2 hours was a guess. Tried in the lab on a **4 GB repository of incompressible data** (lab figures: a virtual disk, 4 vCPUs; **the real disk and CPU are unmeasured**):
+
+| Strategy | What it does | Result |
+|---|---|---|
+| **A. a long `--lock-wait`** | the job waits for the check, then runs | **works**. A job started 3 s into a 23 s check finished at **60 s**: **a waiting job looks at the lock once a minute** (finishes at 60, 120, 180 s whatever the hold: 3, 10, 20, 40, 70 and 130 s were tried), so it notices the release up to a minute late. A job with no contention takes 0.6 s. With `--lock-wait 1` the job **fails at once** (exit 2) |
+| **D. partial repository checks** (`borg check --repository-only --max-duration N`, in borgmatic `max_duration`) | the lock is held for at most N seconds per run and the next run **resumes** where the last stopped | **works**: slices of 3 s covered the 4 GB repository in two runs (segments 0-8, then 9-21), then started over; it **found the damaged segment in its first slice**. **But** it checks only the segment files' checksums and structure: **borg refuses `--max-duration` together with `--verify-data`**, so it never reads or decrypts the chunks. It is a weaker check than the one the owner asked for |
+| **F. the backup preempts the check** (a systemd `Conflicts=` from the Borg job to the check) | starting the job stops the running check | **works** (the job ran in 0.6 s, no stale lock left, the next job fine) **but the check restarts from zero** (a full pass again: 20.5 s for 4 GB), so a check longer than the gap between two jobs would **never finish** |
+| (not possible) check a snapshot or a copy | | the 16 TB disk is ext4: no snapshot; a copy of 165 GB is not a check, it is a second backup; and **opening a copy of a repository makes the real jobs fail** (found earlier) |
+
+**How long will the check take?** The lab verified the 4 GB in **23 s, 177 MB/s** (segment checksums alone: 890 MB/s). At the same speed **165 GB would take about 16 minutes**; a spinning disk and a slower CPU could make that several times longer. It is an extrapolation, to be replaced by the first real run.
+
+**Decision (the best of the three for the owner's requirement): A, with `--lock-wait 14400` (4 hours) on both jobs.** It keeps the check exactly as the owner asked (every byte, every week), needs no code, and 4 hours is about four times the extrapolated duration. The wait is also **the alarm time**: a backup blocked for more than 4 hours fails and raises `UnitFailed`; a longer wait would hide a hung check, because the timer-based staleness rule sees the timer firing hourly even while the job waits. D stays available as a **lighter daily addition** if the weekly check ever proves too long; F is rejected.
+
+**One schedule only.** borgmatic had two schedules working against each other: a **daily timer** and, inside the configuration, `frequency` and `only_run_on`. Measured on paper and in the unit: a check that ends at 04:50 is *less than a week* before the next 04:30, so the weekly check would drift by a day each week; and a Sunday missed by a powered-off machine (the timer is `Persistent`) would be skipped silently, with `BorgChecksStale` quiet because the timer still fires every day. Now **the timer is weekly (Sunday 04:30, `Persistent`) and every run does all the checks**; `BorgChecksStale` waits 8 days. (The borgmatic package also delays its start by one minute: a service run takes about a minute even on a tiny repository.)
+
 ## How a failure reaches the owner (tested in the lab, 2026-10-02)
 
 A **real** backup failure was made on the integrated lab host (the offsite repository's directory made immutable, so the Borg job could not take its lock). Times from the failure: the job fails at 0 s, `UnitFailed` is **pending after about 1 minute and firing at 6 minutes** (the rule waits 5 minutes), and **the mail arrives 13 seconds later** (Alertmanager's `group_wait` is 30 s in production; the lab's mail sink received it at 6 min 13 s). Once the repository was repaired and the job ran, the alert **cleared by itself**. The same path covers every failing unit: the Borg jobs, pgBackRest's, borgmatic's checks, the restore test, the certificate orders.

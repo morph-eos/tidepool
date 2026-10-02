@@ -59,7 +59,7 @@ let
         labels: { severity: critical }
       # the verification jobs of verify.nix must keep running: a check nobody runs is no check
       - alert: BorgChecksStale
-        expr: (time() - node_systemd_timer_last_trigger_seconds{name="borgmatic.timer"} > 259200) and on() (time() - node_boot_time_seconds > 259200)
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name="borgmatic.timer"} > 691200) and on() (time() - node_boot_time_seconds > 691200)   # the timer is weekly: 8 days
         labels: { severity: warning }
       - alert: RestoreTestStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name="pgbackrest-restore-test.timer"} > 3888000) and on() (time() - node_boot_time_seconds > 3888000)
@@ -97,15 +97,27 @@ in
     alertmanager = {
       enable = true;
       listenAddress = "127.0.0.1";
+      environmentFile = config.sops.secrets.alertmanager-env.path;
+      checkConfig = false;   # amtool cannot check the unexpanded address
       configuration = {
         route = {
           receiver = "mail";
           group_by = [ "alertname" ]; group_wait = "30s"; group_interval = "5m"; repeat_interval = "12h";
-          routes = [ { matchers = [ "severity = heartbeat" ]; receiver = "heartbeat"; repeat_interval = "2m"; group_wait = "0s"; } ];
+          routes = [
+            # the Watchdog goes two ways: a webhook ping every 2 minutes (a dead machine or a dead Alertmanager is noticed within minutes) ...
+            { matchers = [ "severity = heartbeat" ]; receiver = "heartbeat"; repeat_interval = "1m"; group_interval = "2m"; group_wait = "0s"; continue = true; }
+            # ... and a MAIL through the same relay as the real alerts, to the address of a second check (its period is a day): if the mail path breaks, that check goes silent
+            # and Healthchecks.io says so by its own mail, which does not depend on our relay. (A webhook ping alone would hide a broken relay.)
+            { matchers = [ "severity = heartbeat" ]; receiver = "mailpath"; repeat_interval = if cfg.lab then "1m" else "5h"; group_interval = if cfg.lab then "3m" else "1h"; group_wait = "0s"; }
+            # Alertmanager resends only at a group_interval tick, and only if repeat_interval has already passed: with the two EQUAL the tick comes a few milliseconds too early and a tick is skipped
+            # (measured: pings every 4 minutes with both at 2 minutes). So repeat_interval is kept below group_interval: a ping every 2 minutes, a mail every 6 hours in production.
+          ];
         };
         receivers = [
           { name = "mail"; email_configs = [ ({ to = mailTo; from = mailFrom; } // smtp) ]; }
           { name = "heartbeat"; webhook_configs = [ heartbeat ]; }
+          # $HEALTHCHECKS_MAIL is replaced from the sops file below: the check's address is a secret (whoever knows it can fake a ping), and `to` cannot be read from a file
+          { name = "mailpath"; email_configs = [ ({ to = "$HEALTHCHECKS_MAIL"; from = mailFrom; headers.Subject = "tidepool mail path alive"; } // smtp) ]; }
         ];
       };
     };

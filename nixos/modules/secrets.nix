@@ -13,6 +13,7 @@ let cfg = config.tidepool; in
     wg-private-key = { };
     smtp-password = { };
     heartbeat-url = { };
+    alertmanager-env = { };   # HEALTHCHECKS_MAIL=<the mail address of the second Healthchecks check>
   };
   # pgBackRest reads extra files from conf.d: the module refuses the cipher passphrase as an option (it would land in the world-readable Nix store)
   sops.templates."pgbackrest-secret.conf" = {

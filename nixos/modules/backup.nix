@@ -8,7 +8,10 @@ let
     startAt = "hourly";
     prune.keep = { daily = 7; weekly = 4; };
     failOnWarnings = false;   # a file that changes while it is read is a warning, not a failure
-    extraArgs = [ "--lock-wait" "7200" ];   # a verification (verify.nix) holds the repository exclusively for a while: the job waits for it instead of failing
+    # The weekly full check (verify.nix) holds the repository exclusively; the job waits for it instead of failing. A waiting job looks again once a minute (measured).
+    # The wait is also the alarm time: a backup blocked longer than this fails and raises UnitFailed. 4 hours is about 4 times what the check should take on the real data
+    # (the lab verified 177 MB/s, about 16 minutes for 165 GB; the real disk and CPU are unmeasured).
+    extraArgs = [ "--lock-wait" "14400" ];
   };
 in
 {

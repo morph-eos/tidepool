@@ -106,6 +106,20 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 
 One check with a short period and a grace time of a few minutes; Alertmanager's `Watchdog` calls its ping address (a secret, read from a sops file, not in the Nix store). It receives the fact that a ping arrived.
 
+## Update 2026-10-02: a second path, to notice a broken mail relay
+
+**The gap.** Alerts go by mail through Brevo. If the relay or its credentials break, alerts fire and **are not delivered**, and the heartbeat does not notice: it pings a webhook and says only that the machine and Alertmanager are alive.
+
+**What was considered.** The push channel of the first round (**ntfy**, tested in the lab: the push arrived in the same second as the mail, about 16 MiB for the two services) was **not rejected for a defect**: the owner chose email only on 2026-10-01, and it stays in `exp/observability`, to be added in a few lines. Its limits are those already noted: the phone must reach the server (the VPN, or a public name), and iOS needs the upstream relay. The owner now feels safe enough with Brevo, so the cheaper question is how to **notice** that Brevo fails, not how to add another way to receive alerts.
+
+**What was built and tested (lab).** Alertmanager sends the always-firing `Watchdog` **twice**, on two routes (`continue: true`): a **webhook** ping every 2 minutes (a dead machine or a dead Alertmanager), and a **mail through the same relay as the real alerts**, to the address of a **second** Healthchecks.io check. Healthchecks accepts pings **by email** (its documentation: "any email received at the displayed address counts as a success signal"; whether the free plan includes it is not stated there: **to be seen when the account is made**). If the mail path breaks, the second check goes silent and **Healthchecks says so by its own mail**, which does not depend on our relay. It is declared in the Alertmanager configuration, **no script**; the check's address is a secret (whoever knows it can fake a ping) and `to` cannot be read from a file, so the file `alertmanager-env` of the sops secrets holds `HEALTHCHECKS_MAIL=` and the module's `environmentFile` substitutes it: **the substituted configuration holds the address, the copy in the Nix store holds only the placeholder** (checked).
+
+**Production values:** the mail every 6 hours; the second check with a period of 12 hours and a grace of 6, so a broken relay is noticed within about 18 hours; the first check (the webhook) with a period of 10 minutes and a grace of 10. **Healthchecks.io now needs two checks** (the free plan allows 20).
+
+**What the lab taught about Alertmanager timing.** It resends a notification only at a **`group_interval` tick**, and only if **`repeat_interval` has already elapsed**: with the two equal, the tick comes a few milliseconds early and a tick is skipped. Measured: with both at 2 minutes the heartbeat went **every 4 minutes**; with `repeat_interval` 1 minute and `group_interval` 2 minutes it goes **every 2 minutes**. (The 2-minute figure of the first round came from this same effect.) The routes now set both explicitly.
+
+**Not tested:** a real mail through Brevo, Healthchecks receiving an email ping and alerting on its silence, the 18-hour detection time.
+
 ## Consequences
 
 - The **Borg and pgBackRest jobs** must each expose a systemd timer that `TimerStale` watches, and **a failed backup unit is a `UnitFailed`**: that closes the "notification when a backup job fails" item without touching the Borg module. `borg check` and the verification restore remain phase 7.
