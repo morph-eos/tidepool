@@ -75,4 +75,4 @@ Whether the VM manager stays **Incus** is phase 6: the same design works with an
 
 - A phone that must reach a VM needs the VPN on; nothing about a VM is visible from the Internet unless a line says so.
 - The Incus VM disks sit on the 2 TB disk ([ADR 0005](0005-storage-layout-and-filesystem.md)); a VM that matters is a service, not a test machine, and is declared as one.
-- Docker and Incus on the same machine must be tested together before phase 6 closes.
+- Docker and Incus on the same machine had to be tested together: **done in [ADR 0013](0013-vms-and-containers.md)** (both coexist with the same ten declared lines; the NixOS firewall's "allow port forward" rule makes any engine's bare `-p` public, closed by a six-line publication gate; Podman proposed in place of Docker).
