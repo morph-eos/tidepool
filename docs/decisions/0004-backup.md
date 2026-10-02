@@ -168,7 +168,7 @@ Whether a maintained NixOS module exists is the test ([principles](../principles
 6. **Fit with NixOS and the offsite path** (Proton Drive or another target).
 7. **Effort and moving parts:** setup time, tools to keep updated, how much of it is declarative.
 
-## The full-drill scenario (planned; it belongs to phase 7)
+## The full-drill scenario (planned; it belongs to phase 7: **run and passed in the lab on 2026-10-02**, [ADR 0014](0014-automation-and-restore-drill.md))
 
 The complete drill, planned for phase 7 and **not yet run**: a lab VM with a Postgres database, a directory of files with known checksums and an SQLite file; a backup; then the VM is destroyed, a new empty one is built from the flake, and only the backup copy
 and the key are given to it. Measured: backup time and size, time to restore, and whether every file and every row came back. Then the negative cases: wrong key, a damaged repository, a deleted archive.

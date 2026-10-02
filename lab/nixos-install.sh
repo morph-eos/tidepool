@@ -21,6 +21,8 @@ AGE_KEY="${TIDEPOOL_AGE_KEY:-$LAB/age-lab.key}"
 PUBKEY="${TIDEPOOL_SSH_KEY:-$HOME/.ssh/id_ed25519.pub}"
 PY="${TIDEPOOL_PY:-$LAB/pyenv/bin/python}"
 VMDIR="$LAB/vms/$NAME"
+HOST_ATTR="${TIDEPOOL_HOST:-tidepool-lab}"          # the flake output to install (the integrated lab host is "lab")
+LAYOUT="${TIDEPOOL_LAYOUT:-parted}"               # parted: the old two-line layout; disko: the layout declared in the flake (modules/storage.nix)
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes)
 
 log() { echo "[nixos-install] $*"; }
@@ -72,19 +74,28 @@ tar -C "$REPO" -cf - nixos | ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1
 ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 'cat > ~/age.key' < "$AGE_KEY"
 
 log "partitioning, formatting, installing (downloads the system: this is the long step)"
-ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 'bash -s' <<'REMOTE'
+ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR bash -s" <<'REMOTE'
 set -euo pipefail
 export NIX_CONFIG='experimental-features = nix-command flakes'
 # Lock the inputs first, as the normal user: if nixos-install creates flake.lock itself (as root) the hash of the
 # flake directory changes in the middle of the evaluation and it fails with "NAR hash mismatch".
 nix flake lock path:$HOME/nixos
 sudo umount -R /mnt 2>/dev/null || true
-sudo parted -s /dev/vda -- mklabel msdos mkpart primary ext4 1MiB 100%
-sudo mkfs.ext4 -q -L nixos /dev/vda1
-sudo mount /dev/disk/by-label/nixos /mnt
+if [ "$LAYOUT" = disko ]; then
+    # first-time provisioning of the two large backup disks: made only if they hold no filesystem, so a reinstall that keeps them (the restore drill) leaves them alone
+    for dev in /dev/disk/by-id/virtio-TPXTRA0001 /dev/disk/by-id/virtio-TPXTRA0002; do
+        [ -e "$dev" ] && ! sudo blkid "$dev" >/dev/null 2>&1 && sudo mkfs.ext4 -q "$dev" && echo "formatted $dev" && sudo mount "$dev" /mnt && sudo mkdir -p /mnt/incus-state && sudo umount /mnt
+    done
+    # the layout comes from the flake: the system disk and the SSD's ZFS pool are wiped and made; the two large backup disks are not touched
+    sudo -H -E nix run github:nix-community/disko -- --mode destroy,format,mount --yes-wipe-all-disks --flake path:$HOME/nixos#${HOST_ATTR}
+else
+    sudo parted -s /dev/vda -- mklabel msdos mkpart primary ext4 1MiB 100%
+    sudo mkfs.ext4 -q -L nixos /dev/vda1
+    sudo mount /dev/disk/by-label/nixos /mnt
+fi
 sudo mkdir -p /mnt/var/lib/sops-nix
 sudo install -m 600 ~/age.key /mnt/var/lib/sops-nix/key.txt
-sudo -H -E nixos-install --flake path:$HOME/nixos#tidepool-lab --no-root-passwd
+sudo -H -E nixos-install --flake path:$HOME/nixos#${HOST_ATTR} --no-root-passwd
 REMOTE
 T_INSTALL=$(date +%s)
 

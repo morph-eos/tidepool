@@ -1,0 +1,111 @@
+# Observability (ADR 0012): Prometheus and Alertmanager with declared rules, email only (Brevo's relay), and a heartbeat to an outside dead-man's switch (Healthchecks.io).
+# Lab: the mail goes to a local sink and the heartbeat to a local sink (hosts/lab/fixtures.nix).
+{ config, lib, pkgs, ... }:
+let
+  cfg = config.tidepool;
+  d = cfg.domain;
+  mailFrom = "alerts@${d}"; mailTo = "admin@${d}";
+  smtp = if cfg.lab
+    then { smarthost = "127.0.0.1:1025"; require_tls = false; }
+    else { smarthost = "smtp-relay.brevo.com:587"; require_tls = true; auth_username = "alerts@${d}"; auth_password_file = "/run/credentials/alertmanager.service/smtp-password"; };
+  heartbeat = if cfg.lab then { url = "http://127.0.0.1:8112/ping"; } else { url_file = "/run/credentials/alertmanager.service/heartbeat-url"; };
+  blackboxCfg = pkgs.writeText "blackbox.yml" (builtins.toJSON { modules = {
+    https = { prober = "http"; timeout = "10s"; http = { valid_status_codes = [ 200 301 302 401 403 404 ]; tls_config.insecure_skip_verify = cfg.lab; }; };   # production verifies the chain: a placeholder certificate must fail
+    caa = { prober = "dns"; timeout = "10s"; dns = { query_name = d; query_type = "CAA"; preferred_ip_protocol = "ip4"; validate_answer_rrs.fail_if_not_matches_regexp = [ ".*letsencrypt\\.org.*" ]; }; };
+  }; });
+  rules = pkgs.writeText "rules.yml" ''
+    groups:
+    - name: tidepool
+      rules:
+      - alert: Watchdog
+        expr: vector(1)
+        labels: { severity: heartbeat }
+      - alert: UnitFailed
+        expr: node_systemd_unit_state{state="failed"} == 1
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.name }} has failed" }
+      - alert: EndpointDown
+        expr: probe_success{job="https"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "{{ $labels.instance }} does not answer" }
+      - alert: CertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry{job="https"} - time() < 1209600
+        labels: { severity: warning }
+        annotations: { summary: "the certificate of {{ $labels.instance }} expires within 14 days" }
+      - alert: CaaMissing
+        expr: probe_success{job="caa"} == 0
+        for: 10m
+        labels: { severity: critical }
+      - alert: DiskAlmostFull
+        expr: node_filesystem_avail_bytes{fstype=~"ext4|zfs"} / node_filesystem_size_bytes{fstype=~"ext4|zfs"} < 0.10
+        for: 10m
+        labels: { severity: critical }
+        annotations: { summary: "{{ $labels.mountpoint }} has less than 10% free" }
+      - alert: MemoryPressure
+        expr: rate(node_pressure_memory_waiting_seconds_total[5m]) > 0.2
+        for: 10m
+        labels: { severity: warning }
+      - alert: PostgresArchiveFailing
+        expr: increase(pg_stat_archiver_failed_count[1h]) > 0
+        labels: { severity: critical }
+      # a backup timer that has not fired (a never-triggered timer reads 0, hence the "machine up longer than the window" guard)
+      - alert: BorgBackupStale
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"borgbackup-job-.*\\.timer"} > 14400) and on() (time() - node_boot_time_seconds > 14400)
+        labels: { severity: critical }
+      - alert: PgBackrestStale
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"pgbackrest-.*\\.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
+        labels: { severity: critical }
+      - alert: CertificateRenewalStale
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"acme-renew-.*\\.timer"} > 172800) and on() (time() - node_boot_time_seconds > 172800)
+        labels: { severity: warning }
+  '';
+  probe = name: module: targets: {
+    job_name = name; metrics_path = "/probe"; params.module = [ module ];
+    static_configs = [ { inherit targets; } ];
+    relabel_configs = [ { source_labels = [ "__address__" ]; target_label = "__param_target"; } { source_labels = [ "__param_target" ]; target_label = "instance"; } { target_label = "__address__"; replacement = "127.0.0.1:9115"; } ];
+  };
+in
+{
+  services.prometheus = {
+    enable = true;
+    listenAddress = "127.0.0.1";
+    retentionTime = "30d";
+    globalConfig = { scrape_interval = "30s"; evaluation_interval = "30s"; };
+    exporters = {
+      node = { enable = true; listenAddress = "127.0.0.1"; enabledCollectors = [ "systemd" ]; };
+      postgres = { enable = true; listenAddress = "127.0.0.1"; runAsLocalSuperUser = true; };
+      blackbox = { enable = true; listenAddress = "127.0.0.1"; configFile = "${blackboxCfg}"; };
+      smartctl = lib.mkIf (!cfg.lab) { enable = true; listenAddress = "127.0.0.1"; devices = [ cfg.disks.system cfg.disks.tank cfg.disks.backup16 cfg.disks.big2tb ]; };
+    };
+    ruleFiles = [ rules ];
+    alertmanagers = [ { static_configs = [ { targets = [ "127.0.0.1:9093" ]; } ]; } ];
+    scrapeConfigs = [
+      { job_name = "node"; static_configs = [ { targets = [ "127.0.0.1:9100" ]; } ]; }
+      { job_name = "postgres"; static_configs = [ { targets = [ "127.0.0.1:9187" ]; } ]; }
+      (probe "https" "https" [ "https://vault.${d}/alive" "https://cloud.${d}/status.php" "https://photos.${d}/api/server/ping" "https://jelly.${d}/health" "https://dav.${d}/" ])
+      (probe "caa" "caa" [ "1.1.1.1" ])   # the CAA record, asked of a public resolver, as a CA would see it
+    ] ++ lib.optional (!cfg.lab) { job_name = "smartctl"; static_configs = [ { targets = [ "127.0.0.1:9633" ]; } ]; };
+    alertmanager = {
+      enable = true;
+      listenAddress = "127.0.0.1";
+      configuration = {
+        route = {
+          receiver = "mail";
+          group_by = [ "alertname" ]; group_wait = "30s"; group_interval = "5m"; repeat_interval = "12h";
+          routes = [ { matchers = [ "severity = heartbeat" ]; receiver = "heartbeat"; repeat_interval = "2m"; group_wait = "0s"; } ];
+        };
+        receivers = [
+          { name = "mail"; email_configs = [ ({ to = mailTo; from = mailFrom; } // smtp) ]; }
+          { name = "heartbeat"; webhook_configs = [ heartbeat ]; }
+        ];
+      };
+    };
+  };
+  # Alertmanager runs as a dynamic user: systemd hands it the two secrets as credentials (they never enter the Nix store and are readable by that unit only)
+  systemd.services.alertmanager.serviceConfig.LoadCredential = [
+    "smtp-password:${config.sops.secrets.smtp-password.path}"
+    "heartbeat-url:${config.sops.secrets.heartbeat-url.path}"
+  ];
+}

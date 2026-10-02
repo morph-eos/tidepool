@@ -1,6 +1,6 @@
 # Host specification (the same test for every candidate)
 
-Distilled from the host layer of v0 (see [the README](../../README.md)): SSH policy, fail2ban, Docker, crash diagnostics, a systemd timer, disks identified by serial number and
+Distilled from the host layer of v0 (see [the README](../../README.md)): SSH policy, fail2ban, Docker (now Podman), crash diagnostics, a systemd timer, disks identified by serial number and
 a delivered secret. Every candidate for "the host as code" (see [ADR 0002](../decisions/0002-host-as-code.md)) must reach this state from an empty Ubuntu 24.04 machine, with one command,
 and [`lab/check-host.sh`](../../lab/check-host.sh) verifies it from the outside. The checker knows nothing about the tool that built the machine.
 
@@ -9,7 +9,7 @@ and [`lab/check-host.sh`](../../lab/check-host.sh) verifies it from the outside.
 | H01 | An admin user exists with SSH key login and sudo | the only way in is a key |
 | H02 | sshd listens on **2222 only**, password login off, `PermitRootLogin prohibit-password`, `MaxAuthTries 3` | non-default port, key only; on Ubuntu 24.04 `ssh.socket` decides the port, not `sshd_config` |
 | H03 | fail2ban is active with an `sshd` jail on 2222, `maxretry 3` | ban after three attempts |
-| H04 | Docker Engine answers, the Compose plugin is present and the service is enabled | the whole stack is one Compose project |
+| H04 | **Podman** answers and a declared container runs (changed from Docker, [ADR 0013](../decisions/0013-vms-and-containers.md)) | the stack's containers are declared as units; there is no Compose file |
 | H05 | The kernel command line has `softlockup_panic=1`, and a crash kernel is **loaded** and reserves exactly 256 MiB | a lockup becomes a panic with a vmcore instead of a hung machine |
 | H06 | A `tidepool-fixperms.timer` exists, is enabled and active (it restores the executable bit on scripts) | Samba and macOS strip `+x` |
 | H07 | The data disk with serial `TPDATA0001` has an ext4 filesystem, mounted on `/mnt/nas` through a stable identifier in `fstab` (`UUID=` or `/dev/disk/by-...`, never `/dev/sdX`) | disks are identified by serial, never by `/dev/sdX` |
