@@ -10,10 +10,10 @@ let
     lock_wait = 7200;
   };
   checks = [
-    { name = "repository"; frequency = "1 week"; }
-    { name = "archives"; frequency = "1 week"; }
-    { name = "extract"; frequency = "1 week"; }
-    { name = "data"; frequency = "3 months"; }
+    { name = "repository"; frequency = "1 week"; only_run_on = [ "Sunday" ]; }
+    { name = "extract"; frequency = "1 week"; only_run_on = [ "Sunday" ]; }
+    # every byte of every archive, once a week, on Sunday (the owner's choice, 2026-10-02); `data` implies the `archives` check
+    { name = "data"; frequency = "1 week"; only_run_on = [ "Sunday" ]; }
   ];
 in
 {

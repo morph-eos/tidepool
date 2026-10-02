@@ -1,6 +1,6 @@
 # 0015. Backup verification: checks that say a backup can be restored, without touching production
 
-- **Status:** proposed (2026-10-02): measured in the lab; waits for the owner
+- **Status:** accepted (2026-10-02): the owner accepted the exceptions-register entry and asked for the full data check **every week** (Sunday) instead of every three months
 - **Date:** 2026-10-02
 - **Phase:** 7, Automation (follow-up)
 
@@ -76,11 +76,17 @@ Failure detection, on a copy of the repository with one backup file overwritten:
 
 **A for Borg, E for PostgreSQL, with the lock wait on the Borg jobs, and staleness alerts.**
 
-- **Borg:** borgmatic with `skip_actions` and two configurations (one per repository, each with its own source paths): `repository`, `archives` and `extract` **weekly**, `data` **every three months**; the timer at 04:30; **`--lock-wait 7200` on both Borg jobs**.
+- **Borg:** borgmatic with `skip_actions` and two configurations (one per repository, each with its own source paths): `repository`, `extract` and `data` **weekly, on Sunday** (the owner chose the weekly data check on 2026-10-02; `data` implies `archives`); the timer at 04:30; **`--lock-wait 7200` on both Borg jobs**.
 - **PostgreSQL:** the unit and its timer **monthly**.
 - **Alerts** ([ADR 0012](0012-observability.md)): `UnitFailed` already covers a failing check; two new rules, **`BorgChecksStale`** (the borgmatic timer silent for three days) and **`RestoreTestStale`** (the restore-test timer silent for 45 days).
 - **The exceptions register gets an entry** (2) for the restore-test unit: it is a script of ours (about 20 lines) with no native way to do what it does.
 - **Not adopted:** B (two manual pieces for a check that needs live-file tolerances anyway).
+
+## How a failure reaches the owner (tested in the lab, 2026-10-02)
+
+A **real** backup failure was made on the integrated lab host (the offsite repository's directory made immutable, so the Borg job could not take its lock). Times from the failure: the job fails at 0 s, `UnitFailed` is **pending after about 1 minute and firing at 6 minutes** (the rule waits 5 minutes), and **the mail arrives 13 seconds later** (Alertmanager's `group_wait` is 30 s in production; the lab's mail sink received it at 6 min 13 s). Once the repository was repaired and the job ran, the alert **cleared by itself**. The same path covers every failing unit: the Borg jobs, pgBackRest's, borgmatic's checks, the restore test, the certificate orders.
+
+The staleness rules read `node_systemd_timer_last_trigger_seconds` with the timers' real names (checked against the live metrics: `borgbackup-job-*.timer`, `pgbackrest-default-*.timer`, `borgmatic.timer`, `pgbackrest-restore-test.timer`), and all rules load without error. **Not tested:** a staleness rule actually firing (it needs the timer to stay silent for hours or days), a real mail through Brevo, the heartbeat at Healthchecks.io.
 
 ## What this does not cover
 
@@ -88,6 +94,7 @@ Failure detection, on a copy of the repository with one backup file overwritten:
 - **The duration on the real data**: `borg check --verify-data` reads every chunk of a repository of that size from a spinning disk, probably **hours**; it holds the repository exclusively, and the jobs wait for it (`--lock-wait`). The quarterly schedule is a guess to be corrected by the first real run.
 - **The offsite copy**: the verification of the repository at the provider is not designed here ([ADR 0007](0007-offsite-copy.md)).
 - **Application-level consistency** (Nextcloud's database against its files): only the restore drill looks at it.
+- **A check that runs but a mail that cannot be sent** is silent: if Brevo is unreachable or the credentials are wrong, failures are raised and not delivered; only the heartbeat's own silence (a dead machine or a dead Alertmanager) is noticed from outside. A periodic test mail is not designed.
 - The restore-test unit checks the **latest** backup with its WAL; older backups are checked by `verify` only.
 
 ## Found along the way
@@ -96,7 +103,12 @@ Failure detection, on a copy of the repository with one backup file overwritten:
 - The drill's seed step raced the Borg jobs (not `oneshot`): fixed by waiting for them.
 - **Never open a copy of a repository under the account that runs the backups**: Borg remembers where each repository id was last seen, and after a check on a *copy* of the repository the real jobs failed with "previously located at /tmp/...: Do you want to continue? Aborting" until `BORG_RELOCATED_REPO_ACCESS_IS_OK=yes borg list` was run once. A lab mistake of mine, but the same would happen after any restore of a repository copy to a new path.
 
-## Open questions for the owner
+## Answered by the owner (2026-10-02)
+
+1. The 20-line restore-test unit in the exceptions register: **accepted** (entry 2).
+2. The full data check: **every week**, not every three months. The cost on the real data is a guess to be measured: the `--lock-wait` of the Borg jobs (2 hours) may have to grow if the check on 165 GB takes longer than that, or the hourly jobs will fail after waiting.
+
+## Questions that were open
 
 1. **Accept an entry in the exceptions register** for a 20-line unit of ours, in exchange for a real restore test of the databases every month?
 2. **The `data` check every three months**: acceptable even if it holds the Borg repositories for hours (the jobs wait)?
