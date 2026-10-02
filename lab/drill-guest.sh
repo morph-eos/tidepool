@@ -23,7 +23,10 @@ marker() { for db in immich vaultwarden nextcloud; do pg -d $db -c "create table
 first_archive_after_good() { # the first archive of the repository of everything that starts at or after T_GOOD (names carry local start times and sort)
   local t; t=$(date -d "$T_GOOD" +%Y-%m-%dT%H:%M:%S); BORG_REPO=/mnt/backup16/borg-everything borg list --short | sort | awk -v t="tidepool-lab-everything-$t" '$0 >= t {print; exit}'
 }
-borg_jobs() { systemctl start borgbackup-job-everything.service borgbackup-job-offsite.service; }
+borg_jobs() { # the Borg jobs are not oneshot units: `systemctl start` returns at once, so wait for them to finish
+  systemctl start borgbackup-job-everything.service borgbackup-job-offsite.service; sleep 1
+  while systemctl is-active --quiet borgbackup-job-everything.service borgbackup-job-offsite.service; do sleep 1; done
+}
 
 case "${1:?stage}" in
 wait)
@@ -40,6 +43,7 @@ seed1)
   put lab:$DAVPASS https://dav.lab.test/w-a1.txt "webdav a1"
   incus launch images:alpine/3.24 drill-ct -s smr --quiet >/dev/null 2>&1 </dev/null; for i in $(seq 1 30); do incus exec drill-ct -- true </dev/null 2>/dev/null && break; sleep 2; done; incus exec drill-ct -- sh -c 'echo incus-marker > /root/marker' </dev/null
   say "Incus: an instance on the directory pool of the 2 TB disk: $(incus list drill-ct -f csv -c ns </dev/null)"
+  setv RSA_SUM "$(sha256sum /var/lib/vaultwarden/rsa_key.pem | cut -d" " -f1)"
   marker before
   systemctl start pgbackrest-default-weekly.service; say "pgBackRest full backup: $(systemctl is-active pgbackrest-default-weekly.service); backups: $(runuser -u postgres -- pgbackrest --stanza=default info --output=json | jq -c '[.[0].backup[] | .type]')"
   borg_jobs; say "Borg jobs done: $(systemctl is-failed borgbackup-job-everything.service borgbackup-job-offsite.service | tr '\n' ' ')"
@@ -75,7 +79,7 @@ stop-services)
   ;;
 restore-files)
   ARCHIVE=$(first_archive_after_good)
-  find /srv/data -mindepth 1 -delete; rm -rf /var/lib/bitwarden_rs
+  find /srv/data -mindepth 1 -delete; rm -rf /var/lib/vaultwarden
   s=$(date +%s); (cd / && BORG_REPO=/mnt/backup16/borg-everything borg extract --list ::"$ARCHIVE" 2>&1 | tail -n 0)
   say "files restored from $ARCHIVE in $(( $(date +%s) - s )) s: $(find /srv/data -type f | wc -l) files under /srv/data"
   ;;
@@ -106,6 +110,7 @@ verify)
   [ "$(nc https://cloud.lab.test/remote.php/dav/files/root/nc-b2.txt)" = "nextcloud file b2" ] && ok "Nextcloud: the deleted file's content is back" || no "Nextcloud: nc-b2.txt content"
   [ "$(curl -sk -u lab:$DAVPASS https://dav.lab.test/w-b1.txt)" = "webdav b1" ] && ok "WebDAV: the deleted file is back, with its content" || no "WebDAV: w-b1.txt"
   curl -sf http://127.0.0.1:8222/alive >/dev/null && ok "Vaultwarden answers on its restored database" || no "Vaultwarden"
+  [ "$(sha256sum /var/lib/vaultwarden/rsa_key.pem | cut -d" " -f1)" = "$RSA_SUM" ] && ok "Vaultwarden: its RSA key (outside the database) is the one that was backed up" || no "Vaultwarden RSA key"
   incus start drill-ct </dev/null >/dev/null 2>&1; for i in $(seq 1 30); do incus exec drill-ct -- true </dev/null 2>/dev/null && break; sleep 2; done
   [ "$(incus exec drill-ct -- cat /root/marker </dev/null 2>&1)" = "incus-marker" ] && ok "Incus: the instance on the surviving 2 TB pool is back and its file is intact" || no "Incus instance"
   for r in /mnt/backup16/borg-everything /mnt/big2tb/borg-offsite; do BORG_REPO=$r borg check --verify-data >/dev/null 2>&1 && ok "borg check --verify-data: $r" || no "borg check: $r"; done

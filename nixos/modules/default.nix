@@ -14,5 +14,6 @@
     ./vms.nix
     ./publish-gate.nix
     ./observability.nix
+    ./verify.nix
   ];
 }

@@ -30,14 +30,14 @@ mount it, then:  mkdir incus-state          # on the 2 TB disk only: Incus's sta
 3. Put the age key where sops-nix looks: `install -m 600 age.key /mnt/var/lib/sops-nix/key.txt`.
 4. `nixos-install --flake path:nixos#<host> --no-root-passwd`, then reboot.
 
-Lab: **550-559 s** from the disaster to a booted system. The services start **empty**; `incus-preseed` and the others are active, `PostgresArchiveFailing` fires until step C ends with a backup (expected).
+Lab: **547-559 s** from the disaster to a booted system. The services start **empty**; `incus-preseed` and the others are active, `PostgresArchiveFailing` fires until step C ends with a backup (expected).
 
 ## C. Restore
 
 Decide the moment **T** (the last good one). The files come from the **first Borg archive at or after T**; the database goes **to T**.
 
 1. **Stop the services and the timers:** the Borg and pgBackRest timers, nginx, Nextcloud's php-fpm, Vaultwarden, the Immich containers, Syncthing, Prometheus, Alertmanager.
-2. **Files:** empty `/srv/data` and `/var/lib/bitwarden_rs`, then from `/`:
+2. **Files:** empty `/srv/data` and `/var/lib/vaultwarden`, then from `/`:
    `BORG_PASSCOMMAND="cat /run/secrets/borg-passphrase" BORG_REPO=/mnt/backup16/borg-everything borg extract ::<archive>`
    (list the archives with `borg list --short`; their names carry the local start time and sort).
 3. **Database:** stop PostgreSQL, empty `/var/lib/postgresql/17`, then as `postgres`:
@@ -47,11 +47,11 @@ Decide the moment **T** (the last good one). The files come from the **first Bor
 5. **Start** PostgreSQL, nginx, Nextcloud's php-fpm, Vaultwarden, the Immich containers, Syncthing, Prometheus, Alertmanager and the timers.
 6. **End with a backup:** `systemctl start pgbackrest-default-weekly borgbackup-job-everything borgbackup-job-offsite`. It makes the repositories current and clears `PostgresArchiveFailing`.
 
-Lab: **167 s** from the first command to the end of the checks.
+Lab: **167-169 s** from the first command to the end of the checks.
 
 ## D. Check it (what the drill checks)
 
-Immich: the number of assets is the number at T, and every original is served. A marker row written before T is in each database, one written after is not. Nextcloud and WebDAV: the files at T, content included, **including what was deleted after T**. Vaultwarden answers. An Incus instance on the 2 TB pool is back with its file. `borg check --verify-data` passes on both repositories; `pgbackrest check` passes; no unit has failed.
+Immich: the number of assets is the number at T, and every original is served. A marker row written before T is in each database, one written after is not. Nextcloud and WebDAV: the files at T, content included, **including what was deleted after T**. Vaultwarden answers and its RSA key (outside the database) is the one that was backed up. An Incus instance on the 2 TB pool is back with its file. `borg check --verify-data` passes on both repositories; `pgbackrest check` passes; no unit has failed.
 
 ## E. Run the drill in the lab
 
@@ -62,6 +62,10 @@ lab/restore-drill.sh all                                                 # seed,
 ```
 
 It ends in `DRILL RESULT: PASS` or `FAIL`, with the times in `/tmp/drill`.
+
+## E2. Between drills: the checks that run by themselves
+
+On the real machine two things run on a timer and need no one ([ADR 0015](decisions/0015-backup-verification.md)): **borgmatic's checks** (weekly, and every three months a full data verification) and **a monthly restore of the latest database backup into a scratch folder**. They are what stand between two drills.
 
 ## F. On the real machine, what this does not tell you yet
 

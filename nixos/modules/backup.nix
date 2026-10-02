@@ -8,12 +8,13 @@ let
     startAt = "hourly";
     prune.keep = { daily = 7; weekly = 4; };
     failOnWarnings = false;   # a file that changes while it is read is a warning, not a failure
+    extraArgs = [ "--lock-wait" "7200" ];   # a verification (verify.nix) holds the repository exclusively for a while: the job waits for it instead of failing
   };
 in
 {
   services.borgbackup.jobs = {
     everything = common // {
-      paths = [ "/srv/data" "/var/lib/bitwarden_rs" ];   # Incus is not here: its instances are recovered from the pool itself (docs/restore-drill.md), its settings are declared
+      paths = [ "/srv/data" "/var/lib/vaultwarden" ];   # Incus is not here: its instances are recovered from the pool itself (docs/restore-drill.md), its settings are declared
       exclude = [ "/srv/data/jellyfin/cache" "/srv/data/immich/model-cache" ];
       repo = "/mnt/backup16/borg-everything";
     };

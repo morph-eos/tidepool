@@ -57,6 +57,13 @@ let
       - alert: PgBackrestStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"pgbackrest-.*\\.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
         labels: { severity: critical }
+      # the verification jobs of verify.nix must keep running: a check nobody runs is no check
+      - alert: BorgChecksStale
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name="borgmatic.timer"} > 259200) and on() (time() - node_boot_time_seconds > 259200)
+        labels: { severity: warning }
+      - alert: RestoreTestStale
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name="pgbackrest-restore-test.timer"} > 3888000) and on() (time() - node_boot_time_seconds > 3888000)
+        labels: { severity: warning }
       - alert: CertificateRenewalStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"acme-renew-.*\\.timer"} > 172800) and on() (time() - node_boot_time_seconds > 172800)
         labels: { severity: warning }

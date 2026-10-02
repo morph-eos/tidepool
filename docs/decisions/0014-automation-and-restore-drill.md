@@ -43,19 +43,20 @@ The **lab host** (`hosts/lab`) differs from the **real host** (`hosts/tidepool`)
 3. **Disaster:** the VM is stopped and **the system disk and the SSD are replaced by blank ones**; the two large disks stay.
 4. **Rebuild from the flake** on the blank machine: the layout from disko, `nixos-install`, the age key.
 5. **Restore** on the empty machine: services stopped, `/srv/data` emptied, the files from the first Borg archive **at or after T_GOOD**, the database **to T_GOOD** by pgBackRest, Incus checked, services started.
-6. **Verify:** 13 checks (below).
+6. **Verify:** 14 checks (below).
 
 ## Results
 
-Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](0013-vms-and-containers.md)). Passed on the **third full run**; the two earlier ones found the defects listed below.
+Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](0013-vms-and-containers.md)). Passed on the **fourth full run** (the two earlier ones and a third, which ran into a mistake of mine in the lab, found the defects listed below).
 
 | Measure | Result |
 |---|---|
-| **Rebuild from blank to a booted system** | **550-559 s** (`nixos-install` 447-468 s of it): the system disk and the SSD wiped and made by disko, **the two large disks untouched** |
-| **Restore to the end of the checks** | **167 s** from the first command on the rebuilt machine (services start, 87 files from Borg, the database restored in **20-21 s**, the rest) |
+| **Rebuild from blank to a booted system** | **547-559 s** (`nixos-install` 447-468 s of it): the system disk and the SSD wiped and made by disko, **the two large disks untouched** |
+| **Restore to the end of the checks** | **167-169 s** from the first command on the rebuilt machine (services start, 87 files from Borg, the database restored in **20-21 s**, the rest) |
 | Immich | **18 assets, as at T_GOOD** (the three deleted afterwards are back) and **all 18 originals are served**: the database and the files came back to the same moment |
 | Databases | the markers of Immich, Vaultwarden and Nextcloud read `before, after-backup1`: **no `damage`** |
 | Nextcloud, WebDAV | the five files as at T_GOOD, **the deleted ones back with their content** |
+| Vaultwarden | answers, and **its RSA key, which is outside the database, is the one that was backed up** |
 | Incus | the instance on the surviving 2 TB pool is back, **running**, its file intact |
 | `borg check --verify-data` | both repositories pass |
 | `pgbackrest check` | archiving works after the restore |
@@ -72,6 +73,8 @@ Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](00
 | The database was fine, but **`PostgresArchiveFailing` fires after a rebuild** until the first backup runs (archiving fails while the stanza does not exist) | the alerts on the rebuilt host | expected: it is a true signal. The runbook ends with a backup. The rule stays |
 | Nextcloud's admin is **`root`** by default in the module | the checks got 401 | the drill uses that name; the option `adminuser` is the way to change it |
 | sops-nix **checks the secrets file of the example host** at build | `nix flake check` failed | the example host's file is a stand-in with the right keys |
+| **The backup named the wrong folder for Vaultwarden** (`/var/lib/bitwarden_rs`; the module keeps its data in `/var/lib/vaultwarden`): its RSA key was **not in any backup**, hidden by `failOnWarnings = false`; the drill passed because its database is in PostgreSQL | found while testing the backup checks ([ADR 0015](0015-backup-verification.md)) | the path is fixed, and the drill now compares the key's checksum before and after |
+| The drill's own seed step **raced the Borg jobs**: they are not `oneshot` units, so `systemctl start` returns at once | an empty "archive after T_GOOD" in the report | the drill waits for them to finish |
 | A test of my own: uploads with `curl -T -` created **empty** Nextcloud files | the first content check failed | the drill uploads from files and checks the content |
 | An in-place `nixos-rebuild switch` ends with exit 4 and "user activation failed" in the lab (no user session bus) | the lab's switch | cosmetic; the installer path is unaffected |
 
