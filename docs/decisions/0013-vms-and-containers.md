@@ -1,6 +1,6 @@
 # 0013. The VM and container lab on the server
 
-- **Status:** proposed (2026-10-02): criteria **confirmed by the owner** (range first), Podman preferred to Docker by the owner; experiments run, the decision waits for the owner
+- **Status:** accepted (2026-10-02): Incus with two pools (ZFS on the SSD, a directory pool on the big ext4 disk), Podman instead of Docker, and a declared publication gate; the owner confirmed it in words on 2026-10-02
 - **Date:** 2026-10-01
 - **Phase:** 6, Network and VMs
 
@@ -131,6 +131,20 @@ The thin-LVM VM column comes from a **separate run** (a first pass of the script
 
 The **real machine's speed** (the VMs here are nested); a **Windows** guest (no image or licence); **GPU** passthrough or sharing; **Incus's own backup and recovery** (the instances' definitions are in `/var/lib/incus`, the disks in the pool: a restore of an instance onto a rebuilt host was not tried); **ZFS on the real 2 TB disk, which is SMR** ([ADR 0005](0005-storage-layout-and-filesystem.md)): a copy-on-write pool on shingled disks is known to suffer on random writes, and nothing here measures it; **lxcfs**; **rootless Podman**; Quadlet; Immich's multi-container set under Podman (the database over its Unix socket through a bind mount); Jellyfin's `/dev/dri` in a Podman container (gate G2).
 
+### R6. Two pools, as the owner asked (round 2, tag `exp-vms-incus-r2`)
+
+The owner wants most VM disks on the **2 TB SMR disk kept as ext4**, and the SSD's ZFS pool for what needs speed (a database VM). The lab stands in the 2 TB disk with a loop-file ext4 (**it cannot imitate a shingled disk's speed**). All declared in `incus.nix`:
+
+| Check | Result |
+|---|---|
+| The preseed creates a **directory pool `smr`** (a folder on the ext4 disk) and the **ZFS pool `zp`**, and two profiles: `default` (root on `smr`) and `fast` (root on `zp`) | **yes**; the directory pool needs its folder to exist and the disk mounted first: **`systemd.tmpfiles` and `RequiresMountsFor` on the preseed unit, 2 lines**, or the preseed fails with "Source path doesn't exist" |
+| A container and a VM launched **with no option** | both land on **`smr`** |
+| The same with **`-p default -p fast`** | both land on **`zp`** |
+| Space | the directory pool held 899 MB and the ZFS pool 593 MB after the four instances |
+| The publication gate as a **module with an option** (`tidepool.publishGate.allowedPorts = [ ... ]`, default none) in the base configuration | **declared, no manual step**: the table is present at boot with an empty list (**every published port dropped**), and a port appears on the list only by a reviewed line |
+
+What it costs: on the `smr` pool a VM's snapshot is a **full copy** (3.5 s) and a clone **1.2 GB and 11 s** (R5); fine for test machines, which is the use.
+
 ## Reading the results against the criteria
 
 1. **Range.** **Incus alone covers all three kinds of workload** in one tool and one set of commands: a VM from a catalogue image, a VM from any installer ISO, a system container, and an application container from an OCI image (pinned by digest). libvirt covers VMs of any system only; microvm.nix only NixOS guests; Podman and Docker only application containers. **No other candidate comes close on range.**
@@ -139,19 +153,19 @@ The **real machine's speed** (the VMs here are nested); a **Windows** guest (no 
 4. **The throwaway cycle.** **A ZFS pool makes a VM's snapshot, restore and clone fractions of a second and its clone free of space**; a directory pool copies the disk; thin LVM is in between and needs its kernel modules declared.
 5. **Memory and moving parts.** Incus idle: a few hundred MiB with the ZFS pool and no instance; Podman: none while no container runs; libvirt: similar to Incus; microvm.nix: the guests only.
 
-## Proposed decision (for the owner)
+## Decision (2026-10-02, confirmed by the owner)
 
 **Incus as the one manager for tests, with its pool on ZFS; Podman for the containers that stay; neither Docker nor libvirt nor microvm.nix.**
 
 - **Incus** (`virtualisation.incus`, the preseed holding the bridge, the pools, the default profile with the owner's cloud-init, the UI on the VPN address only): VMs of any system, system containers and **OCI application containers** all from it. Docker is **not** needed for "containers for tests": `incus launch docker:<image>` runs them.
 - **Podman, not Docker, for the service containers** of [ADR 0011](0011-services.md) (Jellyfin, Immich): `virtualisation.oci-containers` with the Podman backend, images **pinned by digest**, ports written with an address, no Compose file. This meets the owner's preference and **costs nothing the lab could measure**: the same 10 declared lines, no daemon, one table. **Docker is dropped**, and [the host specification's H04](../specs/host.md) ("Docker Engine answers, the Compose plugin is present") changes to Podman.
-- **The publication gate** (the 6-line table of `exp/vms-incus`, evaluated before the NixOS firewall's own rule): **a port is public only if it is on a reviewed list**, for Podman, for Incus's declared DNAT and for anything else. This is [ADR 0010](0010-vm-service-exposure.md)'s principle enforced against the engines' default; **it replaces trusting each `-p`**.
-- **The pool: ZFS** for the VMs' disks (instant snapshot, restore and clone, and no space for a clone), on the disk the owner decides (below).
+- **The publication gate** (a module of `exp/vms-incus`, `publish-gate.nix`, **declared in the flake**, evaluated before the NixOS firewall's own rule; nothing is done by hand): **a port is public only if it is on a reviewed list**, for Podman, for Incus's declared DNAT and for anything else. This is [ADR 0010](0010-vm-service-exposure.md)'s principle enforced against the engines' default; **it replaces trusting each `-p`**.
+- **Two pools, both declared:** **`zp`, ZFS on the SSD**, for what needs speed (a VM that runs a database, anything "clean and calm": instant snapshot, restore and clone, a clone free of space), chosen per instance with the `fast` profile (`incus launch ... -p default -p fast`); and **`smr`, a plain directory pool on the 2 TB disk, which stays ext4**, the **default** for every other instance: no copy-on-write on a shingled disk, which answers the worry above. Size of the SSD's share for VMs is a quota to set when the SSDs are bought ([ADR 0005](0005-storage-layout-and-filesystem.md)).
 - **libvirt with NixVirt is the fallback** for a VM of another system that must be **declared and permanent** (it declares any-OS domains in the flake, which Incus cannot); **microvm.nix** is the fallback for a NixOS service that should be a VM (declared, lightweight). Neither is adopted now because no use case needs them, and each would be a second manager.
 
 **Consequences and what stays open.**
 - **The instances' definitions live in Incus's database** (`/var/lib/incus`), the disks in the pool: **both must be in the backup** ([ADR 0004](0004-backup.md)), and **a restore of an instance onto a rebuilt host is untested**; it belongs to the drill of phase 7. v0's `incus_config_backup.sh` is glue that this replaces only once that restore is shown.
-- **ZFS on the 2 TB SMR disk** is the lab's weak point ([ADR 0005](0005-storage-layout-and-filesystem.md) put the VM disks there): copy-on-write on shingled disks is known to suffer, and **nothing here measures it**. Whether the VM pool goes there, or on the new SSDs (a 1 TB pair was the size that fits the VMs, [ADR 0005](0005-storage-layout-and-filesystem.md)), is a **decision for the owner with the machine at hand**.
+- **The 2 TB SMR disk is not given a copy-on-write pool**: it carries an ext4 directory pool, so the known ZFS-on-SMR weakness is avoided by design. **How slow that disk is for a VM is not measured** (the lab's loop file is a plain ext4 on a fast disk); the first real VMs on it will show it, and the `fast` profile is the escape for any instance that suffers.
 - A VM stop issued right after its first boot **hung for 600 s** in the lab (not diagnosed); on the real machine the first stop of a new VM is to be watched.
 - `lxcfs` (so that a limited container reports its limit) is **a declared line, untested**.
 - The real checks at deployment: Jellyfin's `/dev/dri` and Immich's machine learning in **Podman** containers (gate G2), the Immich set (database over its Unix socket through a bind mount), Podman's behaviour across a reboot.
