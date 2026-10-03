@@ -107,6 +107,7 @@ The owner's answer to [ADR 0016](0016-updates-deploys-and-checks.md) question 11
 
 - **The server needs no credential for the public repository** (a plain `git clone` or a flake input over HTTPS). The **private** repository (the values and the secrets file) is still the only thing that needs a way onto the server: copied by the owner at each deploy, or fetched with a **read-only deploy key** if that is chosen later ([ADR 0016](0016-updates-deploys-and-checks.md), design B).
 - The encrypted secrets file of the **public** repository holds only the **lab and example** values; the real one is in the private repository.
+- **How the server reads the private repository** ([ADR 0018](0018-deploys-by-the-server.md)): a **read-only deploy key** of that one repository, generated on the workstation, kept **encrypted in the private sops file** and delivered by sops-nix; GitHub's host key pinned. This is **the one credential the server holds for a repository**; it can read values and ciphertext only.
 - **Before it goes public** the history was cleaned of the one commit that held the owner's domain and every commit was scanned ([ADR 0017 section 6](0017-version-watch-push-and-nas.md)); publishing from a **fresh repository** is the safest way, because GitHub may keep old commits reachable by hash.
 
 ## Consequences

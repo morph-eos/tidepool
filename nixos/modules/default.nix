@@ -12,6 +12,7 @@
     ./versions.nix
     ./push.nix
     ./nas.nix
+    ./deploy.nix
     ./edge.nix
     ./vpn.nix
     ./vms.nix

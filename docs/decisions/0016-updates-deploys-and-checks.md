@@ -278,4 +278,11 @@ The pull requests prepare the change in the repository; **merging changes nothin
 - **8, a module going stale:** a **weekend mail**, with zero scripts (json_exporter, a Nix-written file of deployed versions, Prometheus rules with a unit test); the owner chose to **keep the modules** rather than move Nextcloud, Vaultwarden and WebDAV to containers.
 - **9, the NAS:** yes; built into the flake with a Time Machine share; the Samba password is a manual step (open decision in ADR 0017).
 - **11, public repository:** **yes, after the transfer and after the old scripts' problems are fixed** ([ADR 0003](0003-secrets.md) updated).
-- **10, Renovate on the server or on GitHub, and 1-6:** still open.
+- **10, Renovate on the server or on GitHub:** open ([ADR 0018](0018-deploys-by-the-server.md), decision 3).
+
+### Answered on 2026-10-03, second round: [ADR 0018](0018-deploys-by-the-server.md)
+
+- **1, the structure:** a **private flake that imports the public one** (design B), built and used by the deploy tests.
+- **4, the rollback point:** **no scheduled snapshots**; **every backup method runs before a change is activated** (built as `system.preSwitchChecks`); a restore is the way back from a stateful upgrade.
+- **6, who starts the deploy:** **the server, when a change is merged** (`system.autoUpgrade`, recommended; comin and a runner compared).
+- **2, Renovate and the lock:** a Monday pull request, files written (`renovate.json`, the `check` workflow), **which side runs Renovate is open**; **3, cadence:** Monday morning; **5, 26.05 or 26.11:** still open; Nextcloud 33 and PostgreSQL 17 stay for now.

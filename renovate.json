@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovate.com/renovate-schema.json",
+  "extends": [ "config:recommended", ":pinDigestsDisabled" ],
+  "timezone": "Europe/Rome",
+  "schedule": [ "before 6am on monday" ],
+  "prConcurrentLimit": 5,
+  "nix": { "enabled": true },
+  "lockFileMaintenance": { "enabled": true, "schedule": [ "before 6am on monday" ], "commitMessageAction": "Refresh flake.lock:" },
+  "customManagers": [
+    {
+      "description": "container pins in the Nix modules: image = \"repo:tag@sha256:digest\"",
+      "customType": "regex",
+      "managerFilePatterns": [ "/^nixos/modules/.*\\.nix$/" ],
+      "matchStrings": [ "image = \"(?<depName>[^\"@:]+):(?<currentValue>[^\"@]+)@(?<currentDigest>sha256:[a-f0-9]{64})\"" ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    { "description": "a major is never merged by itself nor without the owner", "matchUpdateTypes": [ "major" ], "dependencyDashboardApproval": true, "automerge": false },
+    { "description": "patch and minor container updates travel together", "matchDatasources": [ "docker" ], "matchUpdateTypes": [ "patch", "minor", "digest" ], "groupName": "container updates" },
+    { "description": "the CI actions are pinned by commit", "matchManagers": [ "github-actions" ], "pinDigests": true }
+  ]
+}
