@@ -9,6 +9,9 @@ let cfg = config.tidepool; in
   };
   security.sudo.wheelNeedsPassword = false;
 
+  # the flake commands: the admin at a shell, Renovate's `nix flake update`, nixos-rebuild's own calls
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
   time.timeZone = "Europe/Rome";
   services.timesyncd.enable = true;
 

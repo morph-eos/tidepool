@@ -13,6 +13,7 @@
     ./push.nix
     ./nas.nix
     ./deploy.nix
+    ./renovate.nix
     ./edge.nix
     ./vpn.nix
     ./vms.nix

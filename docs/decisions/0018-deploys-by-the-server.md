@@ -1,6 +1,6 @@
 # 0018. Deploys: the server pulls what was merged, the backups run first, the private repository
 
-- **Status:** **tool, interval and protections decided by the owner (2026-10-03)**: `system.autoUpgrade`, every 10 minutes, every protection on the public `main`; **one merge or two, the reboot policy and Renovate's side are open** (sections 8 to 10); built and measured in the lab; nothing is on the real server
+- **Status:** **decided by the owner (2026-10-03):** `system.autoUpgrade` every 10 minutes; every protection on the public `main`; **two merges**; **automatic reboot after a new kernel** (a window, 06:00 to 07:00); **Renovate on the server**; built and measured in the lab; **nothing is on the real server, the TPM case is untried, nothing ran against GitHub**
 - **Date:** 2026-10-03
 - **Phase:** 8, Updates and automation (follow-up of [ADR 0016](0016-updates-deploys-and-checks.md) and [0017](0017-version-watch-push-and-nas.md))
 
@@ -127,7 +127,7 @@ The owner's rule (no scheduled snapshots; run the backup methods before an updat
 
 **What does not change:** the account root of trust (section 7, limit 1): with the GitHub account taken over, both repositories fall.
 
-**Recommendation: two merges.** The second gate is on a repository that no bot can write, the pin gives an audit trail and a clean way back, and it lets the owner pick the moment. The price is one click. `inputs` is the switch: leave it empty (two merges) or set it to the public URL (one). **Not tried on GitHub:** the workflow (it needs a repository and the setting that lets Actions open pull requests); the template's structure was **evaluated in the lab** (the options exist, the host builds, the server's command pins instead of following).
+**Decided by the owner, 2026-10-03: two merges.** The second gate is on a repository that no bot can write, the pin gives an audit trail and a clean way back, and it lets the owner pick the moment. The price is one click. `inputs` is the switch: leave it empty (two merges) or set it to the public URL (one). **Not tried on GitHub:** the workflow (it needs a repository and the setting that lets Actions open pull requests); the template's structure was **evaluated in the lab** (the options exist, the host builds, the server's command pins instead of following).
 
 ## 9. A new kernel: the reboot
 
@@ -146,7 +146,13 @@ The owner's rule (no scheduled snapshots; run the backup methods before an updat
 
 **Other things to weigh:** kernel point releases come about **weekly** (6.18.54 to 6.18.55 within days), so allowing the reboot means a reboot about **weekly**, about a minute each; a reboot interrupts a running Borg job (it resumes at the next hour); without a reboot the **fixes of the new kernel do not apply**, which is what `RebootPending` is for; the window cannot skip a day (the Sunday checks at 04:30 can run long: a window after them, say 06:00 to 07:00, is the safest).
 
-**Recommendation:** leave **`reboot.allow = false`** until a kernel update has been rehearsed on the real machine with the TPM (the test is one `nixos-rebuild boot` and a reboot); if it comes up by itself, turn it on with a window of about 06:00 to 07:00; until then the owner reboots when `RebootPending` mails (after a day).
+**Decided by the owner, 2026-10-03: the reboot is allowed, in a window of 06:00 to 07:00** (in the private template; the module's default stays off). The owner expects the TPM to work; that is **the one thing that can still undo this**, so the conditions are written down: **the TPM sealed to PCR 7 only** (the Secure Boot state and the signing key, which a kernel update does not change) **and not to the kernel image, and no PIN at boot** (see [ADR 0005](0005-storage-layout-and-filesystem.md), updated), and **the first kernel update rehearsed at the console** (`nixos-rebuild boot`, then a reboot) before the machine is left alone. **If the machine does not come back, the heartbeat stops and Healthchecks.io mails within minutes** ([ADR 0012](0012-observability.md)): a stuck boot is noticed, not silent.
+
+**What the window test showed** (`lab/deploy-u20-window.sh`, found by a first attempt that rebooted outside the window):
+
+- **With the reboot allowed, a deploy that changes the kernel is only INSTALLED**: the script runs `nixos-rebuild boot` (the new system becomes the boot default **and is not activated**), then compares the kernels: equal, it runs `switch`; different and **outside the window**, it prints **"Outside of configured reboot window, skipping."** and stops, **successfully**; different and inside, it schedules the reboot.
+- **Measured:** outside the window the machine kept running the old kernel (the boot default had the new one); **a second merge while the reboot was pending was not activated either** (a marker file stayed absent); in the window the first tick scheduled the reboot (20:53, the window opened at 20:52), **20 s of downtime**, and **after the reboot the held second merge was live**.
+- **Consequences:** (1) **everything merged while a reboot is pending waits for the reboot**, not only the kernel; (2) **a change of the window itself is read from the script that is active**: when it arrives together with a kernel change, the **old** window decides (the first attempt rebooted at once under the previous all-day window); change the window in a deploy of its own; (3) `RebootPending` compares the **activated** system with the running kernel, so it **does not cover this mode** (nothing is activated); a reboot that never comes (the window passes every day, so at most a day) is not signalled, only a machine that does not return; (4) the pre-switch backups run when the new system is **installed**, up to a day before the reboot; the hourly Borg jobs cover the hours in between; (5) a unit that fails after the switch (in the lab a Nextcloud unit whose data was newer than the package) makes `nixos-upgrade` fail too: a failure anywhere in a deploy is loud.
 
 ## 10. Renovate: GitHub's app or the server
 
@@ -163,7 +169,19 @@ The two things Renovate does are **different in kind**: the **container pins and
 | **Who sees the repository** | Mend, **for the public repository only** (do not install it on the private one: it would see the values) | nobody outside |
 | **When it fails** | silently (a dashboard issue) | **a failed unit**: the `UnitFailed` mail |
 
-**Recommendation:** install **the app on the public repository first** (no secret, a separate identity, the protections intact) and **see whether it refreshes `flake.lock`**. If it does not, the lock refresh needs Nix somewhere: **a scheduled workflow in the public repository** (a hosted runner, free), or **Renovate on the server with a machine-user token**. The pull requests that a workflow opens with the default token **do not start the `flake-check` job**, so that route needs a token that does (a machine user again). So the honest summary: **the app for everything it can do, and a machine-user token for the lock** if the app cannot; a machine user is a second free GitHub account with the write role (not admin).
+**Decided by the owner, 2026-10-03: Renovate on the server** (`modules/renovate.nix`, off by default, `tidepool.renovate.enable`; the private template turns it on). The hosted app's doubts (no Nix, the identity) are avoided; the price is a token on the server, so the **token belongs to a machine user** (a second free GitHub account with the **write** role, not admin: the ruleset's bypass is for the admin role, so the bot **cannot** approve or bypass), kept in sops as `renovate-token`, **fine-grained to the public repository only** (contents and pull requests). It **expires**; the day it does the unit fails (below).
+
+**Measured in the lab host** (`lab/renovate-u19.sh`; the token is a dummy, GitHub refuses it):
+
+| | Result |
+|---|---|
+| The module | the configuration is **validated at build time** by Renovate's own validator; a **weekly timer** (Monday 04:30); a **dynamic user**; **`nix` and `git` in its PATH**; the token reaches the unit as a **systemd credential** (in no environment variable and not in the unit file) |
+| **A lapsed or wrong token** | the unit **fails in 5 s** with "github.com token 401 unauthorized ... Authentication failure"; the **`UnitFailed` mail** names it (about 6 minutes, with the other failed unit of that moment) |
+| **Nix under the unit's kind of user** (a dynamic user, its own state directory, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `NoNewPrivileges`) | **`nix flake update` works: 25 s**, "Updated input" |
+| Memory | **364 MB** for the run that stopped at the refused token; **924 MB at the peak** for a full local lookup run (earlier): a weekly minute on this machine |
+| `nix.settings.experimental-features` | **was not set anywhere** in the flake: `nix flake update` as that user (and by the admin at a shell) would fail; it is now in `base.nix` |
+
+**Not tried:** the pull requests themselves (it needs the public repository and the machine user); **whether Renovate's `lockFileMaintenance` branch is produced** (the local platform does not make it, with or without Nix at hand: only the container pins' branch appeared); the first real `flake.lock` pull request will show it.
 
 ## 11. What this does not do
 
@@ -174,15 +192,13 @@ The two things Renovate does are **different in kind**: the **container pins and
 
 ## Decisions for the owner
 
-**Decided (2026-10-03):** the tool is `system.autoUpgrade`; the interval is 10 minutes; every protection of section 7 goes on the public `main`.
+**All decided (2026-10-03):** `system.autoUpgrade`, every 10 minutes; every protection of section 7; **two merges**; **the reboot allowed in a window of 06:00 to 07:00**; **Renovate on the server** with a machine user's token.
 
-**Open:**
-1. **One merge or two** (section 8; recommendation: two).
-2. **The reboot policy** (section 9; recommendation: off until a kernel update is rehearsed with the TPM, then a window of about 06:00 to 07:00).
-3. **Renovate: the app or the server** (section 10; recommendation: the app first, a machine-user token for the lock if the app cannot refresh it).
+**Still the owner's to do, before the deployment:** create the machine user and its token; the private repository from the template; the deploy key; the ruleset on the fresh public repository; **rehearse the first kernel update at the console** (the TPM conditions of section 9).
 
 ## Consequences
 
+- `modules/renovate.nix`, off by default (`tidepool.renovate.enable`); `base.nix` sets `nix.settings.experimental-features`.
 - `modules/deploy.nix`, off by default (`tidepool.deploy.enable`); the example host leaves it off (it needs the private flake's address). `.github/rulesets/main.json`, the `check` workflow, `renovate.json` and `private-repo-template/` (a copy-and-fill start for the private repository, with the pin's workflow) are in the repository.
 - The sops file of the private repository gains a `deploy-key` secret.
 - The `RebootPending` rule is in `versions/rules.yml`, with its unit test.

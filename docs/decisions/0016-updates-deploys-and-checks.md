@@ -285,4 +285,4 @@ The pull requests prepare the change in the repository; **merging changes nothin
 - **1, the structure:** a **private flake that imports the public one** (design B), built and used by the deploy tests.
 - **4, the rollback point:** **no scheduled snapshots**; **every backup method runs before a change is activated** (built as `system.preSwitchChecks`); a restore is the way back from a stateful upgrade.
 - **6, who starts the deploy:** **the server, when a change is merged** (`system.autoUpgrade`, recommended; comin and a runner compared).
-- **2, Renovate and the lock:** a Monday pull request, files written (`renovate.json`, the `check` workflow), **which side runs Renovate is open**; **3, cadence:** Monday morning; **5, 26.05 or 26.11:** still open; Nextcloud 33 and PostgreSQL 17 stay for now.
+- **2, Renovate and the lock:** a Monday pull request, **run on the server** with a machine user's token (module `renovate.nix`); **3, cadence:** Monday morning; **5, 26.05 or 26.11:** still open; Nextcloud 33 and PostgreSQL 17 stay for now.
