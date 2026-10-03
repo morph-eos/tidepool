@@ -1,7 +1,7 @@
 # Version watch (ADR 0017). Inputs: tidepool_deployed_* (written by modules/versions.nix from the packages and image tags that are really in the system generation)
-# and tidepool_upstream_* (json_exporter reading endoflife.date and GitHub). Everything is "behind for a whole week, looked at on the weekend":
-# a recording rule says 1 or 0 every 5 minutes, an alert needs a window of 7 days that is all 1 and almost full of samples (about 1800 of 2016), so a restart or a new
-# upstream release inside the week does not raise it early. The upstream series are scraped hourly, so last_over_time bridges the 5-minute staleness of Prometheus.
+# and tidepool_upstream_* (json_exporter reading endoflife.date and GitHub). Everything is "behind for 3 whole days, looked at on the weekend":
+# a recording rule says 1 or 0 every 5 minutes, an alert needs a window of 3 days that is all 1 and almost full of samples (about 780 of 864), so a restart or a new
+# upstream release inside the window does not raise it early. The upstream series are scraped hourly, so last_over_time bridges the 5-minute staleness of Prometheus.
 groups:
 - name: versions-record
   interval: 5m
@@ -30,17 +30,17 @@ groups:
   rules:
   # Saturday and Sunday from 07:00 UTC; the route sends ONE mail for them (repeat_interval 47h) and no "resolved" mail
   - alert: UpstreamPatchNotDeployed
-    expr: min_over_time(tidepool:behind_patch[7d]) == 1 and on (app) (count_over_time(tidepool:behind_patch[7d]) > 1800) and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7)
+    expr: min_over_time(tidepool:behind_patch[3d]) == 1 and on (app) (count_over_time(tidepool:behind_patch[3d]) > 780) and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7)
     labels: { severity: weekly }
-    annotations: { summary: "{{ $labels.app }}: upstream has had a newer release of the running line for 7 days" }
+    annotations: { summary: "{{ $labels.app }}: upstream has had a newer release of the running line for 3 days" }
   - alert: UpstreamReleaseNotDeployed
-    expr: min_over_time(tidepool:behind_release[7d]) == 1 and on (app) (count_over_time(tidepool:behind_release[7d]) > 1800) and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7)
+    expr: min_over_time(tidepool:behind_release[3d]) == 1 and on (app) (count_over_time(tidepool:behind_release[3d]) > 780) and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7)
     labels: { severity: weekly }
-    annotations: { summary: "{{ $labels.app }}: upstream has had a newer release for 7 days" }
+    annotations: { summary: "{{ $labels.app }}: upstream has had a newer release for 3 days" }
   - alert: UpstreamMajorNotAdopted
-    expr: min_over_time(tidepool:behind_major[7d]) == 1 and on (app) (count_over_time(tidepool:behind_major[7d]) > 1800) and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7)
+    expr: min_over_time(tidepool:behind_major[3d]) == 1 and on (app) (count_over_time(tidepool:behind_major[3d]) > 780) and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7)
     labels: { severity: weekly }
-    annotations: { summary: "{{ $labels.app }}: a newer major exists upstream for 7 days" }
+    annotations: { summary: "{{ $labels.app }}: a newer major exists upstream for 3 days" }
   - alert: RunningLineEndOfLife
     expr: last_over_time(tidepool:line_eol[15m]) == 1 and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7)
     labels: { severity: weekly }

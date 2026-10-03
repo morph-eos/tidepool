@@ -77,12 +77,12 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 
 | Item | Why it waits |
 |---|---|
-| **DNS name `ntfy.<domain>`** (the wildcard certificate covers it); the **two ntfy logins** (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; **Android or iPhone?** (the iPhone needs `tidepool.push.iphoneRelay`) |
+| **DNS name `ntfy.<domain>`** (the wildcard certificate covers it); the **two ntfy logins** (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; the phone is an **Android with GrapheneOS** (F-Droid ntfy app, battery unrestricted; no relay needed) |
 | **Try push on a real phone**, with Proton VPN on | the real machine |
 | **The Samba user's password**: `smbpasswd -a nas` once (runbook); the database is in the Borg job | the deployment; if the owner wants it declared it becomes exception 3 |
 | **The NAS on the LAN:** the **interface name** (private value), the **Time Machine partition** of the 16 TB disk mounted by the private values, a Mac that sees the share and backs up to it | the real machine and a Mac |
 | **The 2 TB disk's capacity budget** (offsite repository, Incus pool and state, the NAS share) is not written down | the real sizes |
-| **The version watch on the real machine:** the first weekend mail (a deliberately old lock proves it), the window (7 or 3 days), whether major reminders and "line is end of life" for distribution-patched packages are wanted | the owner; a weekend after the deployment |
+| **The version watch on the real machine:** the first weekend mail (a deliberately old lock proves it), whether major reminders and "line is end of life" for distribution-patched packages are wanted | the owner; a weekend after the deployment |
 | **A "held major" setting** (an acknowledged line with a date) if the weekly major lines become noise | only if needed |
 | **Publishing the repository:** a **fresh public repository** with only the intended branches and tags, a repeat of the secret scan on what is pushed, and the **old scripts' security problems** (`main`, `v0`) fixed or left out; GitHub may keep rewritten commits reachable by hash | the owner, after the transfer to the server |
 | **The server's credentials for the repositories:** none for the public one; the private one by copy or a read-only deploy key; **Renovate on the server (`services.renovate`) or on GitHub**; a **runner on the server** or not | the owner's answers to question 10 of ADR 0016 |

@@ -50,13 +50,13 @@ Every weekend, check every application; if upstream has had a newer release for 
 
 - **Deployed versions** are written by `modules/versions.nix` into a text file read by the node exporter: they come from the **packages and image tags of the system generation** (`config.services.nextcloud.package.version`, `config.boot.kernelPackages.kernel.version`, the tag of each container pin). So the watch compares what is **really** in the running generation, not what a service says about itself. For this to work the container pins are now **`repo:tag@sha256:...`** (the tag is the version, the digest is the pin; a Renovate update moves both) instead of a digest with a comment.
 - **Upstream versions** are read once an hour by the NixOS module of **json_exporter** (9 MiB) from endoflife.date and from GitHub (a handful of requests an hour against GitHub's 60 without a login).
-- **The rules** (`modules/versions/rules.yml`, 53 lines): four recording rules say 1 or 0 every five minutes: *patch behind* (the newest release of the running line is not the running one), *release behind* (GitHub: any newer release), *major behind* (a newer line exists), *line end of life*. Four alerts fire **only on Saturday and Sunday from 07:00 UTC** and only if the 7-day window is **all 1 and almost full of samples** (so a restart, or a release that appeared two days ago, never raises it). `VersionWatchBlind` warns if a source cannot be read for a day (silence would otherwise look like "all current").
+- **The rules** (`modules/versions/rules.yml`): four recording rules say 1 or 0 every five minutes: *patch behind* (the newest release of the running line is not the running one), *release behind* (GitHub: any newer release), *major behind* (a newer line exists), *line end of life*. Four alerts fire **only on Saturday and Sunday from 07:00 UTC** and only if the 3-day window is **all 1 and almost full of samples** (so a restart, or a release that appeared two days ago, never raises it). `VersionWatchBlind` warns if a source cannot be read for a day (silence would otherwise look like "all current").
 - **One mail:** the `weekly` route groups every alert of the weekend into a single mail (`[FIRING:3] weekly (...)`), repeats only after 47 hours, and sends nothing on "resolved".
 - **Covered:** Nextcloud, PostgreSQL, nginx, Vaultwarden, Syncthing, Borg, pgBackRest, Immich, Jellyfin, the kernel, OpenZFS, Podman, Incus, Samba (with the NAS), ntfy (with push). **Not covered, on purpose or not yet:** Nextcloud's own apps (the OIDC app), Valkey (its tag is a major line, `8-bookworm`, and it is Immich's private cache), the base images' operating-system packages, and **the CVEs themselves** (the watch says a release exists, not that it fixes a vulnerability).
 
 ### Measured
 
-- **Unit test of the rules** (`modules/versions/rules.test.yml`, `promtool test rules`): 11 days of synthetic series; 15 checks: it fires on Saturday and Sunday and **not on Friday**, **not on the first Saturday** (two days of data), **not before 07:00**, **not for an app that is only four days behind**, a `release/2.58.0` tag compares equal to `2.58.0`, an end-of-life line is flagged. It is a **flake check** (`versions-rules`), so it runs on every `nix flake check`, and **it fails when a rule is broken** (tried: removing the "full window" condition fails the check).
+- **Unit test of the rules** (`modules/versions/rules.test.yml`, `promtool test rules`): 11 days of synthetic series; 15 checks: it fires on Saturday and Sunday and **not on Friday**, **not on the first Saturday** (two days of data, under the 3-day window), **not before 07:00**, **not for an app that is only a day and a half behind**, a `release/2.58.0` tag compares equal to `2.58.0`, an end-of-life line is flagged. It is a **flake check** (`versions-rules`), so it runs on every `nix flake check`, and **it fails when a rule is broken** (tried: removing the "full window" condition fails the check).
 - **A flaky test found and fixed:** one run in fifteen failed. Cause: Prometheus 3 leaves the sample of exactly five minutes ago out of an instant lookup, so an alert that reads a recorded value can see nothing at the moment the recording is a few milliseconds late. The one rule that read an instant value now reads `last_over_time(...[15m])`; **0 failures in 40 runs** afterwards. (In production the same race would have dropped one alert evaluation in a while: harmless for a weekly alert, but a flaky test is a bug.)
 - **End to end in the lab host, against the real APIs** (the lab's lock is from 2026-09-28): the node exporter serves the deployed versions, json_exporter answers for all targets, the rules load. The watch **found three real laggards on the stable branch**: **Syncthing 2.1.3 against 2.1.5** (released 2026-09-08, about 25 days), **Borg 1.4.4 against 1.4.5**, **pgBackRest 2.58.0 against 2.59.2**, plus **Samba 4.23.10 against 4.23.13**; and it found that **Podman's 5.8 line is end of life upstream** while 26.05 ships it. Nextcloud 33.0.9, PostgreSQL 17.11, nginx 1.30.5, Vaultwarden 1.37.3, Immich 3.2.4 and the kernel's 6.18.54 are current. Majors available: Nextcloud (34, 35) and PostgreSQL (18).
 - **The weekly mail:** three alerts posted together gave **one** mail, `[FIRING:3] weekly (UpstreamReleaseNotDeployed)`, after the 5-minute group wait; no mail when they expired.
@@ -64,7 +64,7 @@ Every weekend, check every application; if upstream has had a newer release for 
 
 ### What it does **not** give (honestly)
 
-- **The first mail can come late.** The window is "behind for seven days since the watch first saw it", the mail is sent on the next weekend: a release on a Monday is mailed on the Saturday **12 days** later (worst case about **12.3 days**; a release on a Friday waits 8.3). That fits "a week of difference" only as "I am told about everything that is a week old at the weekend". **Open decision 1:** make the window 3 days (everything older than 3 days at the weekend is mailed: worst case about 8.3 days).
+- **The first mail can come late.** The window is "behind for **three** days since the watch first saw it" (the owner chose 3 on 2026-10-03; 7 was the first figure), the mail is sent on the next weekend: a release on a Friday waits **about 8.3 days**, one on a Wednesday about 3.3; a 7-day window would have been 12.3 days at worst.
 - **Major reminders repeat every weekend** for as long as a major is not adopted (today: Nextcloud and PostgreSQL). That is what was asked ("also the majors"); a deliberate hold (PostgreSQL 17 while Immich says so) will be a standing weekly line. A "held major" setting (an acknowledged line, with a date) can be added if it becomes noise.
 - **Distribution-maintained packages** such as Podman 5.8 may be patched by nixpkgs although upstream ended the line; the alert will say "end of life" regardless. Drop the app from the list if it is noise.
 - **It watches two external services** (endoflife.date, GitHub); if either disappears the watch goes blind and says so after a day.
@@ -131,14 +131,45 @@ Listing the host's sockets showed **Valkey on every interface (6379), Immich on 
 - **Still to do:** GitHub may keep the old commits reachable by their hash for a while after a force push. **Safest: publish from a fresh repository** (create a new public one and push only the branches and tags that should be public) rather than flipping this one. The scan must be repeated on what is pushed.
 - **The old scripts** (`main`, tag `v0`) are what the owner means by "security problems": they are to be fixed or left out of the public repository; this ADR did not audit them beyond the secret scan above.
 
+## 7. The phone: Android with GrapheneOS
+
+GrapheneOS has **no Google services by default**, so there is no Firebase push: the ntfy app keeps **one connection of its own** to `ntfy.<domain>` (a foreground service with a small permanent notification). That is exactly what the public ntfy serves, and **`iphoneRelay` stays off** (nothing goes to ntfy.sh). Install the app from **F-Droid** (the build without Firebase) and, in the app's settings, set **battery to "Unrestricted"** so the system does not stop the service; log in as `phone`. Proton VPN on or off does not matter, because the server is reached over the Internet like any web name. **Not tried on a real phone.**
+
+## 8. The differences the watch found: what to do
+
+The measurements of 2026-10-03, and what each version fixes (the release notes):
+
+| App | Running | Upstream | Stable branch today | Unstable today | In nixpkgs | What the release fixes |
+|---|---|---|---|---|---|---|
+| Syncthing | 2.1.3 | 2.1.5 (2026-09-08) | 2.1.3 | 2.1.3 | the package update is **not in** a pull request that I found (only the relay and discovery packages have one) | nothing marked security in 2.1.4 or 2.1.5 |
+| **Borg** | 1.4.4 | 1.4.5 (**2026-07-18**) | 1.4.4 | **1.4.5** | a backport to 26.05 has been **open since 2026-09-01** | "some fixes **including a low-severity security fix**" |
+| pgBackRest | 2.58.0 | 2.59.2 | 2.58.0 | 2.58.0 | none found | 2.59.1 and 2.59.2: bug fixes (a hang; a truncated file during a backup) |
+| Samba | 4.23.10 | 4.23.13 | 4.23.10 | 4.23.10 | none found | not read; Samba publishes its security releases at samba.org/samba/security |
+| Podman | 5.8.7 | 6.1.3 (5.8 is end of life) | 5.8.7 | 5.8.7 | pull requests to 6.1 are open since 2026-09-12 and 2026-09-25 | the line is out of upstream support |
+
+**Updating `flake.lock` does not help today**: the stable channel carries the same versions as the lock (checked), and unstable is behind too, except Borg. The lag is **nixpkgs's**, not ours.
+
+The ways out, each tried or measured:
+
+| Way | Cost | Verdict |
+|---|---|---|
+| **A. Wait** and bump the lock weekly (the watch keeps saying so) | nothing | the **default**; right for bug fixes of non-exposed tools (pgBackRest, Samba). A merged update arrives with the next lock bump (the measured medians were 1.8 days for Nextcloud and 4.5 for Syncthing, with a worst case of 32 days for Syncthing; today's gaps are weeks) |
+| **B. Override the package in the flake** (`overrideAttrs` with the new version, the source hash and, for Go programs, the module hash) | **tried for Syncthing: 3 steps (two hashes come from failed builds), 2 minutes in all** (46 s to find the module hash, 69 s to build); the result runs as `syncthing v2.1.5`. **A line to remove by hand** when nixpkgs catches up: nothing would tell (the watch compares with upstream, not with the override) | **works, but each override is a debt and a departure from P1** (a hand-kept version). Use it only when a release fixes a security problem **and** nixpkgs is late; record it in the exceptions register with the condition to drop it |
+| **C. Take that one package from nixos-unstable** (a second input) | for Borg: 1.4.5 is there; a second nixpkgs in the closure | possible; **a hybrid** (P1 says no hybrids); the same debt as B, with a larger closure |
+| **D. Cherry-pick the open pull request** as a patch in an overlay | a fetched patch that goes away when merged | the same debt as B, but **self-announcing**: when merged the patch no longer applies and the build **fails loudly**; the best of the three overrides |
+| **E. Help it merge:** review or give a thumbs-up to the pull request | free | slow and not ours to decide |
+
+**Recommendation:** A for pgBackRest, Samba and Syncthing (no security fix in what is missing); **for Borg, D** if the low-severity fix matters to the owner (the backport PR as an overlay patch, dropped when merged), otherwise A; **Podman: A**, moving to 6.x with 26.11 (the watch will keep saying the 5.8 line is end of life until then; that line is the owner's decision 5 below). **Nothing was applied**: each override is an exception to P1 and is the owner's call.
+
 ## Decisions for the owner
 
-1. **The window of the version watch:** 7 days (as asked; worst case about 12.3 days from release to mail) or 3 (about 8.3).
+1. ~~The window of the version watch~~ **decided 2026-10-03: 3 days** (worst case about 8.3 days from release to mail).
 2. **The Samba password:** one manual step (built) or a sops-fed unit (exception 3).
-3. **Android or iPhone** for the push app (the iPhone needs the relay and the empty request to ntfy.sh).
+3. ~~Android or iPhone~~ **decided 2026-10-03: Android with GrapheneOS** (see section 7): no relay, no request to ntfy.sh.
 4. **Major reminders** every weekend until adopted (built), or a "held" list with a date.
 5. Whether the **Podman-style "line is end of life upstream"** line should stay for packages the distribution patches.
-6. The items of [ADR 0016](0016-updates-deploys-and-checks.md) that remain open (design B, Renovate, cadence, rollback point, 26.05 or 26.11, human-started deploys).
+6. **What to do about the differences found** (section 8): wait (A) for everything, or D for Borg.
+7. The items of [ADR 0016](0016-updates-deploys-and-checks.md) that remain open (design B, Renovate, cadence, rollback point, 26.05 or 26.11, human-started deploys).
 
 ## Consequences
 
