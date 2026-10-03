@@ -176,15 +176,37 @@ The ways out, each tried or measured:
 
 **Recommendation:** A for pgBackRest, Samba and Syncthing (no security fix in what is missing); **for Borg, D** if the low-severity fix matters to the owner (the backport PR as an overlay patch, dropped when merged), otherwise A; **Podman: A**, moving to 6.x with 26.11 (the watch will keep saying the 5.8 line is end of life until then; that line is the owner's decision 5 below). **Nothing was applied**: each override is an exception to P1 and is the owner's call.
 
+## 9. Can Nextcloud and PostgreSQL move to their newer majors now? (the owner asked, 2026-10-03)
+
+**What the watch does when upstream has a major that nixpkgs lacks, or has:** the monthly mail names every application for which a newer line exists upstream, **without saying whether nixpkgs already packages it** (that is a limit; the check is one command: `nix eval nixpkgs#nextcloud35.version`). Three situations: (1) nixpkgs **has** the new major (today: Nextcloud 34 and 35, PostgreSQL 18): the mail is a reminder, and adopting it is a deliberate step; (2) upstream has it and nixpkgs **does not**: the same reminder, and nothing can be done but wait; (3) nixpkgs **drops** the old major before the owner moves: the build **stops loudly** ([ADR 0016](0016-updates-deploys-and-checks.md)), and the end-of-life line of the monthly mail warns earlier. **Decided by the owner: no list of "held" majors**; the monthly reminder stays as it is.
+
+**Tried in the lab host** (`lab/majors-u15-nextcloud.sh`, `lab/majors-u15-postgres.sh`, `lab/majors-u15-postgres-check.sh`; the lab's data is small: Nextcloud 16 MB, Immich 35 MB, Vaultwarden 9 MB; it has no real v0 data, no third-party Nextcloud apps and no registered single-sign-on clients):
+
+| Move | Result |
+|---|---|
+| **Nextcloud 33.0.9 to 34.0.4** (the module forbids skipping a major) | **31 s** for the rebuild and the database update; version 34.0.4.1; the test file, nginx's `status.php` and the `oidc` app (2.3.1, packaged for all three majors) **unchanged** |
+| **Nextcloud 34 to 35.0.0** | **66 s**; version 35.0.0.10; same checks, same result |
+| **PostgreSQL 17.11 to 18.6** with `pg_upgrade` (copy mode, 46 MB of data) | `--check` clean; the move itself **10 s**; the switch of the configuration **41 s**; **every one of the 256 tables has the same row count in the old and the new cluster (50,511 rows)**; the two VectorChord indexes (`vchordrq`) are there and answer a vector query; pgvector 0.8.2 and VectorChord 1.1.1 on both; Immich, Vaultwarden and Nextcloud 35 answer on 18 |
+| **pgBackRest after the major** | writes fail until `stanza-upgrade` (instant); then `check` passes, a **full backup of 18 took 99 s** (190 MB, on a busy lab VM), `verify` passes, and **the monthly restore test passes (28 s)**; the old backups stay in the repository under the old database id |
+| **The way back to 17** (the old cluster is untouched in copy mode) | switch to the 17 configuration **29 s**; archiving fails with "backup and archive info files exist but do not match the database" **until `stanza-upgrade` is run again**; then `check` is clean; Immich and Vaultwarden answer |
+
+**Things to know:** PostgreSQL 18's `initdb` turns **data checksums on** by default and `pg_upgrade` needs the setting to match, so the lab's upgrade created the new cluster with `--no-data-checksums` (a cluster created on 18 from scratch has them: not a problem, but the two differ); `pg_upgrade` needs **both** the old and the new binaries with their extensions (`withPackages`), and `shared_preload_libraries=vchord.so` on both servers; copy mode needs room for a **second copy** of the data (`--link` avoids it but makes the old cluster unusable once the new one starts: the way back would then be a ZFS snapshot of `tank/postgres`, 50 ms to take and a few seconds to roll back, measured in ADR 0016); the **times scale with the data**: the lab's are lower bounds. The first run of the PostgreSQL script also showed that Prometheus-style "row counts" from `pg_stat_user_tables` read 0 after an upgrade (the statistics restart): the exact counts above are what was compared.
+
+**For the real deployment** (the owner decides, nothing is applied):
+
+- **Nextcloud: start at 33.** v0 runs `nextcloud:33-apache`; Nextcloud will not skip a major, so the first deployment must open v0's data at 33. **Then 34 and 35 are two separate deploys**, each about a minute, each preceded by a ZFS snapshot (a Nextcloud upgrade cannot be undone by NixOS, [ADR 0016](0016-updates-deploys-and-checks.md)). nixpkgs has **35.0.0**, upstream has 35.0.1: a `.0` release; 34.0.4 is the mature one. My recommendation: **go to 34 once the deployment has settled, to 35 when nixpkgs has a 35.0.x that has a few point releases behind it** (a judgement, not measured).
+- **PostgreSQL: 18 from the first deployment would cost nothing and save the move later.** The target database is **built from v0's PostgreSQL 14 dump**, not upgraded from 17, so there is no `pg_upgrade` at all; Immich's documentation says it works with PostgreSQL 14 up to 19 ([ADR 0006](0006-postgresql-version-and-immich.md)), and the lab ran Nextcloud 35, Vaultwarden and Immich on 18. What is **not** done yet: the dump restore of ADR 0006 and the full restore drill ([ADR 0014](0014-automation-and-restore-drill.md)) were run on **17**; they must be repeated on **18** before ADR 0006 changes. **Open decision 7:** PostgreSQL 18 for the first deployment (needs the drill repeated), or 17 and the move later (a known 10-second procedure with the steps above).
+
 ## Decisions for the owner
 
 1. ~~The window of the version watch~~ **decided 2026-10-03: 3 days** (worst case about 8.3 days from release to mail).
 2. **The Samba password:** one manual step (built) or a sops-fed unit (exception 3).
 3. ~~Android or iPhone~~ **decided 2026-10-03: Android with GrapheneOS** (see section 7): no relay, no request to ntfy.sh.
-4. **Major reminders** every weekend until adopted (built), or a "held" list with a date.
+4. ~~Major reminders~~ **decided 2026-10-03: no "held" list**; the monthly reminder stays.
 5. Whether the **Podman-style "line is end of life upstream"** line should stay for packages the distribution patches.
 6. **What to do about the differences found** (section 8): wait (A) for everything, or D for Borg.
-7. The items of [ADR 0016](0016-updates-deploys-and-checks.md) that remain open (design B, Renovate, cadence, rollback point, 26.05 or 26.11, human-started deploys).
+7. **PostgreSQL 18 from the first deployment** (the dump restore and the restore drill repeated on 18 first) or 17 now and the move later (section 9).
+8. The items of [ADR 0016](0016-updates-deploys-and-checks.md) that remain open (design B, Renovate, cadence, rollback point, 26.05 or 26.11, human-started deploys).
 
 ## Consequences
 
