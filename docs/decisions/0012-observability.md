@@ -3,6 +3,7 @@
 - **Status:** accepted (2026-10-01): email only, Brevo as the relay, and Healthchecks.io (hosted free plan) as the outside heartbeat; the owner confirmed each on 2026-10-01
 - **Date:** 2026-10-01
 - **Phase:** 5, Observability
+- **Update 2026-10-03:** push notifications were added **without the VPN** (ntfy on the public side, two least-privilege logins) and a **weekend version watch**, both in [ADR 0017](0017-version-watch-push-and-nas.md); the mail stays the base and is always sent.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Pending items
 
-Things deliberately postponed, so they are not lost. Each has an owner decision or a gate behind it. Updated 2026-10-02, after phase 7 (the integrated flake and the restore drill).
+Things deliberately postponed, so they are not lost. Each has an owner decision or a gate behind it. Updated 2026-10-03, after the phase 8 follow-up (phase 7 before that) (the integrated flake and the restore drill).
 
 ## Waiting for the owner
 
@@ -71,14 +71,21 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **26.11 itself**, rehearsed with the restore drill when it is released (the evaluation against unstable passed) | the release (due 2026-11-30) |
 | comin's testing branch; colmena; a `nixosTest` of the drill; `vulnix` with a whitelist | not needed for the proposal |
 
-## From the 2026-10-03 follow-up ([ADR 0016](decisions/0016-updates-deploys-and-checks.md))
+## From the 2026-10-03 follow-up ([ADR 0016](decisions/0016-updates-deploys-and-checks.md), [ADR 0017](decisions/0017-version-watch-push-and-nas.md))
+
+Built into the flake and measured in the lab (nothing is on the real server): the **NAS**, **push through ntfy on the public side**, the **weekend version watch**, listeners bound to loopback. What each still needs at the deployment:
 
 | Item | Why it waits |
 |---|---|
-| **Build the local NAS into the flake** (a prototype is on `exp/updates`): Samba and Avahi on the LAN interface only, the share on the 2 TB disk, **the share's path added to the `everything` Borg job**, the **LAN interface name** as a private value, the **Time Machine** share and its partition, and the **Samba user's password** (a manual step or a small exception) | the owner's go-ahead; the 2 TB disk's capacity budget (offsite repository, Incus, NAS) is not written down |
-| **Push notifications (ntfy)** on top of the mail: a prototype is on `exp/updates` (34 lines) | the owner's yes or no; a phone app and the VPN on |
-| **A signal that a NixOS module has gone stale** (no native one exists) | the owner's answer (weekly look, or a script) |
-| **The server's credentials for the repositories** (none if the public one is truly public; a read-only key for both if not), **Renovate on the server (`services.renovate`) or on GitHub**, a **runner on the server** or not | the owner's answers to questions 10 and 11 of the ADR |
+| **DNS name `ntfy.<domain>`** (the wildcard certificate covers it); the **two ntfy logins** (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; **Android or iPhone?** (the iPhone needs `tidepool.push.iphoneRelay`) |
+| **Try push on a real phone**, with Proton VPN on | the real machine |
+| **The Samba user's password**: `smbpasswd -a nas` once (runbook); the database is in the Borg job | the deployment; if the owner wants it declared it becomes exception 3 |
+| **The NAS on the LAN:** the **interface name** (private value), the **Time Machine partition** of the 16 TB disk mounted by the private values, a Mac that sees the share and backs up to it | the real machine and a Mac |
+| **The 2 TB disk's capacity budget** (offsite repository, Incus pool and state, the NAS share) is not written down | the real sizes |
+| **The version watch on the real machine:** the first weekend mail (a deliberately old lock proves it), the window (7 or 3 days), whether major reminders and "line is end of life" for distribution-patched packages are wanted | the owner; a weekend after the deployment |
+| **A "held major" setting** (an acknowledged line with a date) if the weekly major lines become noise | only if needed |
+| **Publishing the repository:** a **fresh public repository** with only the intended branches and tags, a repeat of the secret scan on what is pushed, and the **old scripts' security problems** (`main`, `v0`) fixed or left out; GitHub may keep rewritten commits reachable by hash | the owner, after the transfer to the server |
+| **The server's credentials for the repositories:** none for the public one; the private one by copy or a read-only deploy key; **Renovate on the server (`services.renovate`) or on GitHub**; a **runner on the server** or not | the owner's answers to question 10 of ADR 0016 |
 | **Syncthing's local-discovery port (UDP 21027) is open on every interface** | tidy up when the services module is revisited; not reachable from the Internet (the router does not forward it) |
 
 ## Housekeeping

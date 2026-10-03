@@ -97,9 +97,17 @@ The earlier "confirm sops-nix, or revisit agenix?" question was postponed by the
 
 **The owner's answers so far, valid under either recommendation** (they do not depend on which tool is chosen):
 - **Custody of the age key** (or whatever key the chosen tool uses): in **Proton Pass**, with a **printed copy** if possible; Proton Pass alone is the accepted minimum. The same custody for the offsite backup passphrase ([ADR 0007](0007-offsite-copy.md)).
-- **Non-secret variables** (domain, addresses, names, ports): a **separate private GitHub repository**, with the public one showing example values only. The deployment runs **from the workstation** ([ADR 0002](0002-host-as-code.md)), so the server never needs a credential for the private repository.
+- **Non-secret variables** (domain, addresses, names, ports): a **separate private GitHub repository**, with the public one showing example values only. The deployment was to run **from the workstation** ([ADR 0002](0002-host-as-code.md)), so the server would never need a credential for the private repository. **Revised 2026-10-03** (see the update below): the workstation has no Nix, so a deploy is built on the server ([ADR 0016](0016-updates-deploys-and-checks.md)).
 
 **Confirmed by the owner, in a separate message after the correction above: SOPS with age, through sops-nix.** The secrets of the backups ([ADR 0007](0007-offsite-copy.md)) and of the databases ([ADR 0006](0006-postgresql-version-and-immich.md)) use it. Still to do: create the private repository for the variables, and write the age key down in Proton Pass and on paper.
+
+## Update 2026-10-03: the public repository will become public
+
+The owner's answer to [ADR 0016](0016-updates-deploys-and-checks.md) question 11: **the repository will be made public** once everything is on the server and the security problems of the old scripts are fixed. Effects on this ADR:
+
+- **The server needs no credential for the public repository** (a plain `git clone` or a flake input over HTTPS). The **private** repository (the values and the secrets file) is still the only thing that needs a way onto the server: copied by the owner at each deploy, or fetched with a **read-only deploy key** if that is chosen later ([ADR 0016](0016-updates-deploys-and-checks.md), design B).
+- The encrypted secrets file of the **public** repository holds only the **lab and example** values; the real one is in the private repository.
+- **Before it goes public** the history was cleaned of the one commit that held the owner's domain and every commit was scanned ([ADR 0017 section 6](0017-version-watch-push-and-nas.md)); publishing from a **fresh repository** is the safest way, because GitHub may keep old commits reachable by hash.
 
 ## Consequences
 

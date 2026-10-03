@@ -3,6 +3,7 @@
 - **Status:** accepted (2026-10-01), reviewed the same day for coherence: one new SSD of about 500 GB (single-disk ZFS pool, a mirror later), the small SSD for the system, the 2 TB disk for the offsite repository, the VMs and the NAS share, the 16 TB disk for the repositories of everything, the 8 TB disk for the media; LUKS with the TPM on the SSDs and the 2 TB disk
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (it comes before the backup tool because the layout decides what the tool can rely on)
+- **Update 2026-10-03:** the NAS share decided here is **built** (`modules/nas.nix`, [ADR 0017](0017-version-watch-push-and-nas.md)): the share on the 2 TB disk, its path and the Samba users' database in the Borg job of everything, an optional Time Machine share on the 16 TB disk's partition (not backed up).
 
 ## Context
 

@@ -221,7 +221,7 @@ What it asks of the owner beyond the 36 lines: **the Android or iOS app on the p
 | **Nextcloud**: days from an upstream release to its arrival on the branch | median **1.8**, mean 1.8, **max 4.3** (29 bumps) |
 | Vaultwarden | median 0.7, mean 1.5, max 7.0 (21 bumps) |
 | Syncthing | median 4.5, mean 9.2, **max 32.3** (9 bumps) |
-| **Nextcloud majors** | the branch carries **two** (33 and 34); upstream is at 35: **a new major reaches this release only with the next one**; when upstream ends support of a major the package is dropped and **the build stops** (a loud failure, not a silent one); the module **forbids skipping a major** |
+| **Nextcloud majors** | the branch carries **two** (33 and 34) *(corrected 2026-10-03, [ADR 0017](0017-version-watch-push-and-nas.md): the branch locked in the lab carries 33.0.9, 34.0.4 **and 35.0.0**)*; upstream is at 35: **a new major reaches this release only with the next one**; when upstream ends support of a major the package is dropped and **the build stops** (a loud failure, not a silent one); the module **forbids skipping a major** |
 
 **The case the owner fears** (the packages stop coming and nobody notices) **is not caught by an alert today**: nothing compares the module's version with upstream's. What would show it: the weekly look at the services' advisories ([the proposal](#proposed-decision-for-the-owner)) next to the version in `flake.lock` (a one-line check in the runbook), and the build refusing a package marked insecure or removed. **A native automatic signal does not exist**; it would be a script.
 
@@ -271,3 +271,11 @@ The pull requests prepare the change in the repository; **merging changes nothin
 9. **The NAS:** build it into the flake (36 lines; the Samba password step is a manual step or a small exception)?
 10. **Renovate on the server** (the module, no Actions minutes, a token on the server) or on GitHub?
 11. **Is the public repository to become truly public?** It decides whether the server holds any credential.
+
+### Answered on 2026-10-03 (the owner), and what was built: [ADR 0017](0017-version-watch-push-and-nas.md)
+
+- **7, push:** yes, **and without the VPN** (the phone runs Proton VPN): ntfy on the public side with two least-privilege logins; built and measured.
+- **8, a module going stale:** a **weekend mail**, with zero scripts (json_exporter, a Nix-written file of deployed versions, Prometheus rules with a unit test); the owner chose to **keep the modules** rather than move Nextcloud, Vaultwarden and WebDAV to containers.
+- **9, the NAS:** yes; built into the flake with a Time Machine share; the Samba password is a manual step (open decision in ADR 0017).
+- **11, public repository:** **yes, after the transfer and after the old scripts' problems are fixed** ([ADR 0003](0003-secrets.md) updated).
+- **10, Renovate on the server or on GitHub, and 1-6:** still open.

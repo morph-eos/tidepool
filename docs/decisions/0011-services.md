@@ -3,6 +3,7 @@
 - **Status:** accepted (2026-10-01): native Nextcloud, Vaultwarden, Syncthing, smartd and PostgreSQL; Jellyfin 12.1 and Immich as pinned containers; WebDAV through nginx; Nextcloud as the single sign-on provider; icloudpd and Plex dropped
 - **Date:** 2026-10-01
 - **Phase:** 4, Services
+- **Update 2026-10-03:** the owner considered moving Nextcloud, Vaultwarden and WebDAV to containers and **kept the modules** ([ADR 0017 section 1](0017-version-watch-push-and-nas.md)): the configuration of Nextcloud (OIDC and the rest) is far simpler declared in Nix; staleness is watched by the weekend version watch instead.
 
 ## Context
 
