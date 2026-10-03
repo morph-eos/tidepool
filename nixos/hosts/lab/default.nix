@@ -16,6 +16,10 @@
       big2tb = "/dev/disk/by-id/virtio-TPXTRA0002";
     };
     arcMaxMiB = 768;
+    push.enable = true;
+    nas.enable = true;
+    nas.timeMachine.path = "/mnt/big2tb/timemachine";
+    lanInterface = "enp0s2";
     services.immichMachineLearning.enable = false;   # the lab VM has too little memory for it: the real host runs it
     services.jellyfin.enable = false;                # a 2.5 GB image: tried in ADR 0011, not part of the restore drill
   };

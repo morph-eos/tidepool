@@ -54,25 +54,27 @@ in
 
   virtualisation.oci-containers.containers = {
     immich-redis = {
-      image = "docker.io/valkey/valkey@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf";   # 8-bookworm
+      image = "docker.io/valkey/valkey:8-bookworm@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf";
+      cmd = [ "valkey-server" "--bind" "127.0.0.1" "-::1" ];   # the containers share the host's network: without this it listens on every interface (the firewall blocks it, this is the second lock)
       extraOptions = [ "--network=host" ];
     };
     immich-server = {
-      image = "ghcr.io/immich-app/immich-server@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2";   # v3.2.4
-      environment = dbEnv // { IMMICH_MACHINE_LEARNING_URL = "http://127.0.0.1:3003"; };
+      image = "ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2";
+      environment = dbEnv // { IMMICH_MACHINE_LEARNING_URL = "http://127.0.0.1:3003"; IMMICH_HOST = "127.0.0.1"; };
       volumes = [ "/srv/data/immich/upload:/data" "/run/postgresql:/run/postgresql" ];
       dependsOn = [ "immich-redis" ];
       extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };
   } // lib.optionalAttrs cfg.services.immichMachineLearning.enable {
     immich-machine-learning = {
-      image = "ghcr.io/immich-app/immich-machine-learning@sha256:e16c2f166a8174901959fdf85e2e4c7bd1ebc4b37e0b6655de97c41408a260c4";   # v3.2.4
+      image = "ghcr.io/immich-app/immich-machine-learning:v3.2.4@sha256:e16c2f166a8174901959fdf85e2e4c7bd1ebc4b37e0b6655de97c41408a260c4";
+      environment.MACHINE_LEARNING_HOST = "127.0.0.1";
       volumes = [ "/srv/data/immich/model-cache:/cache" ];
       extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };
   } // lib.optionalAttrs cfg.services.jellyfin.enable {
     jellyfin = {
-      image = "docker.io/jellyfin/jellyfin@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e";   # 12.1
+      image = "docker.io/jellyfin/jellyfin:12.1@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e";
       volumes = [ "/srv/data/jellyfin/config:/config" "/srv/data/jellyfin/cache:/cache" "/mnt/backup16/media:/media:ro" ];
       extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };

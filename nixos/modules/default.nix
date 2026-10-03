@@ -9,6 +9,9 @@
     ./database.nix
     ./backup.nix
     ./services.nix
+    ./versions.nix
+    ./push.nix
+    ./nas.nix
     ./edge.nix
     ./vpn.nix
     ./vms.nix

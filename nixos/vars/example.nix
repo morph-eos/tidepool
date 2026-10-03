@@ -6,6 +6,10 @@
     secretsFile = ../secrets/example.yaml;   # a stand-in with the right keys (the lab file); the real one is in the private repository
     admin = { name = "admin"; key = builtins.readFile ../keys/admin.pub; };
     boot.mode = "uefi";
+    lanInterface = "eno1";                    # the server's own name for its LAN interface (Samba and Avahi listen on it only)
+    nas.enable = true;
+    nas.timeMachine.path = "/mnt/timemachine";   # the Time Machine partition of the 16 TB disk (mounted by the private values)
+    push.enable = true;
     disks = {
       system = "/dev/disk/by-id/EXAMPLE-system-ssd";
       tank = "/dev/disk/by-id/EXAMPLE-tank-ssd";

@@ -27,6 +27,13 @@
       checks.x86_64-linux = {
         lab = self.nixosConfigurations.lab.config.system.build.toplevel;
         tidepool = self.nixosConfigurations.tidepool.config.system.build.toplevel;
+        # the version-watch rules (ADR 0017) against their unit test: 11 days of synthetic series, the alerts must fire on a weekend and only when a week is complete
+        versions-rules = let pkgs = nixpkgs.legacyPackages.x86_64-linux; in pkgs.runCommand "versions-rules" { nativeBuildInputs = [ pkgs.prometheus.cli ]; } ''
+          cp ${./modules/versions}/rules.yml ${./modules/versions}/rules.test.yml .
+          promtool check rules rules.yml
+          promtool test rules rules.test.yml
+          touch $out
+        '';
       };
     };
 }

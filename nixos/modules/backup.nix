@@ -1,6 +1,6 @@
 # Files (ADR 0004, 0007): Borg through its NixOS module, every hour, into two repositories: everything on the 16 TB disk, and the selected family data on the 2 TB disk (the one that goes offsite).
 # The databases are not here: pgBackRest covers them (database.nix). The media is a plain copy. The VM disks are replaceable.
-{ config, ... }:
+{ config, lib, ... }:
 let
   common = {
     encryption = { mode = "repokey-blake2"; passCommand = "cat ${config.sops.secrets.borg-passphrase.path}"; };
@@ -20,7 +20,8 @@ in
 {
   services.borgbackup.jobs = {
     everything = common // {
-      paths = [ "/srv/data" "/var/lib/vaultwarden" ];   # Incus is not here: its instances are recovered from the pool itself (docs/restore-drill.md), its settings are declared
+      # Incus is not here: its instances are recovered from the pool itself (docs/restore-drill.md), its settings are declared; the NAS share (2 TB disk) and the Samba users' database are
+      paths = [ "/srv/data" "/var/lib/vaultwarden" ] ++ lib.optionals config.tidepool.nas.enable [ config.tidepool.nas.path "/var/lib/samba" ];
       exclude = [ "/srv/data/jellyfin/cache" "/srv/data/immich/model-cache" ];
       repo = "/mnt/backup16/borg-everything";
     };
