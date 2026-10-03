@@ -71,6 +71,16 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | **26.11 itself**, rehearsed with the restore drill when it is released (the evaluation against unstable passed) | the release (due 2026-11-30) |
 | comin's testing branch; colmena; a `nixosTest` of the drill; `vulnix` with a whitelist | not needed for the proposal |
 
+## From the 2026-10-03 follow-up ([ADR 0016](decisions/0016-updates-deploys-and-checks.md))
+
+| Item | Why it waits |
+|---|---|
+| **Build the local NAS into the flake** (a prototype is on `exp/updates`): Samba and Avahi on the LAN interface only, the share on the 2 TB disk, **the share's path added to the `everything` Borg job**, the **LAN interface name** as a private value, the **Time Machine** share and its partition, and the **Samba user's password** (a manual step or a small exception) | the owner's go-ahead; the 2 TB disk's capacity budget (offsite repository, Incus, NAS) is not written down |
+| **Push notifications (ntfy)** on top of the mail: a prototype is on `exp/updates` (34 lines) | the owner's yes or no; a phone app and the VPN on |
+| **A signal that a NixOS module has gone stale** (no native one exists) | the owner's answer (weekly look, or a script) |
+| **The server's credentials for the repositories** (none if the public one is truly public; a read-only key for both if not), **Renovate on the server (`services.renovate`) or on GitHub**, a **runner on the server** or not | the owner's answers to questions 10 and 11 of the ADR |
+| **Syncthing's local-discovery port (UDP 21027) is open on every interface** | tidy up when the services module is revisited; not reachable from the Internet (the router does not forward it) |
+
 ## Housekeeping
 
 - The old repository `nas-scripts-history` was deleted by the owner (2026-09-30).

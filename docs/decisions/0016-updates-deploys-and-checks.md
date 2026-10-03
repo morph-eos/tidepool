@@ -191,3 +191,83 @@ The same flake evaluated against `nixos-unstable`, since 26.11 is not branched y
 - The deploy runbook (`docs/restore-drill.md`'s sibling, to write with the decision) gets: the pre-deploy snapshot, the two Borg runs, `test` before `switch` for network changes, the reboot check.
 - The exceptions register does **not** change: nothing here is glue of ours (sanoid is a module).
 - The pending list gets the untested items above.
+
+
+## Follow-up 2026-10-03: the owner's questions after reading the proposal
+
+The owner read the proposal and asked six things; each was tried in the lab (`lab/updates-u11.sh`, `u12`; the prototype modules are on the branch `exp/updates`, not in `reengineering`). His inclination, in words: he **likes design B** (a private flake importing the public one); recorded as a leaning, **to be confirmed** with the other answers.
+
+### 1. Push notifications (ntfy) in addition to the mail: how hard
+
+Built as a switchable module (`modules/push.nix`, `tidepool.push.enable`, off by default) and tried on the integrated lab host.
+
+| | Result |
+|---|---|
+| Our own configuration | **34 lines** for ntfy, the bridge to Alertmanager and the nginx name, **plus 3 lines** in `observability.nix` (critical alerts to a receiver that sends the mail **and** the push), **plus 2 secrets** |
+| Memory | ntfy 13 MiB, the bridge 2 MiB |
+| Login | **403 without a login, 200 with it**: the topic is closed (`auth-default-access = deny-all`, the user declared through an environment file from sops) |
+| **A critical alert posted to Alertmanager** | **the push and the mail both arrived, after 31 seconds** (the 30-second `group_wait`) |
+| Where it listens | the **VPN address only** (nginx); on the LAN address the name is not served. **The phone must have the VPN on to receive**, or the name must move to the public side with the login as the only guard |
+| iPhone | would need `upstream-base-url` (ntfy.sh wakes the phone; only the topic's hash and a message id go there, never the text): configured, **not tried with a phone** |
+
+What it asks of the owner beyond the 36 lines: **the Android or iOS app on the phone** (server address, login, the topic), the VPN on, and a decision on exposure. One unit failed in the lab (the certificate order for the new name), **a lab artifact**: the test CA had lost its accounts at the rebuild. **Not tried:** a real phone, the push over a real network.
+
+### 2. A NixOS module that goes stale: is the risk real, and what does leaving cost
+
+**Considered before?** Partly: [ADR 0011](0011-services.md) chose a module only where its version could open v0's data and was not flagged insecure, **at one moment in time**; **the long-run risk of a module that stops following upstream was not measured.** Now:
+
+| What the stable branch does | Measured (nixpkgs commits on `nixos-26.05` against upstream release dates) |
+|---|---|
+| **Nextcloud**: days from an upstream release to its arrival on the branch | median **1.8**, mean 1.8, **max 4.3** (29 bumps) |
+| Vaultwarden | median 0.7, mean 1.5, max 7.0 (21 bumps) |
+| Syncthing | median 4.5, mean 9.2, **max 32.3** (9 bumps) |
+| **Nextcloud majors** | the branch carries **two** (33 and 34); upstream is at 35: **a new major reaches this release only with the next one**; when upstream ends support of a major the package is dropped and **the build stops** (a loud failure, not a silent one); the module **forbids skipping a major** |
+
+**The case the owner fears** (the packages stop coming and nobody notices) **is not caught by an alert today**: nothing compares the module's version with upstream's. What would show it: the weekly look at the services' advisories ([the proposal](#proposed-decision-for-the-owner)) next to the version in `flake.lock` (a one-line check in the runbook), and the build refusing a package marked insecure or removed. **A native automatic signal does not exist**; it would be a script.
+
+**The way out, tried** (`lab/updates-u11.sh`): Nextcloud, as the module runs it, started from the **official container image** (`nextcloud:33-apache`) **on the same data and the same PostgreSQL database**. The state to carry is three things, all already outside the module's Nix-store paths: `config/`, `data/` and the database.
+
+| Step | What it took |
+|---|---|
+| The container serving the same data | **7 seconds** once the image was pulled (139 s the first time); the same 5 test files with their content, version 33.0.9.1 |
+| The database | **the same PostgreSQL over its Unix socket, no password**, by running the container as the host's own `nextcloud` user (uid 997): no new database setting |
+| `config.php` | the module's Nix-store paths removed; **the module's settings from its options (the trusted domain, the https setting) live in a Nix-store JSON file and had to be stated again**: without them, "Trusted domain error" |
+| The image listens on port 80 | **two small mounted files** (Apache's `ports.conf` and default site) so that a non-root user can bind a high port: a detail of the official image |
+| Apps | the module's apps (here `oidc`) come from the Nix store: **they are not in the container** and must be installed again (the app store, or mounted) |
+| nginx | the module's virtual host disappears; one `proxy_pass` to the container: **not tried** (the container was tested on its own port) |
+| Backups | unchanged: the data directory is the same |
+
+So the exit is **an afternoon of work, not a redesign**, **provided the three kinds of state stay where they are** (data under `/srv/data`, database in PostgreSQL); the first attempts failed on options I had set wrongly, which is what an unrehearsed move would look like. **Not tried:** cron, the Redis socket in use, the `oidc` clients, going back from the container to the module.
+
+### 3. The local NAS on the 2 TB disk
+
+Decided in [ADR 0005](0005-storage-layout-and-filesystem.md) (a share on the 2 TB disk, in the Borg repository of everything), **but never built**: the flake had no share. v0's is Samba and Avahi, LAN only, macOS-friendly (`fruit` modules, a Time Machine share of up to 3 TB). Built as a switchable module (`modules/nas.nix`, `tidepool.nas.enable`, **36 lines**) and tried:
+
+| Check | Result |
+|---|---|
+| A file copied to the share with the share user | arrives in `/mnt/big2tb/nas`, owned by that user |
+| A wrong password; no password | `NT_STATUS_LOGON_FAILURE`; `NT_STATUS_ACCESS_DENIED` (no guest) |
+| Firewall | port 445 and mDNS **only on the LAN interface** |
+| Memory | Samba 8 MiB |
+
+**Found:** **the Samba user's password has no declarative path in the NixOS module**: `smbpasswd` is a command. Under P1 that is **a manual step or an exception** (a small unit that sets it from a sops secret, about 5 lines); **not decided**. **Avahi's `openFirewall` default opens UDP 5353 on every interface** (seen in the lab's rule list; set false and opened on the LAN interface only). **Syncthing's `openDefaultPorts` opens UDP 21027 (local discovery) on every interface**; the router does not forward it, so it is a LAN matter, but it is wider than needed. **Not built:** the **Time Machine** share (its partition is not in the flake), the **LAN interface name** as a private value (v0 used a Wi-Fi interface), and **the share's path in the `everything` Borg job** (it is not there yet: add it with the module). The 2 TB disk now carries the offsite Borg repository, Incus's state and pool **and** the NAS: its capacity budget is not written down.
+
+### 4. The pull-request tools and the containers; the minutes; a runner or Renovate on the server
+
+- **Do they cover the containers or only the NixOS modules?** Both, by different means. **The modules** (Nextcloud, Vaultwarden, Syncthing, PostgreSQL, the kernel, nginx...) move together with `nixpkgs` in `flake.lock`: one pull request. **The containers** (Immich, Jellyfin, Valkey) are digests in `services.nix`: **Renovate** proposes them (tried: all four pins found; **Valkey's tag `8-bookworm` already has a newer digest than the pinned one**). Dependabot does not read container strings in `.nix` files and not private repositories for Nix.
+- **Renovate with Nix at hand, tried locally** (`nix shell nixpkgs#renovate nixpkgs#nix`): it **planned a `renovate/lock-file-maintenance` branch** (the refresh of `flake.lock`) **and one for the Valkey digest**. Not run end to end: that needs a token and a real repository.
+- **GitHub Actions minutes:** the cold `nix flake check` takes about **8 to 15 minutes** on a 2-vCPU runner (the lab's 4 vCPUs took 7.5 minutes of wall time and 10 of CPU); with about **10 pull requests a month** that is **150 minutes, 7.5% of the 2,000 free**. Minutes are **not** the constraint; a public repository makes them free anyway.
+- **A runner on the server**: the module exists (**`services.github-runners`**: URL, a token file, ephemeral runners, extra packages). **For the checks it works** and lets them build the **real** host (the private values are there), but a runner executes a repository's jobs on the production server (4.1 GB of memory at peak against the machine that also runs the services), and **a deploy job on it is root on the server**: limit it to pushes on `main` and never to pull requests. **Not connected to GitHub: not tried.**
+- **Renovate on the server instead of GitHub Actions or an app**: the module exists (**`services.renovate`**: a systemd timer, credentials read from files, `runtimePackages` where `pkgs.nix` and `pkgs.git` can be added so that the lock refresh works, a dynamic user). It needs **no Actions minutes**, works on **private** repositories with a token kept in sops, and has Nix where Renovate runs. **The price:** a token with write access to the repositories on the server, and Renovate's memory on each run. **Not tried against GitHub.**
+
+### 5. What was explained again, and found, about applying the update
+
+The pull requests prepare the change in the repository; **merging changes nothing on the server**. Five ways to apply it were laid out for the owner in a page of diagrams (not committed): the four tried (`nixos-rebuild`, deploy-rs, comin, `autoUpgrade`) and one not (a GitHub runner on the server that deploys when `main` changes). **"Merge = deploy"** is what comin and the runner give: the human decision is the merge. **A thing not said before:** the workstation has no Nix and installing it needs root, so **the realistic deploy runs on the server**, which must then be able to read the repositories: **no credential at all if the public repository is truly public** (the private flake is copied over by the owner), **a read-only key for both if it stays private**. [ADR 0003](0003-secrets.md)'s statement that the server never needs a credential for the private repository **does not hold** for comin, `autoUpgrade` or a runner.
+
+### Open questions added
+
+7. **Push notifications through ntfy** on top of the mail: yes or no (34 lines, a phone app, the VPN on)?
+8. **A module going stale:** accept the weekly look at the advisories and the version in the lock, or ask for something automatic (which would be a script)?
+9. **The NAS:** build it into the flake (36 lines; the Samba password step is a manual step or a small exception)?
+10. **Renovate on the server** (the module, no Actions minutes, a token on the server) or on GitHub?
+11. **Is the public repository to become truly public?** It decides whether the server holds any credential.
