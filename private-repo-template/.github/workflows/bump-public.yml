@@ -1,0 +1,32 @@
+# Opens a pull request that moves the public repository's pinned revision (flake.lock) to its newest `main`. Merging that pull request IS the deploy: the server picks it up within its interval.
+# There is no CI in this repository: the public one already ran on those commits. Untested on GitHub (ADR 0018). Needs: Settings > Actions > "Allow GitHub Actions to create and approve pull requests".
+name: bump-public
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - name: move the pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          old=$(jq -r '.nodes.tidepool.locked.rev' flake.lock)
+          nix flake update tidepool
+          new=$(jq -r '.nodes.tidepool.locked.rev' flake.lock)
+          [ "$old" != "$new" ] || { echo "already at the newest public revision"; exit 0; }
+          # a pull request is already open for an older bump: replace it
+          gh pr list --state open --search "head:bump/tidepool" --json number --jq '.[].number' | xargs -r -n1 gh pr close --delete-branch
+          branch="bump/tidepool-${new:0:8}"
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"; git add flake.lock; git commit -m "tidepool: ${old:0:8} -> ${new:0:8}"; git push -u origin "$branch"
+          body=$(gh api "repos/${{ github.repository_owner }}/tidepool/compare/${old}...${new}" --jq '.commits[] | "- " + (.sha[0:8]) + " " + (.commit.message | split("\n")[0])' | head -n 40)
+          gh pr create --head "$branch" --title "Deploy tidepool ${new:0:8}" --body "Public commits since the deployed revision:"$'\n\n'"$body"$'\n\nMerging this pull request deploys it (the server looks every 10 minutes; backups run first).'

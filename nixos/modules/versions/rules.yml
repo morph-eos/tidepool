@@ -57,6 +57,12 @@ groups:
     expr: last_over_time(tidepool:line_eol[15m]) == 1 and on () ((day_of_week() == 6 or day_of_week() == 0) and hour() >= 7 and day_of_month() <= 7)
     labels: { severity: monthly }
     annotations: { summary: "{{ $labels.app }}: the running release line is end of life upstream" }
+  # a deploy changed the kernel but the machine still runs the old one: the activated generation's kernel (the Nix-written file) against the running kernel (the node exporter's uname)
+  - alert: RebootPending
+    expr: tidepool_deployed_info{app="linux"} unless on (version) label_replace(node_uname_info, "version", "$1", "release", "(.*)")
+    for: 1d
+    labels: { severity: warning }
+    annotations: { summary: "a new kernel ({{ $labels.version }}) is installed but the machine still runs the old one: reboot" }
   # the watch itself: if the sources cannot be read for a day, silence would look like "all current"
   - alert: VersionWatchBlind
     expr: up{job=~"upstream-.*"} == 0

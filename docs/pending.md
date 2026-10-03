@@ -93,9 +93,11 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 
 | Item | Why it waits |
 |---|---|
-| **The owner's decisions in ADR 0018:** the pulling tool (autoUpgrade recommended), the interval, Renovate's side, protection of the public `main`, one merge or two, a reboot policy | the owner |
+| **The owner's open decisions in ADR 0018:** one merge or two (recommended: two), the reboot policy (recommended: off until rehearsed with the TPM), Renovate's side (recommended: the app first). **Decided:** autoUpgrade, 10 minutes, every protection of the public `main` |
 | **Create the private repository**, generate the **deploy key on the workstation**, put its private half in the private sops file (`deploy-key`), add its public half to that repository as a **read-only deploy key**, and write the private flake (`flake.nix` importing the public one, `host.nix`, `secrets.yaml`) | the owner's accounts; before the deployment |
-| **Make the public repository public** (a fresh one, [ADR 0017 section 6](decisions/0017-version-watch-push-and-nas.md)), turn on **branch protection** (the `check` workflow required, the owner the only merger), install **Renovate's app** (or the server module) | the owner, after the transfer |
+| **Make the public repository public** (a fresh one, [ADR 0017 section 6](decisions/0017-version-watch-push-and-nas.md)), then **import `.github/rulesets/main.json`** (`gh api -X POST repos/OWNER/REPO/rulesets --input .github/rulesets/main.json`; check the admin role id and the field names), tick the settings checklist of [ADR 0018 section 7](decisions/0018-deploys-by-the-server.md), install **Renovate's app** on the public repository only | the owner, after the transfer |
+| **Create the private repository from `private-repo-template/`** and try its `bump-public.yml` (it needs the Actions setting that lets it open pull requests) | the owner; the workflow has not run on GitHub |
+| **A kernel update on the real machine with LUKS, the TPM and lanzaboote:** does it boot by itself or ask for the passphrase? (`nixos-rebuild boot`, then a reboot) | the real machine; decides `reboot.allow` |
 | **Run the written GitHub files for the first time** (`.github/workflows/check.yml`, `renovate.json`): neither has run on GitHub | the public repository |
 | **Backup times with the real data**: a deploy waits for Borg of everything, Borg offsite and a pgBackRest differential; a deploy during the Sunday checks waits for them | the real machine |
 | **"A reboot is pending"** (a new kernel or ZFS) is not signalled anywhere | a small alert if wanted |

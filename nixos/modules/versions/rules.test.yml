@@ -158,3 +158,24 @@ tests:
   - eval_time: 60h
     alertname: UpstreamReleaseNotDeployed
     exp_alerts: []
+- interval: 5m
+  # RebootPending: the activated kernel is 6.18.55, the machine runs 6.18.54 for two days, then is rebooted (the uname changes to 6.18.55)
+  input_series:
+  - series: 'tidepool_deployed_info{app="linux",version="6.18.55",source="eol",cycle="6.18"}'
+    values: '1x1000'
+  - series: 'node_uname_info{release="6.18.54",sysname="Linux"}'
+    values: '1x576 _x424'
+  - series: 'node_uname_info{release="6.18.55",sysname="Linux"}'
+    values: '_x576 1x424'
+  alert_rule_test:
+  - eval_time: 12h
+    alertname: RebootPending
+    exp_alerts: []
+  - eval_time: 30h
+    alertname: RebootPending
+    exp_alerts:
+    - exp_labels: { app: linux, version: "6.18.55", source: eol, cycle: "6.18", severity: warning }
+      exp_annotations: { summary: "a new kernel (6.18.55) is installed but the machine still runs the old one: reboot" }
+  - eval_time: 60h
+    alertname: RebootPending
+    exp_alerts: []

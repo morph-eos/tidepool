@@ -1,6 +1,6 @@
 # 0018. Deploys: the server pulls what was merged, the backups run first, the private repository
 
-- **Status:** proposed (2026-10-03), **built and measured in the lab**; the owner's choice of the pulling tool is open (recommendation: `system.autoUpgrade`); nothing is on the real server
+- **Status:** **tool, interval and protections decided by the owner (2026-10-03)**: `system.autoUpgrade`, every 10 minutes, every protection on the public `main`; **one merge or two, the reboot policy and Renovate's side are open** (sections 8 to 10); built and measured in the lab; nothing is on the real server
 - **Date:** 2026-10-03
 - **Phase:** 8, Updates and automation (follow-up of [ADR 0016](0016-updates-deploys-and-checks.md) and [0017](0017-version-watch-push-and-nas.md))
 
@@ -23,7 +23,7 @@ The owner's decisions of 2026-10-03:
 | **C. A GitHub runner on the server** (`services.github-runners`, a deploy job on `main`) | **no**: it needs a GitHub registration; the module exists | GitHub's own advice is to use self-hosted runners **only with private repositories** because a pull request to a public one can run code on the machine ([secure use](https://docs.github.com/en/actions/reference/security/secure-use)); a deploy job there is **root on the server**; a token and a permanent connection to GitHub; **it adds nothing the pull does not already do** |
 | **D. The owner runs `nixos-rebuild` after a merge** | ADR 0016 | the baseline; against the owner's decision |
 
-**Recommendation: A.** It is the only one that is a maintained NixOS module **and** makes a failed deploy loud. comin's advantages (60-second polling, metrics) are not needed for a home server (10 minutes is enough), and the runner brings the most risk for no gain. **Open decision 1: A, B or C.**
+**Decided by the owner, 2026-10-03: A.** It is the only one that is a maintained NixOS module **and** makes a failed deploy loud. comin's advantages (60-second polling, metrics) are not needed for a home server (10 minutes is enough), and the runner brings the most risk for no gain.
 
 ## 2. The design
 
@@ -92,24 +92,98 @@ The owner's rule (no scheduled snapshots; run the backup methods before an updat
 - **`.github/workflows/check.yml`**: `nix flake check` on every pull request and push to `main`, with the two actions **pinned by commit** (`actions/checkout` v7.0.1, `cachix/install-nix-action` v31.11.1); the repository is public, so the minutes are free; both hosts build and the version-watch rules run their unit test. **Not run on GitHub.**
 - **`renovate.json`**: Monday morning, a grouped pull request for the container pins (`image = "repo:tag@sha256:..."`), `flake.lock` maintenance, a **major never merged without the owner**, the Actions pinned by commit. **Tried locally** (`renovate --platform=local` in the lab host): the config validates, and it **found all four container pins** (Valkey, Immich server and machine learning, Jellyfin) and the `nixpkgs` input and planned the branch `renovate/container-updates`. Whether Renovate runs as GitHub's app or on the server (`services.renovate`) is **open decision 3**.
 
-## 7. What this does not do
+## 7. Protecting the public `main` (decided: all of it)
+
+`.github/rulesets/main.json` is a GitHub **ruleset** for the default branch, to be imported once the public repository exists (`gh api -X POST repos/OWNER/REPO/rulesets --input .github/rulesets/main.json`). What each rule stops:
+
+| Rule | Stops |
+|---|---|
+| a pull request is required, **1 approval**, an approval that is **not** the last pusher's, stale approvals dismissed on a new push, threads resolved | a direct push to `main`; a bot or token that opens a pull request and merges it by itself |
+| **the `flake-check` job must pass**, on a branch up to date with `main` | a change that does not build, or breaks the version-watch rules, reaching the server |
+| **squash merges only** (linear history) | merge commits that hide a change; and, because **GitHub signs the squash commit it creates** (its documented behaviour, not tried here), it satisfies the next rule for every author, bots included |
+| **signed commits** required | an unsigned commit pushed by a stolen token |
+| **no force push, no deletion** of `main` | rewriting or removing what the server may already have deployed |
+| bypass: the **repository admin role, only through a pull request** | the owner can merge their own pull request (GitHub does not let an author approve their own); nobody can push to `main` directly, the owner included |
+
+**Settings next to it** (a checklist, in the public repository's settings): Actions run with a **read-only token** by default (the workflow also says `permissions: contents: read`); **fork pull requests need approval before their workflows run**; **secret scanning with push protection** (free on a public repository); **private vulnerability reporting**; passkeys or two-factor on the owner's account.
+
+**Limits, plainly:** (1) the owner's GitHub account is the root of trust: an attacker who takes it over can change the ruleset, so the account's own security is what matters most; (2) **rulesets are enforced only on public repositories on the free plan**, so this cannot be switched on in the current private repository (its ruleset list answered empty; creating one was not tried) but in the **fresh public one**; (3) the `actor_id` 5 for the admin role and the exact field names are from GitHub's documentation and **to be checked when the file is imported**; (4) the ruleset **guards the deploy**: every commit that reaches `main` and changes the host's system is on the server within 10 minutes (section 8).
+
+## 8. One merge or two (the owner asked to understand)
+
+**What the two are.** *One merge:* the server follows the public repository's `main` (`tidepool.deploy.inputs`), so **merging a pull request in the public repository is the deploy**. *Two merges:* the private repository's `flake.lock` **pins** one public revision, the server deploys **exactly that**, and a **second pull request, in the private repository, moves the pin** (`private-repo-template/.github/workflows/bump-public.yml` opens it daily; merging it is the deploy). Both are built; the module's default (`inputs = {}`) is the second.
+
+| | One merge | Two merges |
+|---|---|---|
+| Approvals | one (the public pull request) | two: the public one, then the pin's |
+| **Who can put code on the server** | anyone who can write the public `main` (the ruleset is the only gate) | **also needs write access to the private repository**, which no outsider and no Renovate token has |
+| **A record of what is deployed** | none in git (the server takes the newest each time) | **the private repository's history**: one commit per deployed public revision, with the list of public commits in the pull request |
+| **Going back** | revert in the public repository (affects the example and the lab as well) | **revert the pin's commit in the private repository**: the server returns to the previous public revision |
+| **When it deploys** | within 10 minutes of the merge, wherever the owner is | the owner **chooses the moment** by merging the pin (the next morning, after a coffee) |
+| What it costs | nothing | one more click per deploy; a daily workflow (private repository, a few minutes of the free 2,000) |
+| Rebuilding from the private repository alone | uses a stale lock unless overridden | **exact**, and the public lock's `nixpkgs` comes with it (measured in U8: the private lock follows the public one) |
+
+**Measured:** a commit that changes **only documentation** in the public repository **did not change the system and ran no backup** (the tick found the same system); so merges that touch only `docs/`, the lab or the examples **do not reach the server's backups or switch** in either design.
+
+**What does not change:** the account root of trust (section 7, limit 1): with the GitHub account taken over, both repositories fall.
+
+**Recommendation: two merges.** The second gate is on a repository that no bot can write, the pin gives an audit trail and a clean way back, and it lets the owner pick the moment. The price is one click. `inputs` is the switch: leave it empty (two merges) or set it to the public URL (one). **Not tried on GitHub:** the workflow (it needs a repository and the setting that lets Actions open pull requests); the template's structure was **evaluated in the lab** (the options exist, the host builds, the server's command pins instead of following).
+
+## 9. A new kernel: the reboot
+
+**How NixOS decides.** After a switch it compares `/run/booted-system` (kernel, initrd, kernel modules) with the new system; `tidepool.deploy.reboot.allow` turns the automatic reboot on and `window` limits it to a time of day.
+
+**Measured in the lab host** (kernel 6.18.54 to 6.12.111, a real change):
+
+| | Result |
+|---|---|
+| **Reboot off** (the default) | the new kernel is **activated but not running**: the machine kept 6.18.54 for as long as it was left; the Nix-written file says **6.12.111**, the node exporter's `uname` says **6.18.54** |
+| **The warning** | `RebootPending` (the activated kernel against the running one) **returns the series** while they differ and **is empty after the reboot**; it fires after a day (**unit-tested**: silent at 12 h, firing at 30 h, silent after the reboot); the mail goes by the normal route |
+| **Reboot on** | the deploy ran the backups, switched, **rebooted by itself**; ssh was **down for about 20 s**; afterwards the new kernel ran, **no unit had failed**, ZFS was online, PostgreSQL, Immich, Nextcloud, Vaultwarden, Prometheus and Alertmanager answered, the timers were back |
+| A detail | the module re-schedules the reboot (`shutdown -r +1`) **at every tick**: with the lab's one-minute timer that postponed it by about three minutes; with 10 minutes it does not matter |
+
+**What was not tried, and it decides:** a **kernel update on the real disk layout, with LUKS unlocked by the TPM and Secure Boot through lanzaboote**: whether the machine boots by itself after a kernel update, or asks for the passphrase, is **unknown** (it is in [pending](../pending.md) since phase 2) and a lab VM has neither. An unattended reboot that stops at a passphrase prompt is a machine that is down until the owner arrives.
+
+**Other things to weigh:** kernel point releases come about **weekly** (6.18.54 to 6.18.55 within days), so allowing the reboot means a reboot about **weekly**, about a minute each; a reboot interrupts a running Borg job (it resumes at the next hour); without a reboot the **fixes of the new kernel do not apply**, which is what `RebootPending` is for; the window cannot skip a day (the Sunday checks at 04:30 can run long: a window after them, say 06:00 to 07:00, is the safest).
+
+**Recommendation:** leave **`reboot.allow = false`** until a kernel update has been rehearsed on the real machine with the TPM (the test is one `nixos-rebuild boot` and a reboot); if it comes up by itself, turn it on with a window of about 06:00 to 07:00; until then the owner reboots when `RebootPending` mails (after a day).
+
+## 10. Renovate: GitHub's app or the server
+
+The two things Renovate does are **different in kind**: the **container pins and the Actions' commits** (it only needs the registries and GitHub), and **refreshing `flake.lock`** (it must **run Nix**).
+
+| | GitHub's app (Mend's hosted Renovate) | On the server (`services.renovate`) |
+|---|---|---|
+| **Identity** | its own **`renovate[bot]`**, not an admin | **a token**: a fine-grained token acts **as its owner** |
+| **A secret on the server** | **none** | **yes**, with write access to pull requests and contents of the public repository, kept in sops; it **expires**, so a lapse must be noticed |
+| **Do the protections hold?** | **yes**: the bot cannot merge (it needs an approval it cannot give itself) | **only with a separate machine account**: with the owner's token the bot **inherits the owner's bypass** (section 7) and could merge its own pull request |
+| **Container pins, Actions** | yes | yes |
+| **`flake.lock`** | **probably not**: the stock Renovate container **has no Nix** (checked in ADR 0016); the hosted app's image was **not checked**: install it and see whether a `lock-file-maintenance` pull request appears | **yes**: the module takes `runtimePackages` where `nix` and `git` go |
+| **Cost on the server** | nothing | **924 MB of memory at the peak, 38 s of CPU in 67 s** for one local lookup run (measured in the lab host); weekly, on this machine |
+| **Who sees the repository** | Mend, **for the public repository only** (do not install it on the private one: it would see the values) | nobody outside |
+| **When it fails** | silently (a dashboard issue) | **a failed unit**: the `UnitFailed` mail |
+
+**Recommendation:** install **the app on the public repository first** (no secret, a separate identity, the protections intact) and **see whether it refreshes `flake.lock`**. If it does not, the lock refresh needs Nix somewhere: **a scheduled workflow in the public repository** (a hosted runner, free), or **Renovate on the server with a machine-user token**. The pull requests that a workflow opens with the default token **do not start the `flake-check` job**, so that route needs a token that does (a machine user again). So the honest summary: **the app for everything it can do, and a machine-user token for the lock** if the app cannot; a machine user is a second free GitHub account with the write role (not admin).
+
+## 11. What this does not do
 
 - **It trusts the public repository's `main`**: whoever can merge there puts code on the server. Branch protection with the CI check required, and the owner as the only merger, are **open decision 4**.
-- **It does not reboot.** A kernel or ZFS update waits for the owner; nothing says "a reboot is pending" yet.
+- **It does not reboot by default**, and when it does the TPM case is untried (section 9).
 - **The poll is not instant**: a merge is applied within the interval (10 minutes in the module) plus the build and the backups.
 - **Not tried:** comin with the backups before the switch and its idle cost; a runner; the whole flow against GitHub; the real data's backup times; a deploy that fails the **build** halfway (only evaluation errors and backup failures were injected).
 
 ## Decisions for the owner
 
-1. **The pulling tool:** `system.autoUpgrade` (recommended), comin, or a runner.
-2. **The poll interval:** 10 minutes (the module's default), or longer.
-3. **Renovate:** GitHub's app or on the server.
-4. **Protection of the public `main`:** required CI check, the owner as the only merger.
-5. **One merge or two:** a merge in the public repository deploys directly (built), or a pull request bumps the public input in the private repository first.
-6. **A reboot policy** for a new kernel: by hand (built), or a window.
+**Decided (2026-10-03):** the tool is `system.autoUpgrade`; the interval is 10 minutes; every protection of section 7 goes on the public `main`.
+
+**Open:**
+1. **One merge or two** (section 8; recommendation: two).
+2. **The reboot policy** (section 9; recommendation: off until a kernel update is rehearsed with the TPM, then a window of about 06:00 to 07:00).
+3. **Renovate: the app or the server** (section 10; recommendation: the app first, a machine-user token for the lock if the app cannot refresh it).
 
 ## Consequences
 
-- `modules/deploy.nix`, off by default (`tidepool.deploy.enable`); the example host leaves it off (it needs the private flake's address).
+- `modules/deploy.nix`, off by default (`tidepool.deploy.enable`); the example host leaves it off (it needs the private flake's address). `.github/rulesets/main.json`, the `check` workflow, `renovate.json` and `private-repo-template/` (a copy-and-fill start for the private repository, with the pin's workflow) are in the repository.
 - The sops file of the private repository gains a `deploy-key` secret.
+- The `RebootPending` rule is in `versions/rules.yml`, with its unit test.
 - **Closes** [ADR 0016](0016-updates-deploys-and-checks.md) questions 1 (the structure: a private flake importing the public one), 4 (the rollback point: the backups) and 6 (the server starts the deploy); question 2 (Renovate, which side), 3 (cadence: Monday) and 5 (26.05 or 26.11) remain.

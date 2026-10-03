@@ -30,6 +30,10 @@ in
       default = null;
       description = "Set when the flake is a PRIVATE repository read over ssh: the deploy key (the sops secret `deploy-key`, a read-only key of that one repository) is used for that host, whose key is pinned.";
     };
+    reboot = {
+      allow = lib.mkOption { type = lib.types.bool; default = false; description = "Reboot by itself after a deploy that changed the kernel, the initrd or the kernel modules (the check NixOS makes by comparing /run/booted-system with the new system)."; };
+      window = lib.mkOption { type = lib.types.nullOr (lib.types.submodule { options = { lower = lib.mkOption { type = lib.types.str; }; upper = lib.mkOption { type = lib.types.str; }; }; }); default = null; description = "Only reboot between these times (HH:MM); outside it the reboot waits for the window."; };
+    };
     interval = lib.mkOption { type = lib.types.str; default = "*:0/10"; description = "How often the server looks (a systemd calendar expression)."; };
   };
   config = lib.mkIf cfg.enable (lib.mkMerge [ {
@@ -41,7 +45,8 @@ in
       flags = [ "--refresh" "--no-write-lock-file" ] ++ lib.concatLists (lib.mapAttrsToList (name: url: [ "--override-input" name url ]) cfg.inputs);
       dates = cfg.interval;
       randomizedDelaySec = "0";
-      allowReboot = false;   # a new kernel waits for the owner's reboot (the disk is unlocked by the TPM)
+      allowReboot = cfg.reboot.allow;   # off: a new kernel waits for the owner's reboot (the disk is unlocked by the TPM, not yet tried with a kernel update)
+      rebootWindow = cfg.reboot.window;
     };
     # only when the incoming system differs from the running one (the timer runs often; nothing changes most times) and the backup units exist (not at an installation)
     system.preSwitchChecks.backupsFirst = ''
