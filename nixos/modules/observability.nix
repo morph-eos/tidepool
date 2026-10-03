@@ -116,8 +116,8 @@ in
             # ... and a MAIL through the same relay as the real alerts, to the address of a second check (its period is a day): if the mail path breaks, that check goes silent
             # and Healthchecks.io says so by its own mail, which does not depend on our relay. (A webhook ping alone would hide a broken relay.)
             { matchers = [ "severity = heartbeat" ]; receiver = "mailpath"; repeat_interval = if cfg.lab then "1m" else "5h"; group_interval = if cfg.lab then "3m" else "1h"; group_wait = "0s"; }
-            # the weekend version watch (versions/rules.yml): all of its alerts in ONE mail, sent once (47 h > the two days they are raised for); no "resolved" mail is sent by the email receiver
-            { matchers = [ "severity = weekly" ]; receiver = "mail"; group_by = [ "severity" ]; group_wait = "5m"; group_interval = "12h"; repeat_interval = "47h"; }
+            # the weekend version watch (versions/rules.yml): the alerts of a tier in ONE mail (weekly: every weekend; monthly: the first weekend), sent once (47 h > the two days they are raised for); no "resolved" mail is sent by the email receiver
+            { matchers = [ "severity =~ \"weekly|monthly\"" ]; receiver = "mail"; group_by = [ "severity" ]; group_wait = "5m"; group_interval = "12h"; repeat_interval = "47h"; }
             # Alertmanager resends only at a group_interval tick, and only if repeat_interval has already passed: with the two EQUAL the tick comes a few milliseconds too early and a tick is skipped
             # (measured: pings every 4 minutes with both at 2 minutes). So repeat_interval is kept below group_interval: a ping every 2 minutes, a mail every 6 hours in production.
           ];
