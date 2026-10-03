@@ -76,7 +76,7 @@ Failure detection, on a copy of the repository with one backup file overwritten:
 
 **A for Borg, E for PostgreSQL, with the lock wait on the Borg jobs, and staleness alerts.**
 
-- **Borg:** borgmatic with `skip_actions` and two configurations (one per repository, each with its own source paths): `repository`, `extract` and `data` **weekly, on Sunday** (the owner chose the weekly data check on 2026-10-02; `data` implies `archives`); the timer at 04:30; **`--lock-wait 7200` on both Borg jobs**.
+- **Borg:** borgmatic with `skip_actions` and two configurations (one per repository, each with its own source paths): `repository`, `extract` and `data` **weekly, on Sunday** (the owner chose the weekly data check on 2026-10-02; `data` implies `archives`); the timer at 04:30; **`--lock-wait` on both Borg jobs: 7,200 s in the first version, 43,200 s (12 hours) after the patience study below**.
 - **PostgreSQL:** the unit and its timer **monthly**.
 - **Alerts** ([ADR 0012](0012-observability.md)): `UnitFailed` already covers a failing check; two new rules, **`BorgChecksStale`** (the borgmatic timer silent for three days) and **`RestoreTestStale`** (the restore-test timer silent for 45 days).
 - **The exceptions register gets an entry** (2) for the restore-test unit: it is a script of ours (about 20 lines) with no native way to do what it does.
@@ -139,7 +139,7 @@ The staleness rules read `node_systemd_timer_last_trigger_seconds` with the time
 ## Answered by the owner (2026-10-02)
 
 1. The 20-line restore-test unit in the exceptions register: **accepted** (entry 2).
-2. The full data check: **every week**, not every three months. The cost on the real data is a guess to be measured: the `--lock-wait` of the Borg jobs (2 hours) may have to grow if the check on 165 GB takes longer than that, or the hourly jobs will fail after waiting.
+2. The full data check: **every week**, not every three months. The cost on the real data is a guess to be measured; the Borg jobs' `--lock-wait` was first 2 hours and is now **12 hours** after the patience study below (the estimate for 165 GB is 16 minutes to 55 minutes).
 
 ## Questions that were open
 

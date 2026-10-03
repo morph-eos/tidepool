@@ -40,6 +40,15 @@ let cfg = config.tidepool; in
   '';
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
+  # Updates (ADR 0016) leave the previous system installed so that a rollback is possible: 4.7 GiB per generation, and an update that crosses a mass rebuild adds 5 GiB at once.
+  # The system disk is 119 GB, so old generations are collected after two weeks, the store is deduplicated, and the boot menu keeps ten entries.
+  nix.gc = { automatic = true; dates = "weekly"; options = "--delete-older-than 14d"; };
+  nix.optimise.automatic = true;
+  boot.loader.grub.configurationLimit = 10;
+  boot.loader.systemd-boot.configurationLimit = 10;
+  # images that no container uses any more (the old digest after an update) are removed weekly
+  virtualisation.podman.autoPrune = { enable = true; dates = "weekly"; };
+
   environment.systemPackages = with pkgs; [ curl jq htop ];
   system.stateVersion = "26.05";
 }

@@ -71,7 +71,7 @@ let
         expr: (time() - node_systemd_timer_last_trigger_seconds{name="pgbackrest-restore-test.timer"} > 3888000) and on() (time() - node_boot_time_seconds > 3888000)
         labels: { severity: warning }
       - alert: CertificateRenewalStale
-        expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"acme-renew-.*\\.timer"} > 172800) and on() (time() - node_boot_time_seconds > 172800)
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"acme-renew-.*\\.timer"} > 259200) and on() (time() - node_boot_time_seconds > 259200)   # 3 days: the renewal timers are daily with a random delay of up to 24 h and an accuracy of 4 h, so two runs can be almost 48 h apart
         labels: { severity: warning }
   '';
   probe = name: module: targets: {

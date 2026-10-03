@@ -15,6 +15,8 @@
       };
     in
     {
+      # for a private repository that imports this one: `tidepool.lib.mkHost ./host.nix` builds a host from these modules with the private values in host.nix (ADR 0016)
+      lib.mkHost = mk;
       nixosConfigurations = {
         # the lab host: the same modules as the real one, with small stand-ins for what the lab cannot have (a test CA, a mail sink, no GPU)
         lab = mk ./hosts/lab;

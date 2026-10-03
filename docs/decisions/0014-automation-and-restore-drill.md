@@ -105,7 +105,7 @@ Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](00
 
 The integrated flake is **merged into `reengineering`**, so that the real host is built from the same modules that were proved.
 
-## Open questions for the owner
+## Open questions for the owner (the first is studied in [ADR 0016](0016-updates-deploys-and-checks.md); the answer to the second is a proposal there too)
 
 1. **Where do the checks run on their own?** A git pre-push hook on the workstation (free, local), a GitHub Actions job (free for a public repository; the runners may lack KVM for anything beyond `nix flake check`), or by hand before each deployment.
 2. **How often is the full drill repeated** besides "before a deployment and after a change to those modules": for example once a quarter, as a reminder that the backups still restore.

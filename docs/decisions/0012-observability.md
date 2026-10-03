@@ -136,3 +136,6 @@ So **we are far under the limit**, even in a bad case. Two things the alerts do 
 - The **certificate-order failure** of phase 3 is caught by the probe of the served certificate and by `UnitFailed` on the order's unit.
 - The CAA rule needs an update when the record gets its `accounturi` (the regular expression only checks the CA name today).
 - About **110 MiB** of memory, which fits the budget of [ADR 0005](0005-storage-layout-and-filesystem.md).
+
+
+**Correction (2026-10-03):** the rule for a silent certificate-renewal timer waited 2 days. The renewal timers are daily with a random delay of up to 24 hours and an accuracy of 4 hours, so two runs can be almost 48 hours apart and the rule could fire without a fault. It now waits 3 days.

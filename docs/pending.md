@@ -6,7 +6,7 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 
 | Item | Why it waits | Blocks |
 |---|---|---|
-| **A later phase, not yet decided: updates, deploys and the automation of the checks** (a bot or by hand for `flake.lock` and container digests, never `autoUpgrade` for the services; where the quick checks run; how often the full drill repeats; public or private GitHub repository) | the owner postponed it on 2026-10-02 ("in un'altra fase ancora") and asked to be reminded | an unattended, maintained system |
+| **Phase 8: decide** the structure (a private flake importing the public one), how updates are found (Renovate and `flake.lock`: weekly Action or by hand), the cadence, the rollback point (a line in the runbook or `services.sanoid`, which would reverse the "no scheduled snapshots" decision), 26.05 or 26.11 for the first deployment, whether a human starts every deploy ([ADR 0016](decisions/0016-updates-deploys-and-checks.md)) | the owner's choice | an unattended, maintained system |
 | **Buy one SSD of about 500 GB** (chosen: [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)); a second one later, as a mirror | the owner's money | the real layout |
 | **Create the private repository** for the non-secret variables, and **write the age key and the Borg key exports down** (Proton Pass and paper) | the owner's accounts | closing phase 1 |
 | (Only if Proton Drive fails its test) **open the Hetzner Storage Box account** and set its snapshot plan | a subscription and the console | the offsite copy in that case ([ADR 0007](decisions/0007-offsite-copy.md)) |
@@ -59,6 +59,17 @@ Things deliberately postponed, so they are not lost. Each has an owner decision 
 | The phase 5 rules on **real data**: the smartctl and PostgreSQL archiver rules, the heartbeat against the outside service, real mail delivery, the push to a phone ([ADR 0012](decisions/0012-observability.md)) | the real server |
 | **The edge on the real machine**: the router's port forwarding (80, 443; the range 3000-3099 and the Incus API to question), the firewall on the host (v0 has none), fail2ban against the proxy's logs, HTTP/3, and the DNS records, which stay manual | phase 3 and 6, [ADR 0008](decisions/0008-edge.md) |
 | The root `README.md` still describes v0 | rewrite when the first phase closes |
+
+## Phase 8 items that only the real setup can test
+
+| Item | Why it waits |
+|---|---|
+| GitHub Actions (`nix flake check`), Renovate's app or its lock refresh, the `update-flake-lock` Action, run end to end; the repository's visibility and plan | needs a GitHub run and the owner's accounts |
+| Update times on the real link and disk (the lab's was 5 MiB/s) | the real server |
+| Weeks of `nix-gc`, snapshot pruning (if `services.sanoid`) and Podman image pruning | time |
+| A reboot that changes the kernel and ZFS together; **a kernel update on a TPM-sealed, Secure Boot disk (does it ask for the passphrase?)** | the real machine |
+| **26.11 itself**, rehearsed with the restore drill when it is released (the evaluation against unstable passed) | the release (due 2026-11-30) |
+| comin's testing branch; colmena; a `nixosTest` of the drill; `vulnix` with a whitelist | not needed for the proposal |
 
 ## Housekeeping
 

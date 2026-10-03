@@ -275,7 +275,19 @@ What the module does **not** do, and is left to later phases: a periodic `borg c
 
 **Retention:** a few weeks, not v0's six months: pgBackRest weekly full and daily differential (two full backups kept); Borg `keep-daily 7` and `keep-weekly 4`, no monthly.
 
-**Retention, revised 2026-10-02 at the owner's request** (hourly archives were wanted for the last two or three days): Borg `within 3d`, `daily 11`, `weekly 4`, no monthly. Measured on archives with made-up dates: **87 kept** per repository, **every hour for 3 days**, at least one a day until the 14th day, one a week after that, the oldest about 40 days old. The 14 days are what a pgBackRest point-in-time restore can reach (two weekly full backups kept, so 7 to 14 days), which keeps the two coherent: a database restored to any moment in its window finds files from the same day, and from the same hour in the last 3 days. (`keep-daily 7` alone, as before, kept **one archive a day and no hourly ones**: after a day of hourly runs 2 archives were left.) Not measured: the cost of the archive check with 87 archives of a real library.
+**Retention, revised 2026-10-02 at the owner's request** (hourly archives were wanted for the last two or three days): Borg `within 3d`, `daily 11`, `weekly 4`, no monthly. Measured on archives with made-up dates: **87 kept** per repository, **every hour for 3 days**, at least one a day until the 14th day, one a week after that, the oldest about 40 days old. The 14 days are what a pgBackRest point-in-time restore can reach (two weekly full backups kept, so 7 to 14 days), which keeps the two coherent: a database restored to any moment in its window finds files from the same day, and from the same hour in the last 3 days. (`keep-daily 7` alone, as before, kept **one archive a day and no hourly ones**: after a day of hourly runs 2 archives were left.)
+
+The rule sets tried on 192 archives (120 hourly for the last 5 days, then two a day up to 40 days), with `borg prune --dry-run`:
+
+| Rule set | Kept | Every hour kept back to | At least one a day for | Oldest kept |
+|---|---|---|---|---|
+| R0, the old one: `daily 7, weekly 4` | 11 | **none** | 7 days | 33 days |
+| R1: `within 3d, daily 7, weekly 4` | 83 | 3 days | **10** days (the 7 daily days come *after* the 3) | 33 days |
+| **R2 (chosen): `within 3d, daily 11, weekly 4`** | 87 | 3 days | **14** days, as long as the database's window | 40 days |
+| R3: `within 3d, daily 11, weekly 3` | 86 | 3 days | 14 days | 33 days |
+| R4: `hourly 72, daily 11, weekly 4` | 87 | 3 days | 14 days | 40 days |
+
+R2 and R4 keep the same archives; R2 is chosen because `within` states the intent (the last 3 days, whatever the cadence) and does not depend on the jobs running exactly every hour. Not measured: the cost of the archive check with 87 archives of a real library.
 
 **Offsite:** [ADR 0007](0007-offsite-copy.md). **Disks and filesystem:** [ADR 0005](0005-storage-layout-and-filesystem.md).
 

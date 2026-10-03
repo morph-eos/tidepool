@@ -54,7 +54,7 @@ in
 
   virtualisation.oci-containers.containers = {
     immich-redis = {
-      image = "docker.io/valkey/valkey@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf";
+      image = "docker.io/valkey/valkey@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf";   # 8-bookworm
       extraOptions = [ "--network=host" ];
     };
     immich-server = {
