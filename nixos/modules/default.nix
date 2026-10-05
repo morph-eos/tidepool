@@ -6,6 +6,8 @@
     ./base.nix
     ./storage.nix
     ./encryption.nix
+    ./hardware.nix
+    ./wifi.nix
     ./secrets.nix
     ./database.nix
     ./backup.nix

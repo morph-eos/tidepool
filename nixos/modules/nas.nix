@@ -23,7 +23,7 @@ let cfg = config.tidepool.nas; lan = config.tidepool.lanInterface; in
           security = "user"; "map to guest" = "never"; "restrict anonymous" = 2;
           "server min protocol" = "SMB2";
           "vfs objects" = "catia fruit streams_xattr"; "fruit:aapl" = "yes"; "fruit:nfs_aces" = "no"; "fruit:model" = "MacSamba";
-          "interfaces" = "lo ${lan}"; "bind interfaces only" = "yes";
+          "interfaces" = "lo ${lan}"; "bind interfaces only" = "no";   # no: Samba would fix its addresses at its start and never see the WiFi address that arrives seconds later (tried: ping answered, SMB timed out). The firewall below lets 445 in on the LAN interface only.
         };
         NAS = {
           path = cfg.path; browseable = "yes"; "read only" = "no"; "guest ok" = "no";
@@ -45,6 +45,12 @@ let cfg = config.tidepool.nas; lan = config.tidepool.lanInterface; in
       extraServiceFiles.adisk = lib.mkIf (cfg.timeMachine.path != null) ''<?xml version="1.0" standalone='no'?><!DOCTYPE service-group SYSTEM "avahi-service.dtd"><service-group><name replace-wildcards="yes">%h</name><service><type>_adisk._tcp</type><txt-record>sys=waMa=0,adVF=0x100</txt-record><txt-record>dk0=adVN=TimeMachine,adVF=0x82</txt-record></service></service-group>'';   # makes it offered as a Time Machine destination
     };
     networking.firewall.interfaces.${lan} = { allowedTCPPorts = [ 445 ]; allowedUDPPorts = [ 5353 ]; };
+    # on WiFi the LAN interface gets its address some seconds after the boot (or after a router restart): wait for the network, and retry a daemon that failed meanwhile (the lab: nmbd timed out)
+    systemd.services = lib.genAttrs [ "samba-smbd" "samba-nmbd" ] (_: {
+      wants = [ "network-online.target" ]; after = [ "network-online.target" ];
+      serviceConfig = { Restart = "on-failure"; RestartSec = "10s"; };
+      startLimitIntervalSec = 0;   # keep trying: the address will come
+    });
     environment.systemPackages = [ pkgs.samba ];
   };
 }
