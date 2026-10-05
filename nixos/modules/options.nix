@@ -29,6 +29,12 @@ in
     wireguard.peers = mkOption { type = types.listOf types.attrs; default = [ ]; };
     services = {
       jellyfin.enable = mkOption { type = types.bool; default = true; };
+      jellyfin.mediaMounts = mkOption {
+        type = types.attrsOf types.str;
+        default = { "/media" = "/mnt/backup16/media"; };
+        description = "Media folders read by Jellyfin: the path INSIDE the container = the path on the machine. The libraries of an existing Jellyfin database point at container paths, so a move from another setup keeps its paths here (a private value).";
+      };
+      syncthing.restoreIdentity = mkEnableOption "the device identity of an existing Syncthing (its certificate and key, the sops secrets `syncthing-cert` and `syncthing-key`), so the device keeps its ID on a move";
       immichMachineLearning.enable = mkOption { type = types.bool; default = true; };
     };
   };

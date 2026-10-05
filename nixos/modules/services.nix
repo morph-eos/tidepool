@@ -40,6 +40,14 @@ in
     openDefaultPorts = true;   # the sync port is public by decision (ADR 0008)
     guiAddress = "127.0.0.1:8384";   # the GUI is behind nginx, on the VPN address only (edge.nix)
     settings.gui.insecureSkipHostcheck = true;
+    # a move from another Syncthing keeps the device's identity (its ID): the certificate and the key are secrets. The devices and folders are the PRIVATE repository's to declare
+    # (services.syncthing.settings.devices and .folders): with the module's defaults, anything not declared is removed at each start.
+    cert = lib.mkIf cfg.services.syncthing.restoreIdentity config.sops.secrets.syncthing-cert.path;
+    key = lib.mkIf cfg.services.syncthing.restoreIdentity config.sops.secrets.syncthing-key.path;
+  };
+  sops.secrets = lib.mkIf cfg.services.syncthing.restoreIdentity {
+    syncthing-cert = { owner = config.services.syncthing.user; };
+    syncthing-key = { owner = config.services.syncthing.user; };
   };
 
   # WebDAV for Seedvault: nginx with its DAV modules (ADR 0011), the user file a bcrypt file from sops
@@ -75,7 +83,7 @@ in
   } // lib.optionalAttrs cfg.services.jellyfin.enable {
     jellyfin = {
       image = "docker.io/jellyfin/jellyfin:12.1@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e";
-      volumes = [ "/srv/data/jellyfin/config:/config" "/srv/data/jellyfin/cache:/cache" "/mnt/backup16/media:/media:ro" ];
+      volumes = [ "/srv/data/jellyfin/config:/config" "/srv/data/jellyfin/cache:/cache" ] ++ lib.mapAttrsToList (inside: outside: "${outside}:${inside}:ro") cfg.services.jellyfin.mediaMounts;
       extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };
   };

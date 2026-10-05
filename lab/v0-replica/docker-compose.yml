@@ -1,0 +1,73 @@
+# A replica of v0 for the migration rehearsal (lab/v0-migration-u25.sh): the SAME images (versions and pins) and the SAME container-side paths as v0's docker-compose.yml,
+# with test passwords and the data under /srv/v0/data (v0 keeps it under /mnt/nas2/docker/data). No GPU and no proxy.
+name: v0
+services:
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:v3.2.1
+    ports: [ "127.0.0.1:2283:2283" ]
+    volumes: [ "/srv/v0/data/immich/library:/data", "/etc/localtime:/etc/localtime:ro" ]
+    environment: { TZ: Etc/UTC, DB_HOSTNAME: immich-database, DB_PASSWORD: v0labpass, DB_USERNAME: postgres, DB_DATABASE_NAME: immich, REDIS_HOSTNAME: immich-redis }
+    depends_on: [ immich-database, immich-redis ]
+    restart: always
+  immich-redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:8-bookworm@sha256:4a7d243f2890e13198440dcfc8d24c9adf9d4fc4092389c89c12a6fda43d3704
+    restart: always
+  immich-database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    environment: { TZ: Etc/UTC, POSTGRES_PASSWORD: v0labpass, POSTGRES_USER: postgres, POSTGRES_DB: immich, POSTGRES_INITDB_ARGS: "--data-checksums" }
+    volumes: [ "/srv/v0/data/immich/postgres:/var/lib/postgresql/data" ]
+    shm_size: 128mb
+    restart: always
+  jellyfin:
+    container_name: jellyfin
+    image: jellyfin/jellyfin:12.1@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e
+    user: "1000:1000"
+    environment: [ "TZ=Europe/Rome" ]
+    volumes: [ "/srv/v0/data/jellyfin/config:/config", "/srv/v0/data/jellyfin/cache:/cache", "/srv/v0/media:/media", "/srv/v0/media2:/media2" ]
+    ports: [ "127.0.0.1:8096:8096" ]
+    restart: unless-stopped
+  vaultwarden:
+    container_name: vaultwarden
+    image: vaultwarden/server:1.37.1
+    environment: [ "DOMAIN=https://vault.v0.test", "ADMIN_TOKEN=v0adminpass", "SIGNUPS_ALLOWED=true", "WEBSOCKET_ENABLED=true", "TZ=Europe/Rome", "LOG_FILE=/data/vaultwarden.log" ]
+    volumes: [ "/srv/v0/data/vaultwarden:/data" ]
+    ports: [ "127.0.0.1:8222:80" ]
+    restart: unless-stopped
+  webdav:
+    container_name: webdav
+    image: bytemark/webdav:2.4@sha256:bcabbc024c511b9c63ed3345f88573e31d84c952ee493c9acb3fe345f4f80f57
+    environment: [ "AUTH_TYPE=Basic", "USERNAME=seedvault", "PASSWORD=v0davpass", "SERVER_NAMES=webdav.v0.test" ]
+    volumes: [ "/srv/v0/data/webdav:/var/lib/dav" ]
+    ports: [ "127.0.0.1:8280:80" ]
+    restart: unless-stopped
+  syncthing:
+    container_name: syncthing
+    image: syncthing/syncthing:v2.0.14@sha256:6d2ab058383b533e045cf2c32fc4c6bbe87c612c92bc2aca9f552fb099b2e123
+    hostname: v0-syncthing
+    environment: [ "PUID=1000", "PGID=1000" ]
+    volumes: [ "/srv/v0/data/syncthing:/var/syncthing" ]
+    ports: [ "127.0.0.1:8384:8384", "22000:22000/tcp" ]
+    restart: unless-stopped
+  nextcloud:
+    container_name: nextcloud
+    image: nextcloud:33-apache
+    environment: [ "MYSQL_HOST=nextcloud-db", "MYSQL_DATABASE=nextcloud", "MYSQL_USER=nextcloud", "MYSQL_PASSWORD=v0ncpass", "REDIS_HOST=nextcloud-redis", "NEXTCLOUD_ADMIN_USER=admin", "NEXTCLOUD_ADMIN_PASSWORD=v0adminpass", "NEXTCLOUD_TRUSTED_DOMAINS=localhost cloud.v0.test", "OVERWRITEPROTOCOL=https", "TZ=Europe/Rome" ]
+    volumes: [ "/srv/v0/data/nextcloud/html:/var/www/html", "/srv/v0/data/nextcloud/data:/var/www/html/data" ]
+    ports: [ "127.0.0.1:8080:80" ]
+    depends_on: { nextcloud-db: { condition: service_healthy }, nextcloud-redis: { condition: service_started } }
+    restart: unless-stopped
+  nextcloud-db:
+    container_name: nextcloud_mariadb
+    image: mariadb:11
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    environment: [ "MYSQL_ROOT_PASSWORD=v0ncpass", "MYSQL_DATABASE=nextcloud", "MYSQL_USER=nextcloud", "MYSQL_PASSWORD=v0ncpass", "TZ=Europe/Rome" ]
+    volumes: [ "/srv/v0/data/nextcloud/db:/var/lib/mysql" ]
+    healthcheck: { test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ], interval: 10s, timeout: 5s, retries: 10 }
+    restart: unless-stopped
+  nextcloud-redis:
+    container_name: nextcloud_redis
+    image: docker.io/valkey/valkey:8-bookworm
+    restart: unless-stopped
