@@ -23,6 +23,7 @@ PY="${TIDEPOOL_PY:-$LAB/pyenv/bin/python}"
 VMDIR="$LAB/vms/$NAME"
 HOST_ATTR="${TIDEPOOL_HOST:-tidepool-lab}"          # the flake output to install (the integrated lab host is "lab")
 PASSPHRASE="${TIDEPOOL_DISK_PASSPHRASE:-}"      # set for an encrypted layout (tidepool.encryption.enable): the LUKS passphrase, which stays the recovery key
+BORG_PP="${TIDEPOOL_RESTORE_SBCTL_BORG_PASSPHRASE:-}"   # set: before installing, take /var/lib/sbctl (the Secure Boot signing keys) from the newest archive of the Borg repository on the surviving 16 TB disk
 ENC_BIG2TB="${TIDEPOOL_ENCRYPT_BIG2TB:-0}"        # 1: the 2 TB disk (TPXTRA0002) gets LUKS too
 LAYOUT="${TIDEPOOL_LAYOUT:-parted}"               # parted: the old two-line layout; disko: the layout declared in the flake (modules/storage.nix)
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes)
@@ -76,7 +77,7 @@ tar -C "$REPO" -cf - nixos | ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1
 ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 'cat > ~/age.key' < "$AGE_KEY"
 
 log "partitioning, formatting, installing (downloads the system: this is the long step)"
-ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR PASSPHRASE='$PASSPHRASE' ENC_BIG2TB=$ENC_BIG2TB bash -s" <<'REMOTE'
+ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR PASSPHRASE='$PASSPHRASE' ENC_BIG2TB=$ENC_BIG2TB BORG_PP='$BORG_PP' bash -s" <<'REMOTE'
 set -euo pipefail
 export NIX_CONFIG='experimental-features = nix-command flakes
 download-attempts = 60
@@ -108,6 +109,13 @@ else
     sudo parted -s /dev/vda -- mklabel msdos mkpart primary ext4 1MiB 100%
     sudo mkfs.ext4 -q -L nixos /dev/vda1
     sudo mount /dev/disk/by-label/nixos /mnt
+fi
+if [ -n "$BORG_PP" ]; then
+    echo "restoring the signing keys from Borg"
+    sudo mkdir -p /mnt-bk && sudo mount -o ro /dev/disk/by-id/virtio-TPXTRA0001 /mnt-bk
+    sudo -H -E nix shell nixpkgs#borgbackup -c env BORG_PASSPHRASE="$BORG_PP" BORG_RELOCATED_REPO_ACCESS_IS_OK=yes sh -c 'cd /mnt && A=$(borg list --bypass-lock --last 1 --short /mnt-bk/borg-everything) && echo "archive $A" && borg extract --bypass-lock /mnt-bk/borg-everything::"$A" var/lib/sbctl'   # the repository's disk is mounted read-only (a reinstall must not touch a backup): --bypass-lock reads without writing the lock
+    sudo umount /mnt-bk
+    sudo test -f /mnt/var/lib/sbctl/keys/db/db.pem && echo "keys restored: $(sudo ls /mnt/var/lib/sbctl/keys | tr '\n' ' ')" || { echo "NO KEYS in the backup" >&2; exit 1; }
 fi
 sudo mkdir -p /mnt/var/lib/sops-nix
 sudo install -m 600 ~/age.key /mnt/var/lib/sops-nix/key.txt

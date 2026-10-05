@@ -20,6 +20,7 @@
     # encryption.secureBoot = true;    # stage 2 of that runbook, after `sbctl create-keys`
     deploy = {
       enable = true;
+      interval = "Mon..Sat *:0/10";     # no tick on Sunday: the weekly borgmatic checks (Sunday 04:30, hours on 14.6 TB) must not be cut by the 06:00 reboot (ADR 0018 section 9)
       flake = "git+ssh://git@github.com/OWNER/PRIVATE-REPO.git#tidepool";   # this repository
       privateRepo = { };                                                      # use the deploy key, GitHub's host key pinned
       # inputs = { };  # empty: the server deploys EXACTLY the revision of the public repository that flake.lock pins (two merges). To follow the public main directly (one merge):
