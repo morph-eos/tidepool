@@ -1,6 +1,6 @@
 # 0018. Deploys: the server pulls what was merged, the backups run first, the private repository
 
-- **Status:** **decided by the owner (2026-10-03):** `system.autoUpgrade` every 10 minutes **on Monday to Saturday**; every protection on the public `main`; **two merges**; **automatic reboot after a new kernel** (a window, 06:00 to 07:00); **Renovate on the server**; built and measured in the lab, **the reboot also with the encrypted layout and the TPM (2026-10-05)**; **the first deployment on 26.05, and the move to 26.11 afterwards, are proposed** (section 12); **nothing is on the real server, no real TPM or firmware has been tried, nothing ran against GitHub**
+- **Status:** **decided by the owner (2026-10-03):** `system.autoUpgrade` every 10 minutes **on Monday to Saturday**; every protection on the public `main`; **two merges**; **automatic reboot after a new kernel** (a window, 06:00 to 07:00); **Renovate on the server**; built and measured in the lab, **the reboot also with the encrypted layout and the TPM (2026-10-05)**; **the first deployment on 26.05, then the move to 26.11, and the deploy timer without Sunday are decided (2026-10-05)** (section 12); **nothing is on the real server, no real TPM or firmware has been tried, nothing ran against GitHub**
 - **Date:** 2026-10-03
 - **Phase:** 8, Updates and automation (follow-up of [ADR 0016](0016-updates-deploys-and-checks.md) and [0017](0017-version-watch-push-and-nas.md))
 
@@ -202,21 +202,21 @@ The two things Renovate does are **different in kind**: the **container pins and
 - **The poll is not instant**: a merge is applied within the interval (10 minutes in the module) plus the build and the backups.
 - **Not tried:** comin with the backups before the switch and its idle cost; a runner; the whole flow against GitHub; the real data's backup times; a deploy that fails the **build** halfway (only evaluation errors and backup failures were injected).
 
-## 12. The release for the first deployment: 26.05 now, 26.11 afterwards (proposed)
+## 12. The release for the first deployment: 26.05 now, 26.11 afterwards (decided by the owner, 2026-10-05)
 
 [ADR 0016](0016-updates-deploys-and-checks.md) question 5. **Facts on 2026-10-05:** 26.05 gets security updates **until 2026-12-31**; **26.11 does not exist yet** (no `release-26.11` or `nixos-26.11` branch; the milestone is due **2026-11-30**), so **nothing of ours can be rehearsed on it**; the real machine still lacks its SSD and an Ethernet cable ([pending](../pending.md)), so the deployment will not be in days.
 
 - **Proposal: deploy on 26.05, and move to 26.11 through the same pipeline** (a pin pull request in the private repository, the backups first, the kernel reboot) **after rehearsing it in the lab once the branch exists** (the version watch will say 26.05's lines are old; the restore drill and the deploy tests of this ADR are the rehearsal). The move happens **before 2026-12-31**, so the period on 26.05 is **at most about three months**, and the machine starts with the system that every test of phases 0 to 8 was run on.
 - **Against, and why it does not win:** waiting for 26.11 (the end of November) delays the deployment for a release that cannot be tested yet and starts the machine on a release with no field time; deploying on 26.05 costs one extra major move shortly after, which the pipeline is built to do.
-- **The owner's word is still needed**; if the real deployment slips past the end of November, the question is reopened (start on 26.11 directly, after the same rehearsal).
+- **The owner agreed on 2026-10-05**: 26.05 first. If the real deployment slips past the end of November, the question is reopened (start on 26.11 directly, after the same rehearsal).
 
 ## Decisions for the owner
 
 **Decided (2026-10-03 to 2026-10-05):** `system.autoUpgrade` every 10 minutes **on Monday to Saturday**; every protection of section 7; **two merges**; **the reboot allowed in a window of 06:00 to 07:00**; **Renovate on the server** with a machine user's token; **the TPM alone, no PIN** ([ADR 0005](0005-storage-layout-and-filesystem.md)); Nextcloud 33 and PostgreSQL 17 for now.
 
-**Proposed, waiting for the owner:** 26.05 for the first deployment and 26.11 afterwards (section 12); the exclusion of Sunday from the deploy timer (section 9).
+**Also decided on 2026-10-05:** 26.05 for the first deployment and 26.11 afterwards (section 12); the exclusion of Sunday from the deploy timer (section 9).
 
-**Still the owner's to do, before the deployment:** the machine user and its token; the private repository from the template; the deploy key; the ruleset on the fresh public repository; the **firmware password and the Secure Boot setup mode**, the **SSD and the Ethernet cable**, and **the first kernel update at the console** ([the runbook](../encryption-runbook.md)).
+**Still the owner's to do, before the deployment:** the machine user and its token; the private repository from the template; the deploy key; the ruleset on the fresh public repository; the **firmware password and the Secure Boot setup mode**, the **SSD** (a 1 TB NVMe drive, on its way; the cable is not needed: [ADR 0019](0019-the-real-machine-network-and-hardware.md)), and **the first kernel update at the console** ([the runbook](../encryption-runbook.md)).
 
 ## Consequences
 

@@ -134,6 +134,8 @@ Measured in the lab host (`lab/push-public-u13.sh`), against the LAN/public addr
 | **The share and the Samba users' database in the Borg job of everything** | the archive lists the NAS file and `passdb.tdb`; **the Time Machine file is not in it** |
 | Cost | Samba 11 MiB, Avahi 1 MiB |
 
+**Update 2026-10-05:** with the WiFi the share's address arrives late, and Samba's `bind interfaces only` fixed its addresses at the start: **it is off now** and the Samba units wait for the network and retry ([ADR 0019](0019-the-real-machine-network-and-hardware.md)); the firewall alone limits 445 to the LAN interface (the test above is unchanged on that point).
+
 **The Samba user's password has no declarative path** in the module (`smbpasswd` is a command). Decision taken here: **one manual step at deployment** (`smbpasswd -a nas`, in the runbook), **not an exception**: the password database lives in `/var/lib/samba`, which is now in the Borg job, so a restore brings it back. If the owner wants it declared, that would be a small unit reading a sops secret: **exception 3, not built**. **Open decision 2.**
 
 ## 5. Found on the way: listeners
