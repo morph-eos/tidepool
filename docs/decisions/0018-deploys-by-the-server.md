@@ -1,6 +1,6 @@
 # 0018. Deploys: the server pulls what was merged, the backups run first, the private repository
 
-- **Status:** **decided by the owner (2026-10-03):** `system.autoUpgrade` every 10 minutes; every protection on the public `main`; **two merges**; **automatic reboot after a new kernel** (a window, 06:00 to 07:00); **Renovate on the server**; built and measured in the lab; **nothing is on the real server, the TPM case is untried, nothing ran against GitHub**
+- **Status:** **decided by the owner (2026-10-03):** `system.autoUpgrade` every 10 minutes **on Monday to Saturday**; every protection on the public `main`; **two merges**; **automatic reboot after a new kernel** (a window, 06:00 to 07:00); **Renovate on the server**; built and measured in the lab, **the reboot also with the encrypted layout and the TPM (2026-10-05)**; **the first deployment on 26.05, and the move to 26.11 afterwards, are proposed** (section 12); **nothing is on the real server, no real TPM or firmware has been tried, nothing ran against GitHub**
 - **Date:** 2026-10-03
 - **Phase:** 8, Updates and automation (follow-up of [ADR 0016](0016-updates-deploys-and-checks.md) and [0017](0017-version-watch-push-and-nas.md))
 
@@ -154,6 +154,18 @@ The owner's rule (no scheduled snapshots; run the backup methods before an updat
 - **Measured:** outside the window the machine kept running the old kernel (the boot default had the new one); **a second merge while the reboot was pending was not activated either** (a marker file stayed absent); in the window the first tick scheduled the reboot (20:53, the window opened at 20:52), **20 s of downtime**, and **after the reboot the held second merge was live**.
 - **Consequences:** (1) **everything merged while a reboot is pending waits for the reboot**, not only the kernel; (2) **a change of the window itself is read from the script that is active**: when it arrives together with a kernel change, the **old** window decides (the first attempt rebooted at once under the previous all-day window); change the window in a deploy of its own; (3) `RebootPending` compares the **activated** system with the running kernel, so it **does not cover this mode** (nothing is activated); a reboot that never comes (the window passes every day, so at most a day) is not signalled, only a machine that does not return; (4) the pre-switch backups run when the new system is **installed**, up to a day before the reboot; the hourly Borg jobs cover the hours in between; (5) a unit that fails after the switch (in the lab a Nextcloud unit whose data was newer than the package) makes `nixos-upgrade` fail too: a failure anywhere in a deploy is loud.
 
+**With the encrypted layout and the TPM** (`lab/deploy-u22-encrypted.sh`, 2026-10-05: the lab host on UEFI, Secure Boot on, every volume sealed to PCR 7, an emulated TPM): the same sequence, and it holds:
+
+| Step | Result |
+|---|---|
+| A kernel change is merged; the server installs it **outside** the window | the **Borg archives rose from 3 to 5** before it (the pre-switch backups), the **new boot image was installed and signed** with the owner's key (`sbctl verify`), the machine **kept running the old kernel**, "Outside of configured reboot window, skipping" |
+| A second merge arrives while the reboot is pending | held (the marker file still the old one) |
+| **The window opens (11:01 to 11:27)** | the machine **rebooted by itself at 11:06** (the first tick that completed in the window), **back in 27 s**, **no passphrase asked**, **kernel 6.12.111**, the held merge **live**, **Secure Boot still on, PCR 7 unchanged**, ZFS online, **no failed unit**, Immich and Vaultwarden answering |
+
+The rebuild from blank with the same layout also passes ([restore-drill.md B2](../restore-drill.md): **14 checks, 0 failed units**; the **signing keys come back from Borg**, so the firmware's old keys still accept the new boot images and **the 2 TB disk's old TPM seal still opens it**). **Still untried: the real firmware and TPM** (a desktop board with the platform's firmware TPM, [ADR 0005](0005-storage-layout-and-filesystem.md)).
+
+**The window and the Sunday checks.** The borgmatic checks start on **Sunday at 04:30** and verify **every byte of every archive** of a 14.6 TB repository: on the real data they may last **hours** (not measured). A reboot at 06:00 would cut them (cleanly: systemd stops the unit, no alert, the next run is a week away). So **the deploy timer runs Monday to Saturday** (`interval = "Mon..Sat *:0/10"`, in the private template): **no tick on Sunday, so no reboot on Sunday**; a change merged on a Saturday evening or a Sunday is installed on Monday at 00:00 and the reboot comes at 06:00 that day. The hourly Borg job at 06:00 may be cut by a reboot; it resumes at the next hour. If the first real Sunday check turns out to be short, the exclusion can go.
+
 ## 10. Renovate: GitHub's app or the server
 
 The two things Renovate does are **different in kind**: the **container pins and the Actions' commits** (it only needs the registries and GitHub), and **refreshing `flake.lock`** (it must **run Nix**).
@@ -190,11 +202,21 @@ The two things Renovate does are **different in kind**: the **container pins and
 - **The poll is not instant**: a merge is applied within the interval (10 minutes in the module) plus the build and the backups.
 - **Not tried:** comin with the backups before the switch and its idle cost; a runner; the whole flow against GitHub; the real data's backup times; a deploy that fails the **build** halfway (only evaluation errors and backup failures were injected).
 
+## 12. The release for the first deployment: 26.05 now, 26.11 afterwards (proposed)
+
+[ADR 0016](0016-updates-deploys-and-checks.md) question 5. **Facts on 2026-10-05:** 26.05 gets security updates **until 2026-12-31**; **26.11 does not exist yet** (no `release-26.11` or `nixos-26.11` branch; the milestone is due **2026-11-30**), so **nothing of ours can be rehearsed on it**; the real machine still lacks its SSD and an Ethernet cable ([pending](../pending.md)), so the deployment will not be in days.
+
+- **Proposal: deploy on 26.05, and move to 26.11 through the same pipeline** (a pin pull request in the private repository, the backups first, the kernel reboot) **after rehearsing it in the lab once the branch exists** (the version watch will say 26.05's lines are old; the restore drill and the deploy tests of this ADR are the rehearsal). The move happens **before 2026-12-31**, so the period on 26.05 is **at most about three months**, and the machine starts with the system that every test of phases 0 to 8 was run on.
+- **Against, and why it does not win:** waiting for 26.11 (the end of November) delays the deployment for a release that cannot be tested yet and starts the machine on a release with no field time; deploying on 26.05 costs one extra major move shortly after, which the pipeline is built to do.
+- **The owner's word is still needed**; if the real deployment slips past the end of November, the question is reopened (start on 26.11 directly, after the same rehearsal).
+
 ## Decisions for the owner
 
-**All decided (2026-10-03):** `system.autoUpgrade`, every 10 minutes; every protection of section 7; **two merges**; **the reboot allowed in a window of 06:00 to 07:00**; **Renovate on the server** with a machine user's token.
+**Decided (2026-10-03 to 2026-10-05):** `system.autoUpgrade` every 10 minutes **on Monday to Saturday**; every protection of section 7; **two merges**; **the reboot allowed in a window of 06:00 to 07:00**; **Renovate on the server** with a machine user's token; **the TPM alone, no PIN** ([ADR 0005](0005-storage-layout-and-filesystem.md)); Nextcloud 33 and PostgreSQL 17 for now.
 
-**Still the owner's to do, before the deployment:** create the machine user and its token; the private repository from the template; the deploy key; the ruleset on the fresh public repository; **rehearse the first kernel update at the console** (the TPM conditions of section 9).
+**Proposed, waiting for the owner:** 26.05 for the first deployment and 26.11 afterwards (section 12); the exclusion of Sunday from the deploy timer (section 9).
+
+**Still the owner's to do, before the deployment:** the machine user and its token; the private repository from the template; the deploy key; the ruleset on the fresh public repository; the **firmware password and the Secure Boot setup mode**, the **SSD and the Ethernet cable**, and **the first kernel update at the console** ([the runbook](../encryption-runbook.md)).
 
 ## Consequences
 

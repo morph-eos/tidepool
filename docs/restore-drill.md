@@ -32,6 +32,19 @@ mount it, then:  mkdir incus-state          # on the 2 TB disk only: Incus's sta
 
 Lab: **547-559 s** from the disaster to a booted system. The services start **empty**; `incus-preseed` and the others are active, `PostgresArchiveFailing` fires until step C ends with a backup (expected).
 
+## B2. Rebuild with the encrypted layout (tried in the lab on 2026-10-05: `DRILL_SECURE=1`)
+
+The same drill with LUKS, the TPM and signed boot images ([the encryption runbook](encryption-runbook.md)). What differs from B, and what the lab measured:
+
+1. **The Secure Boot signing keys come back first.** The firmware still holds the **old** keys; boot images signed with new ones would not start. `/var/lib/sbctl` is in the Borg job of everything, so **before `nixos-install`** take it from the newest archive of the repository on the surviving 16 TB disk, mounted **read-only** (`borg extract --bypass-lock ::<archive> var/lib/sbctl`, from `/mnt`). The installer's RAM holds the store: **give it about 10 GB** (with 6 GB the installer ran out of memory when it also downloaded Borg).
+2. Make the layout (disko asks for the passphrase through `tidepool.encryption.passphraseFile`, a file in the installer's memory), install the host **with `secureBoot` on** (`lab-secure-sb`). The 2 TB disk is **not** formatted: its LUKS volume and its TPM seal survive.
+3. **First boot:** the firmware is in setup mode (on a real machine Secure Boot was switched off for the installer, whose image is not signed with your keys); the new root and pool ask for the **recovery passphrase** (typed once, it opens all three). Secure Boot is still off.
+4. **Second boot (reboot once more):** the firmware enrolls the restored keys by itself: **Secure Boot enabled (user)**, and **PCR 7 is the same value as before the disaster** (`ab98654a...`), so the 2 TB disk's old seal is valid.
+5. **Seal the two new volumes to the TPM** (`systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 ...`, as in stage 3 of the runbook) and reboot: **no passphrase is asked**; all three volumes open by themselves.
+6. **Restore as in C.**
+
+Lab: the installation **879 s** (the downloads retried now and then), the restore and the checks **299 s**, **`DRILL RESULT: PASS`, 14 checks, 0 failed units**. **If the signing keys were lost** (no archive had them), the machine would have to be put in setup mode with **new** keys; PCR 7 would change and **every** volume, the 2 TB disk included, would need the recovery passphrase and a new seal: the keys are the reason the backup holds `/var/lib/sbctl`. Not tried on a real machine.
+
 ## C. Restore
 
 Decide the moment **T** (the last good one). The files come from the **first Borg archive at or after T**; the database goes **to T**.
@@ -61,7 +74,7 @@ TIDEPOOL_HOST=lab TIDEPOOL_LAYOUT=disko lab/nixos-install.sh host-t     # the fi
 lab/restore-drill.sh all                                                 # seed, disaster, rebuild, restore, verify: about 30 minutes
 ```
 
-It ends in `DRILL RESULT: PASS` or `FAIL`, with the times in `/tmp/drill`.
+It ends in `DRILL RESULT: PASS` or `FAIL`, with the times in `/tmp/drill`. The encrypted variant: `lab/vm.sh create host-s --uefi --tpm --blank --disk 30 --data-disk 10 --extra-disk 6 --extra-disk 6 --mem 10240`, the steps of `lab/tpm-u21.sh`, then `DRILL_VM=host-s DRILL_SECURE=1 DRILL_DISK_GB=30 DRILL_DATA_GB=10 lab/restore-drill.sh seed`, `disaster`, `restore`.
 
 ## E2. Between drills: the checks that run by themselves
 
