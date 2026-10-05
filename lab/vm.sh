@@ -13,7 +13,7 @@
 #   vms/<name>/           per-VM disk overlay, env file, pid, serial log
 #
 # Usage:
-#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB] [--data-disk GB] [--extra-disk GB]... [--blank]
+#   lab/vm.sh create   <name> [--cpus N] [--mem MB] [--disk GB] [--data-disk GB] [--extra-disk GB]... [--blank] [--uefi] [--tpm]
 #   lab/vm.sh start    <name>
 #   lab/vm.sh stop     <name>
 #   lab/vm.sh ssh      <name> [command...]
@@ -23,6 +23,7 @@
 #   lab/vm.sh list
 #   lab/vm.sh console  <name>             (tail the serial log)
 #
+# --uefi boots OVMF with Secure Boot support (its variable store, <vm>/OVMF_VARS.fd, starts EMPTY: the firmware is in setup mode); --tpm adds an emulated TPM 2.0 (swtpm from lab/tools/swtpm.sh, state in <vm>/tpm).
 # --extra-disk (repeatable) adds more empty disks, serial TPXTRA0001, TPXTRA0002, ...; --blank creates an empty system disk (no cloud image), for installing an OS from an ISO.
 # Environment for start: TIDEPOOL_EXTRA_ARGS (extra QEMU arguments), and the file <vm>/extra-args (one per line),
 # TIDEPOOL_NO_WAIT=1 (do not wait for SSH). The serial console is a socket, <vm>/serial.sock, also logged.
@@ -76,7 +77,7 @@ next_port() {
 
 cmd_create() {
     local name="${1:?name required}"; shift || true
-    local cpus=4 mem=6144 disk=40 data=0 blank=0 extras=()
+    local cpus=4 mem=6144 disk=40 data=0 blank=0 uefi=0 tpm=0 extras=()
     while [ $# -gt 0 ]; do
         case "$1" in
             --cpus) cpus="$2"; shift 2 ;;
@@ -84,6 +85,8 @@ cmd_create() {
             --disk) disk="$2"; shift 2 ;;
             --data-disk) data="$2"; shift 2 ;;
             --blank) blank=1; shift ;;
+            --uefi) uefi=1; shift ;;
+            --tpm) tpm=1; shift ;;
             --extra-disk) extras+=("$2"); shift 2 ;;
             *) die "unknown option: $1" ;;
         esac
@@ -98,6 +101,8 @@ cmd_create() {
         fetch_base
         qemu-img create -q -f qcow2 -F qcow2 -b "$BASE" "$d/disk.qcow2" "${disk}G"
     fi
+    [ "$uefi" = 1 ] && { cp /usr/share/OVMF/OVMF_VARS_4M.fd "$d/OVMF_VARS.fd"; : > "$d/uefi"; }
+    [ "$tpm" = 1 ] && mkdir -p "$d/tpm"
     local port; port=$(next_port)
     if [ "$data" -gt 0 ]; then
         qemu-img create -q -f qcow2 "$d/data.qcow2" "${data}G"
@@ -170,13 +175,25 @@ cmd_start() {
         extra+=(-drive "file=$xf,if=none,id=xtra$xi,cache=writeback"
                 -device "virtio-blk-pci,drive=xtra$xi,serial=$(printf 'TPXTRA%04d' "$xi")")
     done
+    # UEFI with Secure Boot support (SMM on, the variable store write-protected from the OS side as on real firmware) and an emulated TPM 2.0
+    local fw=()
+    if [ -f "$d/uefi" ]; then
+        fw+=(-machine q35,accel=kvm,smm=on -global driver=cfi.pflash01,property=secure,value=on
+             -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd,readonly=on"
+             -drive "if=pflash,format=raw,unit=1,file=$d/OVMF_VARS.fd")
+    fi
+    if [ -d "$d/tpm" ]; then
+        "${TIDEPOOL_SWTPM:-$LAB/tools/swtpm.sh}" socket --tpm2 --tpmstate "dir=$d/tpm" --ctrl "type=unixio,path=$d/tpm/swtpm.sock" \
+            --flags not-need-init,startup-clear --pid "file=$d/tpm/swtpm.pid" --daemon
+        fw+=(-chardev "socket,id=chrtpm,path=$d/tpm/swtpm.sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-crb,tpmdev=tpm0)
+    fi
     seed_pid=$(serve_seed "$d/seed" "$seed_port")
     qemu-system-x86_64 \
         -name "$name" -machine q35,accel=kvm -cpu host -smp "$CPUS" -m "$MEM" \
         -drive "file=$d/disk.qcow2,if=none,id=os,cache=writeback" \
         -device virtio-blk-pci,drive=os,bootindex=1 \
         -device virtio-rng-pci \
-        "${extra[@]}" \
+        "${extra[@]}" "${fw[@]}" \
         -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((SSH_PORT + 3))-:2222,hostfwd=tcp:127.0.0.1:$HTTP_PORT-:80,hostfwd=tcp:127.0.0.1:$HTTPS_PORT-:443" \
         -smbios "type=1,serial=ds=nocloud-net;s=http://10.0.2.2:$seed_port/" \
         -display none \
@@ -202,6 +219,8 @@ cmd_start() {
     die "SSH did not come up in 180 s; see $d/serial.log"
 }
 
+stop_tpm() { local f; f="$(vm_dir "$1")/tpm/swtpm.pid"; [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null; rm -f "$f"; return 0; }
+
 cmd_stop() {
     local name="${1:?name required}"
     load_env "$name"
@@ -213,13 +232,13 @@ cmd_stop() {
             -o LogLevel=ERROR -p "$port" "$GUEST_USER@127.0.0.1" 'sudo poweroff' 2>/dev/null || true
     fi
     for i in $(seq 1 30); do
-        kill -0 "$pid" 2>/dev/null || { log "$name stopped"; return 0; }
+        kill -0 "$pid" 2>/dev/null || { stop_tpm "$name"; log "$name stopped"; return 0; }
         sleep 1
     done
     log "graceful shutdown timed out, killing"
     kill "$pid" 2>/dev/null || true
     for i in $(seq 1 10); do
-        kill -0 "$pid" 2>/dev/null || { log "$name stopped"; return 0; }
+        kill -0 "$pid" 2>/dev/null || { stop_tpm "$name"; log "$name stopped"; return 0; }
         sleep 1
     done
     die "$name did not stop"

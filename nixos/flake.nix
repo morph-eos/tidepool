@@ -5,13 +5,14 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     sops-nix = { url = "github:Mic92/sops-nix"; inputs.nixpkgs.follows = "nixpkgs"; };
     disko = { url = "github:nix-community/disko"; inputs.nixpkgs.follows = "nixpkgs"; };
+    lanzaboote = { url = "github:nix-community/lanzaboote/v1.2.0"; inputs.nixpkgs.follows = "nixpkgs"; };   # signed boot images (Secure Boot with the owner's keys), ADR 0005
   };
 
-  outputs = { self, nixpkgs, sops-nix, disko, ... }:
+  outputs = { self, nixpkgs, sops-nix, disko, lanzaboote, ... }:
     let
       mk = hostModule: nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        modules = [ sops-nix.nixosModules.sops disko.nixosModules.disko ./modules hostModule ];
+        modules = [ sops-nix.nixosModules.sops disko.nixosModules.disko lanzaboote.nixosModules.lanzaboote ./modules hostModule ];
       };
     in
     {
@@ -20,6 +21,8 @@
       nixosConfigurations = {
         # the lab host: the same modules as the real one, with small stand-ins for what the lab cannot have (a test CA, a mail sink, no GPU)
         lab = mk ./hosts/lab;
+        # the lab host on UEFI with LUKS, the TPM and signed boot images: tried in a VM with an emulated TPM and Secure Boot (lab/tpm-u21.sh)
+        lab-secure = mk ./hosts/lab-secure;
         # the real host: the values that are private (domain, disks by serial, VPN peers) come from the private repository; this repository holds an example
         tidepool = mk ./hosts/tidepool;
       };

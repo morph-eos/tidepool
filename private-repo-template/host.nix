@@ -16,6 +16,8 @@
     lanInterface = "eno1";
     nas.enable = true;
     push.enable = true;
+    encryption.enable = true;          # LUKS on the disks, the TPM opens them: docs/encryption-runbook.md of the public repository
+    # encryption.secureBoot = true;    # stage 2 of that runbook, after `sbctl create-keys`
     deploy = {
       enable = true;
       flake = "git+ssh://git@github.com/OWNER/PRIVATE-REPO.git#tidepool";   # this repository

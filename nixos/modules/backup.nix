@@ -20,8 +20,8 @@ in
 {
   services.borgbackup.jobs = {
     everything = common // {
-      # Incus is not here: its instances are recovered from the pool itself (docs/restore-drill.md), its settings are declared; the NAS share (2 TB disk) and the Samba users' database are
-      paths = [ "/srv/data" "/var/lib/vaultwarden" ] ++ lib.optionals config.tidepool.nas.enable [ config.tidepool.nas.path "/var/lib/samba" ];
+      # Incus is not here: its instances are recovered from the pool itself (docs/restore-drill.md), its settings are declared; the NAS share (2 TB disk), the Samba users' database and (with signed boot images) the Secure Boot signing keys are
+      paths = [ "/srv/data" "/var/lib/vaultwarden" ] ++ lib.optionals config.tidepool.nas.enable [ config.tidepool.nas.path "/var/lib/samba" ] ++ lib.optional config.tidepool.encryption.secureBoot "/var/lib/sbctl";
       exclude = [ "/srv/data/jellyfin/cache" "/srv/data/immich/model-cache" ];
       repo = "/mnt/backup16/borg-everything";
     };

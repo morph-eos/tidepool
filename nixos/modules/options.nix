@@ -13,6 +13,12 @@ in
       key = mkOption { type = types.str; description = "The admin's public SSH key."; };
     };
     boot.mode = mkOption { type = types.enum [ "bios" "uefi" ]; default = "uefi"; };
+    encryption = {
+      enable = mkEnableOption "LUKS on the system disk, the SSD and the 2 TB disk, unlocked by the TPM (ADR 0005); the passphrase given at the installation stays as the RECOVERY key";
+      secureBoot = mkEnableOption "signed boot images (lanzaboote) instead of plain systemd-boot: the keys must exist first (`sbctl create-keys`)";
+      big2tb = mkOption { type = types.bool; default = true; description = "Encrypt the 2 TB disk too (it holds the offsite repository and the NAS share)."; };
+      passphraseFile = mkOption { type = types.str; default = "/tmp/disk-passphrase"; description = "Where the installer finds the passphrase while it formats (disko); it is not kept on the machine."; };
+    };
     disks = {
       system = mkOption { type = types.str; description = "The system disk, by a stable path."; };
       tank = mkOption { type = types.str; description = "The SSD that holds the ZFS pool of the services' data."; };

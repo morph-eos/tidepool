@@ -10,6 +10,7 @@
     nas.enable = true;
     nas.timeMachine.path = "/mnt/timemachine";   # the Time Machine partition of the 16 TB disk (mounted by the private values)
     push.enable = true;
+    encryption.enable = true;                # LUKS on the disks, unlocked by the TPM (docs/encryption-runbook.md); `encryption.secureBoot = true` follows once the keys exist
     disks = {
       system = "/dev/disk/by-id/EXAMPLE-system-ssd";
       tank = "/dev/disk/by-id/EXAMPLE-tank-ssd";

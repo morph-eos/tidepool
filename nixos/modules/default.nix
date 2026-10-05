@@ -5,6 +5,7 @@
     ./options.nix
     ./base.nix
     ./storage.nix
+    ./encryption.nix
     ./secrets.nix
     ./database.nix
     ./backup.nix

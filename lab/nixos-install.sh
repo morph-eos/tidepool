@@ -22,6 +22,8 @@ PUBKEY="${TIDEPOOL_SSH_KEY:-$HOME/.ssh/id_ed25519.pub}"
 PY="${TIDEPOOL_PY:-$LAB/pyenv/bin/python}"
 VMDIR="$LAB/vms/$NAME"
 HOST_ATTR="${TIDEPOOL_HOST:-tidepool-lab}"          # the flake output to install (the integrated lab host is "lab")
+PASSPHRASE="${TIDEPOOL_DISK_PASSPHRASE:-}"      # set for an encrypted layout (tidepool.encryption.enable): the LUKS passphrase, which stays the recovery key
+ENC_BIG2TB="${TIDEPOOL_ENCRYPT_BIG2TB:-0}"        # 1: the 2 TB disk (TPXTRA0002) gets LUKS too
 LAYOUT="${TIDEPOOL_LAYOUT:-parted}"               # parted: the old two-line layout; disko: the layout declared in the flake (modules/storage.nix)
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes)
 
@@ -74,7 +76,7 @@ tar -C "$REPO" -cf - nixos | ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1
 ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 'cat > ~/age.key' < "$AGE_KEY"
 
 log "partitioning, formatting, installing (downloads the system: this is the long step)"
-ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR bash -s" <<'REMOTE'
+ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR PASSPHRASE='$PASSPHRASE' ENC_BIG2TB=$ENC_BIG2TB bash -s" <<'REMOTE'
 set -euo pipefail
 export NIX_CONFIG='experimental-features = nix-command flakes
 download-attempts = 60
@@ -86,8 +88,19 @@ nix flake lock path:$HOME/nixos
 sudo umount -R /mnt 2>/dev/null || true
 if [ "$LAYOUT" = disko ]; then
     # first-time provisioning of the two large backup disks: made only if they hold no filesystem, so a reinstall that keeps them (the restore drill) leaves them alone
+    [ -n "$PASSPHRASE" ] && printf '%s' "$PASSPHRASE" | sudo tee /tmp/disk-passphrase >/dev/null
     for dev in /dev/disk/by-id/virtio-TPXTRA0001 /dev/disk/by-id/virtio-TPXTRA0002; do
-        [ -e "$dev" ] && ! sudo blkid "$dev" >/dev/null 2>&1 && sudo mkfs.ext4 -q "$dev" && echo "formatted $dev" && sudo mount "$dev" /mnt && sudo mkdir -p /mnt/incus-state && sudo umount /mnt
+        if [ -e "$dev" ] && ! sudo blkid "$dev" >/dev/null 2>&1; then
+            if [ "$ENC_BIG2TB" = 1 ] && [ "$dev" = /dev/disk/by-id/virtio-TPXTRA0002 ]; then
+                # the encrypted 2 TB disk: LUKS directly on the disk, a filesystem inside; opened once here to make it, closed again (the installed system opens it itself)
+                printf '%s' "$PASSPHRASE" | sudo cryptsetup luksFormat --batch-mode --key-file=- "$dev"
+                printf '%s' "$PASSPHRASE" | sudo cryptsetup open --key-file=- "$dev" big2tb-setup
+                sudo mkfs.ext4 -q /dev/mapper/big2tb-setup && echo "formatted $dev (LUKS)"
+                sudo mount /dev/mapper/big2tb-setup /mnt && sudo mkdir -p /mnt/incus-state && sudo umount /mnt && sudo cryptsetup close big2tb-setup
+            else
+                sudo mkfs.ext4 -q "$dev" && echo "formatted $dev" && sudo mount "$dev" /mnt && sudo mkdir -p /mnt/incus-state && sudo umount /mnt
+            fi
+        fi
     done
     # the layout comes from the flake: the system disk and the SSD's ZFS pool are wiped and made; the two large backup disks are not touched
     sudo -H -E nix run github:nix-community/disko -- --mode destroy,format,mount --yes-wipe-all-disks --flake path:$HOME/nixos#${HOST_ATTR}
