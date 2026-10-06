@@ -53,7 +53,7 @@ services:
     restart: unless-stopped
   nextcloud:
     container_name: nextcloud
-    image: nextcloud:33-apache
+    image: nextcloud:33.0.2-apache   # v0's real version, read on the real machine on 2026-10-06 (a floating tag would drift)
     environment: [ "MYSQL_HOST=nextcloud-db", "MYSQL_DATABASE=nextcloud", "MYSQL_USER=nextcloud", "MYSQL_PASSWORD=v0ncpass", "REDIS_HOST=nextcloud-redis", "NEXTCLOUD_ADMIN_USER=admin", "NEXTCLOUD_ADMIN_PASSWORD=v0adminpass", "NEXTCLOUD_TRUSTED_DOMAINS=localhost cloud.v0.test", "OVERWRITEPROTOCOL=https", "TZ=Europe/Rome" ]
     volumes: [ "/srv/v0/data/nextcloud/html:/var/www/html", "/srv/v0/data/nextcloud/data:/var/www/html/data" ]
     ports: [ "127.0.0.1:8080:80" ]

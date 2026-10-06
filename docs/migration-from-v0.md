@@ -1,13 +1,13 @@
 # Moving v0's data to tidepool
 
-Rehearsed in the lab on **2026-10-05** against a replica of v0 (`lab/v0-replica/`: the same services in Docker, seeded through their own APIs), without touching the real machine. The driver is [lab/v0-migration-u25.sh](../lab/v0-migration-u25.sh); the result of the last run was **14 checks passed, 0 failed**.
+Rehearsed in the lab on **2026-10-05** against a replica of v0 (`lab/v0-replica/`: the same services in Docker, seeded through their own APIs), without touching the real machine. The driver is [lab/v0-migration-u25.sh](../lab/v0-migration-u25.sh); the result of the last run was **15 checks passed, 0 failed**. The replica runs v0's exact versions, read on the real machine on 2026-10-06 (Nextcloud 33.0.2, Immich 3.2.1, Jellyfin 12.1, Vaultwarden 1.37.1, Syncthing 2.0.14), so the rehearsal includes the version steps the real move makes: Nextcloud 33.0.2 to 33.0.9, Immich 3.2.1 to 3.2.4, Syncthing 2.0.14 to 2.1.3.
 
 ## What the rehearsal proves, and what it does not
 
 | Proven | Not proven |
 |---|---|
 | Every service's data arrives and answers the way v0's did (table below) | Timings with the real data sizes (the replica holds 12 photos, 7 files) |
-| The procedure is scripted, ordered, and repeatable | Whatever differs between the replica and the real v0 (see "Differences to check on the real machine") |
+| The procedure is scripted, ordered, and repeatable | Whatever else differs between the replica and the real v0 (see "Differences to check on the real machine") |
 | Gaps in the first draft of the procedure were found and fixed (last section) | The 513 GB of NAS data: it is a plain copy, not rehearsed at that size |
 
 ## Procedure, in order
@@ -32,9 +32,11 @@ Measured on the replica: Immich dump 3 s, Nextcloud conversion 18 s, everything 
 3. **`sqlite3 ... "PRAGMA journal_mode=delete;"` prints `delete` to stdout**; redirected into the copied file it corrupted it ("file is not a database"). Send it to `/dev/null`.
 4. **Temporary PostgreSQL for the conversion**: right after the image is pulled the first connection can fail; the script waits for `pg_isready`, and `occ db:convert-type` ends with a usage text that is noise when the data arrived (check the row counts).
 5. **Checksums depend on the sort locale**: v0's recorded hash and the new host's differed only by ordering; both sides now use `LC_ALL=C`.
+6. **Nextcloud's PostgreSQL sequences stayed at their start values** (`occ db:convert-type` copies the rows, not the counters): the first insert into `oc_activity` hit a duplicate key and `nextcloud-cron` failed on every run. [The SQL](../lab/v0-migration-u25-nextcloud-sequences.sql) sets every sequence to its column's maximum plus one (ids beyond the sequence's range, as in `oc_jobs`, are ignored); the verification now runs the cron job. Immich (a plain dump) and Vaultwarden (pgloader's `reset sequences`) do not have the problem.
 
 ## Differences to check on the real machine
 
-- **v0's real Nextcloud patch version** against the module's (33.0.9 in the lab). If v0 is older, a `occ upgrade` runs at the first start (it did here from the same 33.0.9.1 without incident); if it is newer than the module's, the module must be bumped first.
-- **Syncthing 2.0.x to 2.1.x**: the replica ran the same major; the real one is 2.0.14 ([pending](pending.md)). The index database format may be rebuilt on the first start; the folder's files are the data that matters.
+- **Nextcloud's patch step is rehearsed**: v0 is on 33.0.2 and the module on 33.0.9; the first start ran the upgrade (`occ upgrade`) without incident and everything verified. Nothing is left to check here except the real data's size.
+- **Syncthing 2.0.14 to 2.1.3 is rehearsed** (the replica runs 2.0.14): the device ID and the folder list survive. What the real index database holds, and how long it takes to settle, depends on the real data.
 - **Jellyfin media**: v0 has two media trees; the lab uses two mounts. Decide the final host paths and set `jellyfin.mediaMounts` to match (container paths stay what the libraries already say).
+- **`smartcheck`** is not carried over: the monitoring layer replaces it ([ADR 0012](decisions/0012-observability.md)).

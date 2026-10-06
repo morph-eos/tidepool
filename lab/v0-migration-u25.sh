@@ -44,6 +44,8 @@ R
       sudo -u postgres psql -qc 'DROP DATABASE IF EXISTS nextcloud' -c 'CREATE DATABASE nextcloud OWNER nextcloud' 2>&1 | tail -n 2
       (echo 'SET ROLE nextcloud;'; gunzip < /tmp/nc.sql.gz) | sudo -u postgres psql --dbname=nextcloud --single-transaction -v ON_ERROR_STOP=on -q 2>&1 | tail -n 3; echo \"restore exit: \${PIPESTATUS[1]}\"
       sudo rm -rf /srv/data/nextcloud/data; sudo mkdir -p /srv/data/nextcloud/data /srv/data/nextcloud/config"
+    put "$HERE/v0-migration-u25-nextcloud-sequences.sql" /tmp/resetseq.sql
+    NEW "sudo -u postgres psql -d nextcloud -q -v ON_ERROR_STOP=1 -f /tmp/resetseq.sql 2>&1 | tail -n 2"   # occ db:convert-type copies the rows, not the sequences: without this the first insert of oc_activity fails and the cron job aborts
     s=$(date +%s); V0 'sudo tar -C /srv/v0/data/nextcloud/data -cf - .' | NEW 'sudo tar -C /srv/data/nextcloud/data -xpf -'; say "data copied in $(( $(date +%s) - s )) s"
     NEW "sudo cp /tmp/config.php.v0 /srv/data/nextcloud/config/config.php; sudo chown -R nextcloud:nextcloud /srv/data/nextcloud/data /srv/data/nextcloud/config; echo 'config.php and ownership in place'"
 }
@@ -96,9 +98,10 @@ set -u; . /tmp/expect.env; ok=0; bad=0
 chk() { if [ "$2" = "$3" ]; then echo "  ok   $1: $3" | cut -c1-120; ok=$((ok+1)); else echo "  FAIL $1: expected [$2] got [$3]"; bad=$((bad+1)); fi; }
 tok=$(curl -sf -H 'Content-Type: application/json' -X POST http://127.0.0.1:2283/api/auth/login -d '{"email":"lab@example.com","password":"lab-only-password"}' | jq -r .accessToken)
 chk immich_assets "$immich_assets" "$(curl -sf -H "Authorization: Bearer $tok" http://127.0.0.1:2283/api/server/statistics | jq -r .photos)"
-chk nc_version "$nc_version" "$(sudo nextcloud-occ status | awk '/- version:/{print $3}')"
+nv=$(sudo nextcloud-occ status | awk '/- version:/{print $3}'); if [ "${nv%%.*}" = "${nc_version%%.*}" ] && [ "$(printf '%s\n%s\n' "$nc_version" "$nv" | sort -V | head -1)" = "$nc_version" ]; then echo "  ok   nc_version: v0 $nc_version -> $nv (same major, not older; the first start ran the upgrade)"; ok=$((ok+1)); else echo "  FAIL nc_version: v0 $nc_version, new $nv"; bad=$((bad+1)); fi
 chk nc_share_token "$nc_share_token" "$(sudo -u postgres psql -d nextcloud -Atc "select token from oc_share limit 1")"
 chk nc_md5 "$nc_md5" "$(sudo bash -c "cd /srv/data/nextcloud/data && find . -type f -path '*files/*' -print0 | LC_ALL=C sort -z | xargs -0 md5sum | md5sum" | cut -d' ' -f1)"
+chk nc_cron "success" "$(sudo systemctl start nextcloud-cron >/dev/null 2>&1 && echo success || echo failed)"
 chk nc_login_and_file "200" "$(curl -s -o /dev/null -w '%{http_code}' -k -u alice:v0alicepass --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/remote.php/dav/files/alice/alice.txt 2>/dev/null)"
 chk vw_rsa "$vw_rsa" "$(sudo sha256sum /var/lib/vaultwarden/rsa_key.pem | cut -d' ' -f1)"
 chk vw_users "$vw_users" "$(sudo -u postgres psql -d vaultwarden -Atc 'select count(*) from users')"

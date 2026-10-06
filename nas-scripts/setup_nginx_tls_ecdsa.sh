@@ -12,7 +12,7 @@ set -euo pipefail
 # TLS1.2-only client (Android <10, players that use the system TLS such as
 # ExoPlayer/DAVx5-OAuth) fails the handshake, while TLS1.3 works because
 # there the signature is negotiated separately from the cipher suite.
-# Confirmed: the `modem` vhost, which does NOT override ssl_ciphers with
+# Confirmed: the `modem` vhost, which do NOT override ssl_ciphers with
 # that list (they use the nginx defaults or "HIGH:!aNULL:!MD5"), negotiate TLS1.2
 # without problems with ECDHE-ECDSA-AES256-GCM-SHA384.
 #

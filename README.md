@@ -409,7 +409,7 @@ their own ownership.
 
 One `docker-compose.yml` with 17 active services: Immich (photos, machine learning, Postgres, Redis), Nextcloud (also the OIDC identity provider; MariaDB, Redis),
 Jellyfin with an SSO login button injected by nginx, Plex and JellyPlex-Watched (profile `plex`, off), Vaultwarden (SSO via Nextcloud),
-WebDAV (phone backups), Syncthing (note sync), icloudpd (iCloud photos → Immich, profile `icloud`), nginx and certbot, smartcheck (disk health).
+WebDAV (phone backups), Syncthing (note sync), icloudpd (iCloud photos → Immich, profile `icloud`), nginx and certbot, smartcheck (disk health),
 
 ### Virtualization
 
@@ -607,6 +607,7 @@ every five minutes.
 | `syncthing` | `syncthing` | 8384 | |
 | `icloudpd` | `icloud-sync` | | profile `icloud` |
 | `nginx`, `certbot` | `nginx`, `private-certbot` | 80, 443 | certbot is one-shot |
+| `smartcheck` | same name | none | disk health checks |
 | `nextcloud`, `nextcloud-db`, `nextcloud-redis` | `nextcloud`, `nextcloud_mariadb`, `nextcloud_redis` | 80 | |
 
 `docker compose` commands take the **service** name; `docker exec`, `docker ps` and the host scripts use the `container_name`.

@@ -1,5 +1,0 @@
-# Lab-only throwaway passwords of the v0 replica (lab/v0-replica), used with curl -u against containers that exist only in a test VM.
-lab/v0-replica/seed.sh:curl-auth-user:16
-lab/v0-replica/seed.sh:curl-auth-user:24
-lab/v0-replica/seed.sh:curl-auth-user:56
-lab/v0-migration-u25.sh:curl-auth-user:97

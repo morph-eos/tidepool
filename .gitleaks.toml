@@ -1,0 +1,9 @@
+# The default rules, with one narrow exception: the lab scripts call throwaway test containers and VMs with made-up passwords (`curl -u user:labpass`).
+# Real secrets are not allowed anywhere, lab/ included: every other rule still applies there.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "made-up passwords of the lab's test services"
+targetRules = ["curl-auth-user"]
+paths = ['''^lab/''']
