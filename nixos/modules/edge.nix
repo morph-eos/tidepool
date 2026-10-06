@@ -7,6 +7,12 @@ let
   acme = if cfg.lab then { enableACME = true; } else { useACMEHost = d; };
   proxy = port: { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; };
   public = port: acme // { forceSSL = true; locations."/" = proxy port; };
+  # reachable only through the VPN: the name listens on the WireGuard address, whatever answers behind it stays on the loopback
+  vpnOnly = port: acme // {
+    forceSSL = true;
+    listen = [ { addr = "10.100.0.1"; port = 443; ssl = true; } { addr = "10.100.0.1"; port = 80; ssl = false; } ];
+    locations."/" = proxy port;
+  };
 in
 {
   services.nginx = {
@@ -26,10 +32,10 @@ in
     virtualHosts = {
       "vault.${d}" = public 8222;
       "photos.${d}" = public 2283;
-      "jelly.${d}" = public 8096;
+      "media.${d}" = public 8096;
       # Nextcloud's own module defines its virtual host (php-fpm, headers, limits); only the certificate and TLS are added
       "cloud.${d}" = acme // { forceSSL = true; };
-      "dav.${d}" = acme // {
+      "backup.${d}" = acme // {
         forceSSL = true;
         basicAuthFile = config.sops.secrets.webdav-htpasswd.path;
         locations."/" = {
@@ -43,12 +49,11 @@ in
           '';
         };
       };
-      # reachable only through the VPN: it listens on the WireGuard address
-      "sync.${d}" = acme // {
-        forceSSL = true;
-        listen = [ { addr = "10.100.0.1"; port = 443; ssl = true; } { addr = "10.100.0.1"; port = 80; ssl = false; } ];
-        locations."/" = proxy 8384;
-      };
+      # the names of the machine's own tools, VPN only (ADR 0008). Incus has no name here: it keeps its own TLS and client certificates on <VPN address>:8443, so a proxy would break them;
+      # give that address a DNS name (compute.<domain>) and open https://compute.<domain>:8443
+      "sync.${d}" = vpnOnly 8384;      # Syncthing's GUI
+      "metrics.${d}" = vpnOnly 9090;   # Prometheus
+      "alerts.${d}" = vpnOnly 9093;    # Alertmanager
     };
   };
   networking.firewall.allowedTCPPorts = [ 80 443 ];

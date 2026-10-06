@@ -40,7 +40,7 @@ seed1)
   for db in immich vaultwarden nextcloud; do pg -d $db -c 'drop table if exists drill_marker' >/dev/null; done
   bash /tmp/immich-seed.sh $IM /tmp/imgs/a | tail -n 1
   for n in 1 2 3; do put root:$NCPASS https://cloud.lab.test/remote.php/dav/files/root/nc-a$n.txt "nextcloud file a$n"; done
-  put lab:$DAVPASS https://dav.lab.test/w-a1.txt "webdav a1"
+  put lab:$DAVPASS https://backup.lab.test/w-a1.txt "webdav a1"
   incus launch images:alpine/3.24 drill-ct -s smr --quiet >/dev/null 2>&1 </dev/null; for i in $(seq 1 30); do incus exec drill-ct -- true </dev/null 2>/dev/null && break; sleep 2; done; incus exec drill-ct -- sh -c 'echo incus-marker > /root/marker' </dev/null
   say "Incus: an instance on the directory pool of the 2 TB disk: $(incus list drill-ct -f csv -c ns </dev/null)"
   setv RSA_SUM "$(sha256sum /var/lib/vaultwarden/rsa_key.pem | cut -d" " -f1)"
@@ -51,7 +51,7 @@ seed1)
 seed2)
   bash /tmp/immich-seed.sh $IM /tmp/imgs/b | tail -n 1
   for n in 1 2; do put root:$NCPASS https://cloud.lab.test/remote.php/dav/files/root/nc-b$n.txt "nextcloud file b$n"; done
-  put lab:$DAVPASS https://dav.lab.test/w-b1.txt "webdav b1"
+  put lab:$DAVPASS https://backup.lab.test/w-b1.txt "webdav b1"
   marker after-backup1
   sleep 3
   setv T_GOOD "$(pg -c "select to_char(now() at time zone 'utc','YYYY-MM-DD HH24:MI:SS')||'+00'")"
@@ -108,7 +108,7 @@ verify)
   for db in vaultwarden nextcloud; do m=$(pg -d $db -c "select string_agg(note, ',' order by at) from drill_marker"); [ "$m" = "before,after-backup1" ] && ok "database markers in $db: $m" || no "$db markers: $m"; done
   c=$(nc -X PROPFIND -H 'Depth: 1' https://cloud.lab.test/remote.php/dav/files/root/ | grep -o 'nc-[ab][0-9].txt' | sort -u | wc -l); [ "$c" = "$NC_AT_GOOD" ] && ok "Nextcloud: $c files, as at T_GOOD (the one the damage deleted is back)" || no "Nextcloud: $c files, expected $NC_AT_GOOD"
   [ "$(nc https://cloud.lab.test/remote.php/dav/files/root/nc-b2.txt)" = "nextcloud file b2" ] && ok "Nextcloud: the deleted file's content is back" || no "Nextcloud: nc-b2.txt content"
-  [ "$(curl -sk -u lab:$DAVPASS https://dav.lab.test/w-b1.txt)" = "webdav b1" ] && ok "WebDAV: the deleted file is back, with its content" || no "WebDAV: w-b1.txt"
+  [ "$(curl -sk -u lab:$DAVPASS https://backup.lab.test/w-b1.txt)" = "webdav b1" ] && ok "WebDAV: the deleted file is back, with its content" || no "WebDAV: w-b1.txt"
   curl -sf http://127.0.0.1:8222/alive >/dev/null && ok "Vaultwarden answers on its restored database" || no "Vaultwarden"
   [ "$(sha256sum /var/lib/vaultwarden/rsa_key.pem | cut -d" " -f1)" = "$RSA_SUM" ] && ok "Vaultwarden: its RSA key (outside the database) is the one that was backed up" || no "Vaultwarden RSA key"
   incus start drill-ct </dev/null >/dev/null 2>&1; for i in $(seq 1 30); do incus exec drill-ct -- true </dev/null 2>/dev/null && break; sleep 2; done

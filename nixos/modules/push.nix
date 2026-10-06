@@ -19,7 +19,7 @@ in
       environmentFile = config.sops.secrets.ntfy-env.path;
       settings = {
         listen-http = "127.0.0.1:2586";
-        base-url = "https://ntfy.${d}";
+        base-url = "https://push.${d}";
         behind-proxy = true;
         auth-file = "/var/lib/ntfy-sh/user.db";
         auth-default-access = "deny-all";   # a topic nobody was granted is closed: guessing its name gets nothing
@@ -31,7 +31,7 @@ in
       settings = { http.addr = "127.0.0.1:8111"; ntfy = { baseurl = "http://127.0.0.1:2586"; notification.topic = "alerts"; }; };
     };
     services.nginx.appendHttpConfig = "limit_req_zone $binary_remote_addr zone=ntfy:10m rate=10r/s;";
-    services.nginx.virtualHosts."ntfy.${d}" = acme // {
+    services.nginx.virtualHosts."push.${d}" = acme // {
       forceSSL = true;
       locations."/" = {
         proxyPass = "http://127.0.0.1:2586"; proxyWebsockets = true;

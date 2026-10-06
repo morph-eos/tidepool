@@ -14,7 +14,7 @@ echo "== services through their NixOS modules"
 r=$($C https://cloud.lab.test/status.php | jq -c '{installed,version:.versionstring}' 2>&1); say "S1 Nextcloud: $r; database: $(sudo -u nextcloud nextcloud-occ config:system:get dbtype 2>&1), cache: $(sudo -u nextcloud nextcloud-occ config:system:get memcache.distributed 2>&1 | sed 's/.*\\//')"
 r=$($C -o /dev/null -w '%{http_code}' https://vault.lab.test/alive); say "S1 Vaultwarden: /alive http=$r; $($C https://vault.lab.test/api/config | jq -c '{version,environment:.environment.vault}' 2>&1 | cut -c1-120); database: $(journalctl -u vaultwarden -b --no-pager | grep -ioE 'postgres[a-z]*' | head -n 1)"
 r=$($C -o /dev/null -w '%{http_code}' https://sync.lab.test/rest/noauth/health); say "S1 Syncthing GUI behind the proxy: /rest/noauth/health http=$r; the sync port 22000 listens: $(ss -ltn | grep -c ':22000 ')"
-r=$($C -u lab:lab-only-dav-password -X PROPFIND -H 'Depth: 0' -o /dev/null -w '%{http_code}' https://dav.lab.test/); say "S1 WebDAV: PROPFIND with the right password http=$r; with a wrong one http=$($C -u lab:wrong -X PROPFIND -H 'Depth: 0' -o /dev/null -w '%{http_code}' https://dav.lab.test/)"
+r=$($C -u lab:lab-only-dav-password -X PROPFIND -H 'Depth: 0' -o /dev/null -w '%{http_code}' https://backup.lab.test/); say "S1 WebDAV: PROPFIND with the right password http=$r; with a wrong one http=$($C -u lab:wrong -X PROPFIND -H 'Depth: 0' -o /dev/null -w '%{http_code}' https://backup.lab.test/)"
 say "S1 smartd: $(smartd --version 2>&1 | head -n 1 | cut -c1-60); the module refused an empty device list when first configured"
 echo "-- S2 memory in use (MiB) and unit"
 for u in phpfpm-nextcloud nginx postgresql vaultwarden syncthing webdav redis-nextcloud; do

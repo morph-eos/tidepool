@@ -33,7 +33,7 @@ One decision per row, each with its measurements in the linked record. The rule 
 | Storage and boot | ZFS for the services, ext4 for the big disks; LUKS on every disk, opened by the TPM (PCR 7 only), signed boot images (Secure Boot with the owner's keys) | [0005](docs/decisions/0005-storage-layout-and-filesystem.md), [runbook](docs/encryption-runbook.md) |
 | Databases and Immich | PostgreSQL 17 as a native service; Immich in containers pinned by digest | [0006](docs/decisions/0006-postgresql-version-and-immich.md) |
 | Backups | pgBackRest for the databases; Borg, two repositories, for the files; an offsite copy; checks that restore | [0004](docs/decisions/0004-backup.md), [0007](docs/decisions/0007-offsite-copy.md), [0015](docs/decisions/0015-backup-verification.md) |
-| Edge | nginx through the NixOS module, certificates from the NixOS ACME module with the challenge delegated by CNAME | [0008](docs/decisions/0008-edge.md) |
+| Edge | nginx through the NixOS module, certificates from the NixOS ACME module with the challenge delegated by CNAME; [the names](docs/names.md) of the services | [0008](docs/decisions/0008-edge.md) |
 | Remote access | plain WireGuard; a VM service is private unless the flake says otherwise | [0009](docs/decisions/0009-remote-access-vpn.md), [0010](docs/decisions/0010-vm-service-exposure.md) |
 | Services | native Nextcloud, Vaultwarden, Syncthing and Samba; Jellyfin and Immich as pinned containers (Podman) | [0011](docs/decisions/0011-services.md) |
 | Observability | Prometheus and Alertmanager with declared rules, mail only, a heartbeat to an outside watcher | [0012](docs/decisions/0012-observability.md) |

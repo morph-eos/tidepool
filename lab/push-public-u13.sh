@@ -13,8 +13,8 @@ say() { echo "$(date +%H:%M:%S) $*"; }
 say "== deploy"
 nixos-rebuild test --flake path:/home/lab/nixos#lab 2>&1 | grep -E "error|Done" | head -n 3 | cut -c1-160; sleep 12
 say "failed units: $(systemctl --failed --no-legend | tr -s ' ' | cut -d' ' -f2 | tr '\n' ' ')"
-N="curl -sk -m 8 --resolve ntfy.lab.test:443:10.0.2.15"
-U=https://ntfy.lab.test
+N="curl -sk -m 8 --resolve push.lab.test:443:10.0.2.15"
+U=https://push.lab.test
 code() { $N -o /dev/null -w '%{http_code}' "$@"; }
 say "== what a stranger sees from the LAN/public address (no login)"
 say "GET /                       -> $(code $U/)   (the web page itself)"

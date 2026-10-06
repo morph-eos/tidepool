@@ -89,6 +89,7 @@ in
   services.prometheus = {
     enable = true;
     listenAddress = "127.0.0.1";
+    webExternalUrl = "https://metrics.${d}/";
     retentionTime = "30d";
     globalConfig = { scrape_interval = "30s"; evaluation_interval = "30s"; };
     exporters = {
@@ -102,12 +103,13 @@ in
     scrapeConfigs = [
       { job_name = "node"; static_configs = [ { targets = [ "127.0.0.1:9100" ]; } ]; }
       { job_name = "postgres"; static_configs = [ { targets = [ "127.0.0.1:9187" ]; } ]; }
-      (probe "https" "https" [ "https://vault.${d}/alive" "https://cloud.${d}/status.php" "https://photos.${d}/api/server/ping" "https://jelly.${d}/health" "https://dav.${d}/" ])
+      (probe "https" "https" [ "https://vault.${d}/alive" "https://cloud.${d}/status.php" "https://photos.${d}/api/server/ping" "https://media.${d}/health" "https://backup.${d}/" ])
       (probe "caa" "caa" [ "1.1.1.1" ])   # the CAA record, asked of a public resolver, as a CA would see it
     ] ++ lib.optional (!cfg.lab) { job_name = "smartctl"; static_configs = [ { targets = [ "127.0.0.1:9633" ]; } ]; };
     alertmanager = {
       enable = true;
       listenAddress = "127.0.0.1";
+      webExternalUrl = "https://alerts.${d}";
       extraFlags = [ "--cluster.listen-address=" ];   # one instance: no gossip port (it listened on every interface)
       environmentFile = config.sops.secrets.alertmanager-env.path;
       checkConfig = false;   # amtool cannot check the unexpanded address
