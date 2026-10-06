@@ -1,0 +1,66 @@
+# Deployment: from v0 to the new system, in order
+
+One page, in the order it is done. The details live in the runbooks it points at. **The real machine is the same hardware that runs v0**, so the new system replaces v0: from the moment v0's services stop until the new ones answer, **the household has no photos, cloud or passwords**. Plan that window, and do the work before it so that the window is only copies, an installation and checks.
+
+**What was tried in the lab, and what is the first time on the real machine.** Tried: the host built from the private repository's shape ([lab/private-repo-u24.sh](../lab/private-repo-u24.sh)), the encrypted layout with the emulated TPM and Secure Boot ([lab/tpm-u21.sh](../lab/tpm-u21.sh)), a rebuild from an empty disk and a restore ([restore drill](restore-drill.md)), and the move of every service's data from a replica of v0 ([migration](migration-from-v0.md)). **First time on the real machine:** the firmware and its TPM, the radio, the GPU, real certificates and mail, the timings on the real data, and the move of the data **through a disk** (the rehearsal used two machines; here the source and the destination are one machine, so the copies go through the 16 TB disk).
+
+## 0. Before the day (v0 keeps running)
+
+Do not start the day until every line of this section is true.
+
+**0.1 The private repository** (from [the template](../private-repo-template/README.md)): `host.nix` with the domain, the four disks **by their stable paths** (`ls -l /dev/disk/by-id`; the NVMe SSD's path is read when it is fitted), the WiFi block, the LAN interface name, the VPN peers and the admin's key; `secrets.yaml` with every secret of [the example](../nixos/secrets/example.yaml) (`borg-passphrase`, `pgbackrest-cipher`, `wg-private-key`, `smtp-password`, `heartbeat-url`, `ntfy-env`, `ntfy-bridge-env`, `alertmanager-env`, `vaultwarden-env`, `nextcloud-admin-pass`, `webdav-htpasswd`, `wifi-psk`, `deploy-key`, `renovate-token`), plus `syncthing-cert` and `syncthing-key` if the device keeps its identity. **Check:** from a workstation with Nix, `nix build .#nixosConfigurations.tidepool.config.system.build.toplevel` in the private repository builds (the lab did it with test values: 60 s, 6.2 GiB).
+
+**0.2 The keys.** The machine's **age key** and the **Borg and pgBackRest keys**, written down in **Proton Pass and on paper**, and the **LUKS recovery passphrase** with them. Losing the passphrase of a repository loses the backup ([ADR 0003](decisions/0003-secrets.md), [ADR 0007](decisions/0007-offsite-copy.md)).
+
+**0.3 Accounts, DNS, router.**
+- The **machine user for Renovate** and its token, passkeys or two-factor on the owner's account ([pending](pending.md)).
+- **Healthchecks.io** with its two checks, and Brevo's SMTP key with the **SPF and DKIM records** in place ([ADR 0012](decisions/0012-observability.md)).
+- **DNS:** the two CNAMEs for the challenge exist; the test one is removed; the CAA record bound to the account waits for the first real certificate ([ADR 0008](decisions/0008-edge.md)).
+- **Router:** a reservation of the WiFi card's address, and the forwards **80/tcp, 443/tcp, 22000 tcp+udp (Syncthing) and 51820/udp (WireGuard)**. SSH (port 2222) is open on the VPN only.
+
+**0.4 The machine.** The NVMe SSD fitted. In the firmware: a **password**, the **TPM enabled**, **VT-d on**, UEFI. Note whether the TPM is the CPU's firmware TPM ([ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md)).
+
+**0.5 The way back.** An **image of the old system disk** (`dd if=<disk> | zstd > /mnt/nas/v0-system-disk.img.zst`, onto the 16 TB disk) so that v0 can be put back as it was, and **v0's last backup** checked. The new SSD is empty and takes nothing from v0; the old system disk is wiped by the installation, and **this image is the only way back to v0's operating system**.
+
+**0.6 The installer.** The NixOS installer USB of the pinned release, its checksum checked. The graphical one has NetworkManager, which makes the WiFi easy to join; the installer image is **not signed with your keys**, so Secure Boot is switched off to start it.
+
+**0.7 The numbers to compare with.** Run the commands at the end of [the capacity page](capacity.md) on v0 and keep the output: the sizes you will compare after the move.
+
+## 1. The day
+
+**1.1 Stop v0 and take the final copies** (the window opens). Stop the services in an order that leaves the databases consistent; then, following [the migration](migration-from-v0.md), **on v0**: `pg_dump` of Immich's PostgreSQL 14; `occ db:convert-type` of Nextcloud into a temporary PostgreSQL container and its `pg_dump`; Vaultwarden's SQLite file with `PRAGMA journal_mode=delete`; Syncthing's certificate and key (they become the `syncthing-cert` and `syncthing-key` secrets); WebDAV's `user.passwd`; Nextcloud's `config.php` **copied before maintenance mode is switched on**. **Copy everything**, with the services' data directories, **to a folder of the 16 TB disk** (about 125 GB of service data; the other 335 GB of the 2 TB disk too), and **check the copy** (a file count and checksums of the user files, as the verification of the rehearsal does). *The copy of 513 GB runs at the disk's speed: about an hour and a half at 100 MB/s (an estimate, not measured).*
+
+**1.2 The 2 TB disk. The point of no return for v0's data on it:** after this, that data exists only as the checked copies on the 16 TB disk (and v0's operating system only as the image of 0.5). Only after 1.1 is checked: `cryptsetup luksFormat`, open it, `mkfs.ext4`, make `incus-state`, as in [the first stage](encryption-runbook.md) and [the first-time provisioning](restore-drill.md). The 16 TB disk is **never formatted** by the flake.
+
+**1.3 Install.** Boot the installer (Secure Boot off), join the WiFi, copy the private repository from the workstation (`scp`, so that the installer needs no key for it; the public flake is public). Put the **recovery passphrase** in the installer's memory (`tidepool.encryption.passphraseFile`) and the **age key** in `/mnt/var/lib/sops-nix/key.txt`; make the layout and install: `nix run github:nix-community/disko -- --mode destroy,format,mount --yes-wipe-all-disks --flake path:<the private repository>#tidepool`, then `nixos-install --flake path:<it>#tidepool --no-root-passwd` ([restore drill, B](restore-drill.md)). **Check:** the first boot asks for the passphrase on the console, and the machine is on the WiFi with the address the router reserved.
+
+**1.4 Encryption, stages 2 and 3** ([the runbook](encryption-runbook.md)): `sbctl create-keys` (the keys are saved in the Borg job of everything), `secureBoot = true` and a rebuild, the firmware into **setup mode** (not "clear all keys"), reboot **twice**, then `systemd-cryptenroll` on each of the three volumes with PCR 7 only. **Check:** `bootctl status` says "Secure Boot: enabled (user)", and **a reboot asks for no passphrase**. **This is the first time on the real firmware and TPM**: if the passphrase is asked after stage 3, stop and read "Living with it".
+
+**1.5 Put the data back** (still with the private repository's `deploy` switched off, see 1.9), service by service, as in [the migration](migration-from-v0.md): Immich, Nextcloud (and **the sequences reset**, which the rehearsal found necessary), Vaultwarden, WebDAV, Syncthing, Jellyfin. **Check after each**, then run the whole verification: the asset count of Immich, Nextcloud's version and a user file's content, Vaultwarden's users and ciphers, the Syncthing device ID, Jellyfin's libraries. **Compare with the sizes of 0.7.**
+
+**1.6 Backups first.** Start `borgbackup-job-everything` and `borgbackup-job-offsite` and `pgbackrest-default-weekly` by hand; **the `PostgresArchiveFailing` alert fires until the first one ends** (expected). **Check:** `borg list` shows an archive in each repository, `pgbackrest --stanza=default check` passes. **Where the offsite repository goes outside the house is not decided yet** ([pending](pending.md)): until it is, the copy at home is the second copy, not the third.
+
+**1.7 Names and certificates.** The first orders: watch `acme-order-renew-*` until the wildcard certificates are issued; then bind the CAA record to the account. **Check:** each public name answers over HTTPS with a valid certificate, the GUI of Syncthing only on the VPN.
+
+**1.8 Monitoring, for real.** A real mail through Brevo, the heartbeat at Healthchecks.io, a **deliberately failed backup** to see the mail arrive, the push on the phone ([pending](pending.md)). **Check:** each of the three reaches you.
+
+**1.9 The first kernel update at the console, then the deploy chain.** Force one (the lab did it with the other LTS kernel line: `boot.kernelPackages = pkgs.linuxPackages_6_12;`, a rebuild, a reboot), and **watch it at the console**: no passphrase, the same PCR 7. Only then set `tidepool.deploy.enable = true` in the private repository, with `reboot.allow` and the window, and let the machine pull ([ADR 0018](decisions/0018-deploys-by-the-server.md)). **Check:** the first `bump-public` pull request merged by hand reaches the server and the backups run before it; Renovate's first run opens a pull request.
+
+**1.10 Close the window.** v0's services stay off. **Keep** v0's copies on the 16 TB disk and the image of the old system disk for **at least a month**, and remove them only after a restore from the new backups has been rehearsed on the real machine ([restore drill, C](restore-drill.md)).
+
+## 2. The first weeks
+
+- Re-measure the sizes and **correct [the capacity page](capacity.md)**.
+- The first weekend's **version-watch mail**; the first **weekly `borg check --verify-data`** (how long it takes on the real data, [ADR 0015](decisions/0015-backup-verification.md)).
+- The **WiFi** over time (a reconnection after the router restarts), Time Machine over the air, the GPU (Jellyfin's transcoding and Immich's machine learning), a **restore drill on the real machine** and **from the offsite** once it exists.
+- Nextcloud stays at 33 until the move to 34 and 35 is made as two separate deploys, each with a snapshot of the data first ([ADR 0017](decisions/0017-version-watch-push-and-nas.md)).
+
+## If something goes wrong
+
+| Where | What to do |
+|---|---|
+| Before 1.2 (nothing destroyed yet) | v0 can simply be started again: only copies were made. |
+| After 1.2, before 1.5 (the 2 TB disk is formatted, the system disk may be wiped) | Put the image of 0.5 back on the system disk (decompress it with `zstdcat` into `dd of=<disk>`) **and copy v0's data back from the checked copies on the 16 TB disk** to the 2 TB disk. It takes as long as the copy of 1.1, and v0 is then as it was when it was stopped. |
+| The passphrase is asked after stage 3, or the TPM refuses | Type the recovery passphrase, re-seal: [living with it](encryption-runbook.md). |
+| A service's data does not verify | Do not go on to the next one: the copies on the 16 TB disk are intact, and the step can be repeated. |
+| The machine does not come back | The heartbeat stops and Healthchecks.io mails within minutes; at the console, the previous generation is in the boot menu. |
