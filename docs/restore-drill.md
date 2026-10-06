@@ -9,7 +9,7 @@ Written from what `lab/restore-drill.sh` did in the lab ([ADR 0014](decisions/00
 | The system disk and the SSD (the ZFS pool: every service's files, the databases) | **the flake** (the system), **Borg** on the 16 TB disk (the files), **pgBackRest** on the 16 TB disk (the databases) |
 | The 16 TB disk | the data on the SSD is intact; **run a backup at once** to rebuild the repositories; the media is a plain copy that must be restored from where it was copied |
 | The 2 TB disk | the offsite repository is rebuilt by the next Borg run; **the Incus instances on it are lost** (tests, replaceable) |
-| Everything | the offsite copy ([ADR 0007](decisions/0007-offsite-copy.md)) and the age key from its custody (Proton Pass and paper): **not rehearsed in the lab** |
+| Everything | the offsite copy ([ADR 0007](decisions/0007-offsite-copy.md)): `proton-offsite-cli auth login`, then `proton-offsite-cli filesystem download /my-files/tidepool/borg-offsite <dir>`, then `BORG_RELOCATED_REPO_ACCESS_IS_OK=yes borg check --verify-data <dir>` with the passphrase from its custody (Proton Pass and paper); rehearsed byte for byte in the lab (`lab/proton-offsite/`), **not on the real data** |
 
 **You need:** the repository, the **age key** (custody: [ADR 0003](decisions/0003-secrets.md)), the Borg passphrase (it is a secret in the same sops file, so it comes with the age key), and a NixOS installer USB.
 
