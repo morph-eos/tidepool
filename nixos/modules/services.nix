@@ -37,13 +37,19 @@ in
   services.syncthing = {
     enable = true;
     dataDir = "/srv/data/syncthing";
-    openDefaultPorts = true;   # the sync port is public by decision (ADR 0008)
+    openDefaultPorts = false;   # the module would open the sync port AND the local-discovery port (UDP 21027) on every interface; the two rules below say which, where
     guiAddress = "127.0.0.1:8384";   # the GUI is behind nginx, on the VPN address only (edge.nix)
     settings.gui.insecureSkipHostcheck = true;
     # a move from another Syncthing keeps the device's identity (its ID): the certificate and the key are secrets. The devices and folders are the PRIVATE repository's to declare
     # (services.syncthing.settings.devices and .folders): with the module's defaults, anything not declared is removed at each start.
     cert = lib.mkIf cfg.services.syncthing.restoreIdentity config.sops.secrets.syncthing-cert.path;
     key = lib.mkIf cfg.services.syncthing.restoreIdentity config.sops.secrets.syncthing-key.path;
+  };
+  # The sync port is public by decision (ADR 0008); local discovery is a LAN broadcast, so its port is open on the LAN interface only (none, if the host has none: devices then find each other by address).
+  networking.firewall = {
+    allowedTCPPorts = [ 22000 ];
+    allowedUDPPorts = [ 22000 ];   # QUIC
+    interfaces = lib.mkIf (config.tidepool.lanInterface != null) { ${config.tidepool.lanInterface}.allowedUDPPorts = [ 21027 ]; };
   };
   sops.secrets = lib.mkIf cfg.services.syncthing.restoreIdentity {
     syncthing-cert = { owner = config.services.syncthing.user; };
