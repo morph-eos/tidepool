@@ -17,7 +17,7 @@
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
 | [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks (the order of the first deployment is in [the deployment runbook](docs/deployment-runbook.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
 | [lab/](lab/) | the tooling and the test scripts: QEMU/KVM VMs, the restore drill, the encrypted-layout test, the deploy tests, the migration rehearsal |
-| [private-repo-template/](private-repo-template/) | the template of the **private** repository that holds one machine's values and secrets and imports this one |
+| [private-repo-template/](private-repo-template/) ([how it works](docs/private-repository.md)) | the template of the **private** repository that holds one machine's values and secrets and imports this one |
 | `docker/`, `nas-scripts/` | v0's scripts and compose file, kept as reference and as the specification of the data to migrate. They are anonymized and not maintained |
 
 ## What the system is

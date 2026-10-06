@@ -62,9 +62,9 @@ let
       - alert: PgBackrestStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"pgbackrest-.*\\.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
         labels: { severity: critical }
-      # a backup unit that has been running for hours: a first backup of a very large library, or a check that hangs while the backups wait for it (they wait up to 12 hours)
+      # a backup unit that has been running for hours: a first backup of a very large library (the first Proton upload, about 30 hours, warns too: expected), or a check that hangs while the backups wait for it (they wait up to 12 hours)
       - alert: BackupJobRunningLong
-        expr: node_systemd_unit_state{name=~"borgbackup-job-.*\\.service|borgmatic\\.service|pgbackrest-restore-test\\.service", state="active"} == 1
+        expr: node_systemd_unit_state{name=~"borgbackup-job-.*\\.service|borgmatic\\.service|pgbackrest-restore-test\\.service|proton-offsite-sync\\.service", state="active"} == 1
         for: ${if cfg.lab then "2m" else "8h"}
         labels: { severity: warning }
         annotations: { summary: "{{ $labels.name }} has been running for a long time" }
