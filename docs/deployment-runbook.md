@@ -60,7 +60,7 @@ Do not start the day until every line of this section is true.
 | Where | What to do |
 |---|---|
 | Before 1.2 (nothing destroyed yet) | v0 can simply be started again: only copies were made. |
-| After 1.2, before 1.5 (the 2 TB disk is formatted, the system disk may be wiped) | Put the image of 0.5 back on the system disk (`zstdcat <image> | dd of=<disk>`) **and copy v0's data back from the checked copies on the 16 TB disk** to the 2 TB disk. It takes as long as the copy of 1.1, and v0 is then as it was when it was stopped. |
+| After 1.2, before 1.5 (the 2 TB disk is formatted, the system disk may be wiped) | Put the image of 0.5 back on the system disk (decompress it with `zstdcat` into `dd of=<disk>`) **and copy v0's data back from the checked copies on the 16 TB disk** to the 2 TB disk. It takes as long as the copy of 1.1, and v0 is then as it was when it was stopped. |
 | The passphrase is asked after stage 3, or the TPM refuses | Type the recovery passphrase, re-seal: [living with it](encryption-runbook.md). |
 | A service's data does not verify | Do not go on to the next one: the copies on the 16 TB disk are intact, and the step can be repeated. |
 | The machine does not come back | The heartbeat stops and Healthchecks.io mails within minutes; at the console, the previous generation is in the boot menu. |
