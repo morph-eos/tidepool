@@ -74,7 +74,6 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 | **The 2 TB disk's capacity budget** (offsite repository, Incus pool and state, the NAS share) is not written down | the real sizes |
 | **The version watch on the real machine:** the first weekend mail (a deliberately old lock proves it), whether the monthly tier (waiting on nixpkgs, majors, end of life) is the right amount of mail; **Incus is not watched** (LTS against feature releases: a line-aware source is missing) | the owner; a weekend after the deployment |
 | **Nextcloud after the deployment:** start at 33 (v0's major), then 34 and 35 as separate deploys with a ZFS snapshot before each ([ADR 0017 section 9](decisions/0017-version-watch-push-and-nas.md)) | the real machine; 35 when nixpkgs has a settled 35.0.x |
-| **Syncthing's local-discovery port (UDP 21027) is open on every interface** | tidy up when the services module is revisited; not reachable from the Internet (the router does not forward it) |
 
 ## The deploy chain and the real machine ([ADR 0018](decisions/0018-deploys-by-the-server.md), [ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md))
 
@@ -87,4 +86,4 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 | **The move of v0's data: rehearsed in the lab** (replica of v0 at its real versions, 15 checks passed; [migration-from-v0.md](migration-from-v0.md)). Left: the real data sizes and timings, the final Jellyfin media paths, the 513 GB copy | the owner, at the cutover |
 | **A machine user for Renovate:** a second free GitHub account, the Write role on the public repository (not Admin), a fine-grained token (contents and pull requests, that repository only) in the private sops file as `renovate-token`; note its expiry date. Renovate's first run follows: `renovate.json` has not run yet (the `check` workflow already runs on GitHub) | the owner's accounts |
 | **Backup times with the real data**: a deploy waits for Borg of everything, Borg offsite and a pgBackRest differential; a deploy during the Sunday checks waits for them | the real machine |
-| **"A reboot is pending"** (a new kernel or ZFS) is not signalled anywhere | a small alert if wanted |
+| **A reboot that a new kernel needs** is signalled by the `RebootPending` alert, which fires after a day. A change of the ZFS module or the initrd with the same kernel version is not signalled by it, but the automatic reboot window covers it (NixOS compares the kernel, the initrd and the kernel modules); if the automatic reboot is switched off, watch for it by hand | nothing to build |
