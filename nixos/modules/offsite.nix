@@ -16,6 +16,7 @@ let
   # of the login is the keyring file in the state directory, so every command, a reboot included, finds it. (`auth logout` removes the local credentials only: the session stays valid at Proton.)
   inner = pkgs.writeShellScript "proton-offsite-cli-inner" ''
     export HOME=${stateDir} XDG_DATA_HOME=${stateDir}/.local/share XDG_CACHE_HOME=${stateDir}/.cache XDG_STATE_HOME=${stateDir}/.local/state
+    export PATH=${pkgs.dbus}/bin:$PATH
     mkdir -p "$XDG_DATA_HOME/keyrings"
     exec ${pkgs.dbus}/bin/dbus-run-session --config-file=${pkgs.dbus}/share/dbus-1/session.conf -- ${pkgs.writeShellScript "proton-offsite-cli-session" ''
       ${pkgs.coreutils}/bin/tr -d '\n' < ${config.sops.secrets.proton-keyring-password.path} | ${pkgs.gnome-keyring}/bin/gnome-keyring-daemon --unlock --daemonize --components=secrets > /dev/null
@@ -42,6 +43,8 @@ let
       pd filesystem upload -f create-new-revision -d merge "$repo" "$parent"
       mapfile -t gone < <(comm -13 <(cd "$repo" && find . -type f | sed 's|^\./||' | sort) <(remote_files "$remote" "" | sort))
       for f in "''${gone[@]}"; do [ -n "$f" ] || continue; echo "trash remote: $f"; pd filesystem trash "$remote/$f" > /dev/null; done
+      # Borg's own lock (taken for the copy) went up with the rest; a restored repository must not start locked
+      while IFS= read -r l; do pd filesystem trash "$remote/$l" > /dev/null; done < <(pd filesystem list -j "$remote" | jq -r '.[].name.value | select(startswith("lock."))')
       echo "synced; ''${#gone[@]} stale remote file(s) trashed"
     '';
   };
