@@ -31,14 +31,14 @@ Things not done yet, so they are not lost. Each waits for the owner, for the rea
 | Item | What it needs |
 |---|---|
 | G2, hardware transcoding with ffmpeg in a container | the server installed, a short maintenance window |
-| G3b, the Proton Drive CLI keeping its login in a real desktop session or headless | the real machine; part of the Proton Drive test below |
+| G3b, the Proton Drive CLI keeping its login headless: **done in the lab** (a keyring in the container); the session's life over months is only seen on the real machine | the real machine |
 | Health of the small system SSD with `smartctl` | optional: the owner judges it lightly used and easy to replace (S1 ran without root; the v0 `smartcheck` log covers the two HDDs) |
 
 ## Lab and design work still to do
 
 | Item | Notes |
 |---|---|
-| **Proton Drive as the first offsite candidate**: a small container with the official CLI and a repository of our own, tested against the seven criteria of [ADR 0007](decisions/0007-offsite-copy.md) (headless login, unattended and loud on failure, updates, size, restore, deletion, first upload) | one or two phases from now, on NixOS; rclone's Proton backend is unusable; the CLI's help shows only a browser login. Enter it in [the exceptions register](exceptions.md) if adopted |
+| **Proton Drive as the offsite destination: tested, passes the three must-haves** ([ADR 0007](decisions/0007-offsite-copy.md)). Left: the owner's acceptance of the cautions, the module (the image, a timer after the offsite job, the keyring password as a secret, the CLI pinned by hash) and its entry in [the exceptions register](exceptions.md); then the first upload (about 30 hours) | the owner's decision |
 | The offsite layer against a **real provider** (Hetzner Storage Box over SSH): real throughput, the first 200 GB upload | lab results and prices are in [ADR 0007](decisions/0007-offsite-copy.md); needs an account |
 | **The full restore drill on the real machine**, after the installation: with the real data (timings at 165 GB) and **from the offsite**, whichever destination is chosen ([ADR 0007](decisions/0007-offsite-copy.md)); it passes in the lab ([ADR 0014](decisions/0014-automation-and-restore-drill.md), [the runbook](restore-drill.md)) | the real server |
 | **Alerting end to end on the real host**: a real mail through Brevo (SPF and DKIM records at the DNS provider first), the heartbeat at Healthchecks.io, a deliberate failed backup to see the mail arrive, and whether to add a periodic test mail ([ADR 0012](decisions/0012-observability.md), [0015](decisions/0015-backup-verification.md)) | the real server and the owner's accounts |
