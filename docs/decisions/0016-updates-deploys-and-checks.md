@@ -1,6 +1,6 @@
 # 0016. Updates, deploys, and where the checks run
 
-- **Status:** proposed (2026-10-03): measured in the lab; the policy choices are the owner's (listed at the end)
+- **Status:** accepted (2026-10-03 and 2026-10-05): the measurements stand, and the six open questions are answered by the owner's decisions recorded in [ADR 0018](0018-deploys-by-the-server.md) (listed below)
 - **Date:** 2026-10-03
 - **Phase:** 8, Updates and automation
 
@@ -176,14 +176,14 @@ The same flake evaluated against `nixos-unstable`, since 26.11 is not branched y
 - **Colmena, a `nixosTest` of the drill, and `vulnix` with a whitelist.**
 - **Immich older image beyond starting**; **comin's testing branch**.
 
-## Open questions for the owner
+## Open questions: answered (in [ADR 0018](0018-deploys-by-the-server.md))
 
-1. **Design B** (a private flake importing the public one)?
-2. **Renovate for the container digests**, and for `flake.lock` either **a weekly Action** or **by hand**? Is a **third-party GitHub Action, pinned by commit**, acceptable? Is the repository to **stay private**, or become public (Dependabot and free Actions minutes would follow)?
-3. **How often**: weekly look and monthly deploys as above, or another rhythm?
-4. **The rollback point:** the line in the runbook (a) or `services.sanoid` (b)?
-5. **26.05 now or 26.11 for the first deployment?**
-6. **Is a human to start every deploy?** (Proposed: yes.)
+1. **Design B** (a private flake importing the public one): **yes**. The private flake's lock pins a public revision, and the pull request that moves the pin is the deploy: two merges (section 8).
+2. **Renovate:** **on the server**, with a machine user's token, for the public repository (section 10); the public `main` is protected by a ruleset (section 7). No third-party Action is needed for `flake.lock`.
+3. **How often:** `system.autoUpgrade` every ten minutes from Monday to Saturday, no tick on Sunday (section 2 and 9).
+4. **The rollback point:** the backups, which run before every update; no snapshots (section 5).
+5. **26.05 or 26.11 for the first deployment:** **26.05 now, 26.11 afterwards**, through the same pipeline (section 12).
+6. **Is a human to start every deploy?** **No:** the server starts the deploy when a change is merged (section 1).
 
 ## Consequences
 

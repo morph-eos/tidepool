@@ -1,6 +1,6 @@
 # 0014. Automation: proving that the host rebuilds from nothing and that a restore brings everything back
 
-- **Status:** proposed (2026-10-02): the lab proof passed; waits for the owner's confirmation of how the proof is repeated
+- **Status:** accepted (2026-10-06, at the owner's request that the statuses be brought up to date): the lab proof passed on 2026-10-02 and again on the final tree on 2026-10-06; the two open questions are answered below
 - **Date:** 2026-10-02
 - **Phase:** 7, Automation
 
@@ -105,10 +105,12 @@ Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](00
 
 The integrated flake is **merged into `reengineering`**, so that the real host is built from the same modules that were proved.
 
-## Open questions for the owner (the first is studied in [ADR 0016](0016-updates-deploys-and-checks.md); the answer to the second is a proposal there too)
+## Open questions: answered
 
-1. **Where do the checks run on their own?** A git pre-push hook on the workstation (free, local), a GitHub Actions job (free for a public repository; the runners may lack KVM for anything beyond `nix flake check`), or by hand before each deployment.
-2. **How often is the full drill repeated** besides "before a deployment and after a change to those modules": for example once a quarter, as a reminder that the backups still restore.
+1. **Where do the checks run on their own?** In **GitHub Actions**: `nix flake check` on every pull request and push (`.github/workflows/check.yml`, [ADR 0016](0016-updates-deploys-and-checks.md) and [ADR 0018](0018-deploys-by-the-server.md) section 6). The full drill (an 8 GB VM with four disks, about 30 minutes) is not for a hosted runner: it stays on the owner's workstation.
+2. **How often is the full drill repeated?** Before each deployment, after any change to the storage, backup, database or Incus modules, and **once a quarter**, as a reminder that the backups still restore ([the schedule](../schedule.md)).
+
+**Repeated on 2026-10-06, on the tree that is published:** `DRILL RESULT: PASS`, 14 checks, no failed unit (lab times: installation 1034 s, rebuild from the flake 1131 s, restore and checks 372 s; the lab's link is slow).
 
 ## Consequences
 

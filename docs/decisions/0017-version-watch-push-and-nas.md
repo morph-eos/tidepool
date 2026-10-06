@@ -1,6 +1,6 @@
 # 0017. The version watch, push notifications without the VPN, and the NAS
 
-- **Status:** accepted as built (2026-10-03) for the owner's three requests, **proposed** for the choices marked "open" at the end; measured in the lab, not on the real machine
+- **Status:** accepted as built (2026-10-03) for the owner's three requests; measured in the lab, not on the real machine. Of the choices at the end, items 1, 3, 4, 7 and 8 are decided (2026-10-03 and 2026-10-05); **items 2, 5 and 6 are still open**
 - **Date:** 2026-10-03
 - **Phase:** 8, Updates and automation (follow-up of [ADR 0016](0016-updates-deploys-and-checks.md))
 
@@ -207,8 +207,8 @@ The ways out, each tried or measured:
 4. ~~Major reminders~~ **decided 2026-10-03: no "held" list**; the monthly reminder stays.
 5. Whether the **Podman-style "line is end of life upstream"** line should stay for packages the distribution patches.
 6. **What to do about the differences found** (section 8): wait (A) for everything, or D for Borg.
-7. **PostgreSQL 18 from the first deployment** (the dump restore and the restore drill repeated on 18 first) or 17 now and the move later (section 9).
-8. The items of [ADR 0016](0016-updates-deploys-and-checks.md) that remain open (design B, Renovate, cadence, rollback point, 26.05 or 26.11, human-started deploys).
+7. ~~PostgreSQL 18 from the first deployment, or 17 now~~ **decided 2026-10-05: Nextcloud 33 and PostgreSQL 17 for now**; the moves to the newer majors come later, as separate deploys through the same pipeline, with a snapshot of the data before each (section 9).
+8. ~~The items of [ADR 0016](0016-updates-deploys-and-checks.md) that remain open~~ **all answered** in [ADR 0018](0018-deploys-by-the-server.md): design B (two merges), Renovate on the server, the cadence, the backups as the rollback point, 26.05 first, a deploy started by the server.
 
 ## Consequences
 

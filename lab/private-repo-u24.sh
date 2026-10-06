@@ -17,7 +17,7 @@ say "== the public repository (a bare clone of the real one) and the private one
 rm -rf /srv/git /root/priv /root/pubclone; mkdir -p /srv/git; tar -C /srv/git -xf /tmp/pub.git.tar
 cp -r /tmp/tplsrc/private-repo-template /root/priv; cd /root/priv; rm -rf .git
 sed -i 's|github:OWNER/tidepool?dir=nixos|git+file:///srv/git/pub.git?dir=nixos|' flake.nix
-sed -i -e 's|REPLACE-system-ssd|test-system|; s|REPLACE-tank-ssd|test-tank|; s|REPLACE-16tb-part1|test-16tb|; s|REPLACE-2tb-part1|test-2tb|; s|REPLACE-with-your-network-name|Lab Net|; s|ssh-ed25519 AAAA... admin|'"$(cat /home/lab/nixos/keys/admin.pub)"'|' host.nix
+sed -i -e 's|REPLACE-system-ssd|test-system|; s|REPLACE-tank-ssd|test-tank|; s|REPLACE-16tb-part1|test-16tb|; s|REPLACE-2tb-part1|test-2tb|; s|REPLACE-with-your-network-name|Lab Net|; s|REPLACE-wifi-interface|wlan0|; s|ssh-ed25519 AAAA... admin|'"$(cat /home/lab/nixos/keys/admin.pub)"'|' host.nix
 cp /tmp/lab-secrets.yaml secrets.yaml
 say "the template, filled with test values: $(grep -cE 'REPLACE|OWNER' host.nix) placeholders left (the deploy URL and Renovate's repository names stay: they are not read by the build)"
 $G init -q -b main; $G add -A; nix flake lock 2>&1 | grep -E "^error|Added input 'tidepool'" | head -n 2; $G add -A; $G commit -qm "private values"
@@ -37,5 +37,5 @@ cd /root; git clone -q /srv/git/pub.git pubclone; cd pubclone; git checkout -q r
 echo "a public change $(date +%s)" > docs/bump-test.md; $G add -A; $G commit -qm "docs: a public change"; git push -q origin HEAD:reengineering 2>&1 | tail -n 1
 cd /root/priv; old=$(jq -r '.nodes.tidepool.locked.rev' flake.lock); nix flake update tidepool 2>&1 | grep -E "Updated|error" | head -n 2; new=$(jq -r '.nodes.tidepool.locked.rev' flake.lock)
 say "old $old -> new $new: $([ "$old" != "$new" ] && echo 'the pin moved' || echo 'NOT moved')"
-say "the same system after a docs-only public change (no deploy would follow): $(nix eval --raw .#nixosConfigurations.tidepool.config.system.build.toplevel.drvPath 2>/dev/null | tail -n 1 | sed 's#/nix/store/##' | cut -c1-40) vs before $(basename $T | cut -c1-40)"
+say "the same system after a docs-only public change (no deploy would follow): $(nix eval --raw .#nixosConfigurations.tidepool.config.system.build.toplevel.drvPath 2>/dev/null | tail -n 1 | sed 's#/nix/store/##' | cut -c1-40) vs before $(nix-store -qd "$T" | sed 's#/nix/store/##' | cut -c1-40)"   # the derivation of the system before and after (the same derivation: the same system)
 say done
