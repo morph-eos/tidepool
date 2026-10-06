@@ -21,8 +21,8 @@ The new host must be reproducible from an empty machine with one command, and te
 
 | Option | Branch / tag | Time box | Result in one line |
 |---|---|---|---|
-| A. Ansible (roles, run from the workstation over SSH) | `exp/host-ansible` | one evening | |
-| B. NixOS (declarative system, flake) | `exp/host-nixos` | one evening | |
+| A. Ansible (roles, run from the workstation over SSH) | a lab experiment | one evening | |
+| B. NixOS (declarative system, flake) | a lab experiment | one evening | |
 
 "Keep the v0 shell scripts" is not a candidate: v0 is the baseline the numbers are compared with, not a contender.
 
@@ -64,7 +64,7 @@ both disks snapshotted. Ansible 2.21 ran from the workstation; NixOS 26.05 was i
 1. **Not re-runnable at first.** After the first run sshd only listens on 2222, so a playbook that always connects to 22 could never run twice. It now probes which port answers.
 2. **The probe lied.** A plain TCP connect succeeds through QEMU's port forwarder even when nothing listens in the guest. The probe now waits for a real `SSH-2.0` greeting.
 3. **Role order.** A directory created under `/mnt/nas` before the data disk is mounted is hidden by the mount. The disk is now mounted first.
-4. **A regression from v0, found by a stricter checker.** kdump-tools adds its own `crashkernel=512M` after ours and the last one wins; v0's `setup_kdump.sh` stripped the old value first. Fixed in r2, tag `exp-host-ansible-r2`.
+4. **A regression from v0, found by a stricter checker.** kdump-tools adds its own `crashkernel=512M` after ours and the last one wins; v0's `setup_kdump.sh` stripped the old value first. Fixed in r2.
 
 **Both**
 
@@ -118,7 +118,7 @@ The lab has proved the host layer. It has **not** proved the machine, so nothing
 |---|---|---|
 | G1. GPU and desktop | the GPU shows its VA-API profiles (`vainfo`), GNOME starts, `/dev/dri` exists | boot the NixOS live ISO from a USB stick on the server, without installing: no disk is touched, about 20 minutes. **Passed on 2026-09-30** ([results](../gates/G1-results.md)): the desktop and sound work, and the media driver lists hardware decode and encode for H.264, HEVC, VP9 and AV1 |
 | G2. Hardware transcoding in the containers | Jellyfin and Immich machine learning use the GPU from inside Docker | same live session, or a lab step once the server runs NixOS |
-| G3. Software not packaged for Nix | the Proton Drive CLI runs (nix-ld or a package) | in the lab, before the backup phase. **Partly done:** the Proton Pass CLI 2.4.1 fails on NixOS by default and runs with `programs.nix-ld.enable = true`. The Drive CLI 0.8.0 starts the same way, but keeping its session needs libsecret and a keyring, and in the headless lab it still says "libsecret not available" (branch `exp/secrets-proton-pass`). To finish in a real graphical session |
+| G3. Software not packaged for Nix | the Proton Drive CLI runs (nix-ld or a package) | in the lab, before the backup phase. **Partly done:** the Proton Pass CLI 2.4.1 fails on NixOS by default and runs with `programs.nix-ld.enable = true`. The Drive CLI 0.8.0 starts the same way, but keeping its session needs libsecret and a keyring, and in the headless lab it still says "libsecret not available". To finish in a real graphical session |
 | G4. Restore | a backup taken on the old system is restored onto the new one | phase 2, in the lab |
 
 ## Consequences
@@ -126,6 +126,6 @@ The lab has proved the host layer. It has **not** proved the machine, so nothing
 - **Easier:** the host is code in Git, so v0's open problem, "`/etc` is not backed up anywhere", disappears: `/etc` is generated from the flake. Versions are pinned; a bad change is undone by booting the previous generation.
 - **Harder:** a new language and model to learn, errors that are long and hard to read, a smaller community, and software that assumes a traditional filesystem needs packaging or nix-ld.
 - **A new way to lock myself out:** a broken SSH or network change can only be undone at the machine (proved in the lab). The server is next to the TV, so a keyboard and a screen are at hand. Risky changes are applied with `nixos-rebuild test`, which does not survive a reboot, before `switch`.
-- **The Ansible experiment stays frozen** (tags `exp-host-ansible`, `exp-host-ansible-r2`) as the reference and as the fallback. The v0 scripts stay in the archive.
+- **The Ansible experiment is kept privately**, as the reference and as the fallback; it is not published. The v0 scripts stay in the archive (the tag `v0`).
 - **Secrets:** the choice narrows to what works natively on NixOS (sops-nix or agenix); see [ADR 0003](0003-secrets.md).
 - **Open, and subject to [P1](../principles.md):** how the host is updated. A person who runs `nixos-rebuild` by hand on the server is a manual step; the native candidates are `system.autoUpgrade` pulling the flake, or a deployment tool, and the choice belongs to phase 7. How to deploy from the workstation. `nixos-rebuild --target-host` needs Nix on the workstation, and installing Nix needs root once. Until decided, the flake is pulled and built on the server.

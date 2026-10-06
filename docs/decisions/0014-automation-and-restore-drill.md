@@ -18,7 +18,7 @@ To prove it, the experiments' modules had to become **one system**. Until now `r
 
 ## What was built
 
-`nixos/` (branch `exp/rebuild-drill`, tag `exp-rebuild-drill`, merged into `reengineering`): **one flake, two hosts, the same modules.**
+`nixos/`: **one flake, two hosts, the same modules.**
 
 | Module | What it holds | Decided in |
 |---|---|---|

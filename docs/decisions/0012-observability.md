@@ -36,7 +36,7 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 
 ## Results
 
-`lab/observability-bakeoff.sh` in the NixOS lab VM (`exp/observability`, tag `exp-observability`). Real failures are made on purpose; the time is counted until the notification arrives in a **mail sink** (a small SMTP server logging to a file) and in **ntfy**. **The lab timings are short on purpose** (rule `for:` of 1-2 minutes, the evaluation every 15 s); the production values are in the decision.
+`lab/observability-bakeoff.sh` in the NixOS lab VM. Real failures are made on purpose; the time is counted until the notification arrives in a **mail sink** (a small SMTP server logging to a file) and in **ntfy**. **The lab timings are short on purpose** (rule `for:` of 1-2 minutes, the evaluation every 15 s); the production values are in the decision.
 
 **A: Prometheus, Alertmanager, ntfy**
 
@@ -111,7 +111,7 @@ One check with a short period and a grace time of a few minutes; Alertmanager's 
 
 **The gap.** Alerts go by mail through Brevo. If the relay or its credentials break, alerts fire and **are not delivered**, and the heartbeat does not notice: it pings a webhook and says only that the machine and Alertmanager are alive.
 
-**What was considered.** The push channel of the first round (**ntfy**, tested in the lab: the push arrived in the same second as the mail, about 16 MiB for the two services) was **not rejected for a defect**: the owner chose email only on 2026-10-01, and it stays in `exp/observability`, to be added in a few lines. Its limits are those already noted: the phone must reach the server (the VPN, or a public name), and iOS needs the upstream relay. The owner now feels safe enough with Brevo, so the cheaper question is how to **notice** that Brevo fails, not how to add another way to receive alerts.
+**What was considered.** The push channel of the first round (**ntfy**, tested in the lab: the push arrived in the same second as the mail, about 16 MiB for the two services) was **not rejected for a defect**: the owner chose email only on 2026-10-01, and it was left out of the flake, to be added in a few lines. Its limits are those already noted: the phone must reach the server (the VPN, or a public name), and iOS needs the upstream relay. The owner now feels safe enough with Brevo, so the cheaper question is how to **notice** that Brevo fails, not how to add another way to receive alerts.
 
 **What was built and tested (lab).** Alertmanager sends the always-firing `Watchdog` **twice**, on two routes (`continue: true`): a **webhook** ping every 2 minutes (a dead machine or a dead Alertmanager), and a **mail through the same relay as the real alerts**, to the address of a **second** Healthchecks.io check. Healthchecks accepts pings **by email** (its documentation: "any email received at the displayed address counts as a success signal"; whether the free plan includes it is not stated there: **to be seen when the account is made**). If the mail path breaks, the second check goes silent and **Healthchecks says so by its own mail**, which does not depend on our relay. It is declared in the Alertmanager configuration, **no script**; the check's address is a secret (whoever knows it can fake a ping) and `to` cannot be read from a file, so the file `alertmanager-env` of the sops secrets holds `HEALTHCHECKS_MAIL=` and the module's `environmentFile` substitutes it: **the substituted configuration holds the address, the copy in the Nix store holds only the placeholder** (checked).
 

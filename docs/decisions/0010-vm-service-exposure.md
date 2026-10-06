@@ -28,7 +28,7 @@ The owner's wish: it would be nice to have some VM ports reachable from the Inte
 
 ## Results
 
-`lab/vm-exposure-bakeoff.sh` in the NixOS lab VM (`exp/vm-exposure`, on top of the VPN experiment of [ADR 0009](0009-remote-access-vpn.md)). **Incus is declared through its NixOS module** (a bridge with managed DNS, a storage pool, the default profile, the API address, all in the preseed);
+`lab/vm-exposure-bakeoff.sh` in the NixOS lab VM (on top of the VPN experiment of [ADR 0009](0009-remote-access-vpn.md)). **Incus is declared through its NixOS module** (a bridge with managed DNS, a storage pool, the default profile, the API address, all in the preseed);
 **containers stand in for VMs** (same bridge, same DNS and DHCP, no nested virtualization needed); a network namespace is "a phone on the VPN" and another is "outside" (joined by a virtual cable, as in ADR 0009).
 
 | Check | Result |

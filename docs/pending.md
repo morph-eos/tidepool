@@ -84,15 +84,14 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 | **The version watch on the real machine:** the first weekend mail (a deliberately old lock proves it), whether the monthly tier (waiting on nixpkgs, majors, end of life) is the right amount of mail; **Incus is not watched** (LTS against feature releases: a line-aware source is missing) | the owner; a weekend after the deployment |
 | **Nextcloud after the deployment:** start at 33 (v0's major), then 34 and 35 as separate deploys with a ZFS snapshot before each ([ADR 0017 section 9](decisions/0017-version-watch-push-and-nas.md)) | the real machine; 35 when nixpkgs has a settled 35.0.x |
 | **PostgreSQL 18 for the first deployment?** The dump restore (ADR 0006) and the restore drill (ADR 0014) must be repeated on 18 first | the owner's decision 7 in ADR 0017 |
-| **Publishing the repository:** a **fresh public repository** with only the intended branches and tags, a repeat of the secret scan on what is pushed, and the **old scripts' security problems** (`main`, `v0`) fixed or left out; GitHub may keep rewritten commits reachable by hash | the owner, after the transfer to the server |
-| **The server's credentials for the repositories:** none for the public one; the private one by copy or a read-only deploy key; **Renovate on the server (`services.renovate`) or on GitHub**; a **runner on the server** or not | the owner's answers to question 10 of ADR 0016 |
+| **Making the repository public:** a last secret scan of what is pushed, then the visibility; the tag `v0` stays an unmaintained archive with known security problems in its scripts, as its README says; GitHub may keep rewritten commits reachable by hash | the owner |
 | **Syncthing's local-discovery port (UDP 21027) is open on every interface** | tidy up when the services module is revisited; not reachable from the Internet (the router does not forward it) |
 
 ## From the 2026-10-03 deploy work ([ADR 0018](decisions/0018-deploys-by-the-server.md))
 
 | Item | Why it waits |
 |---|---|
-| **Decided (2026-10-03):** autoUpgrade, 10 minutes, every protection on the public `main`, **two merges**, **the reboot in a 06:00 to 07:00 window**, **Renovate on the server**. Still to do: see the next rows |
+| **The deploy chain is built and proved in the lab:** autoUpgrade every 10 minutes from Monday to Saturday, every protection on the public `main`, two merges, the reboot in a 06:00 to 07:00 window after a new kernel, Renovate on the server. What is left is in the next rows |
 | **Create the private repository**, generate the **deploy key on the workstation**, put its private half in the private sops file (`deploy-key`), add its public half to that repository as a **read-only deploy key**, and write the private flake (`flake.nix` importing the public one, `host.nix`, `secrets.yaml`) | the owner's accounts; before the deployment |
 | **Make the public repository public** (a fresh one, [ADR 0017 section 6](decisions/0017-version-watch-push-and-nas.md)), then **import `.github/rulesets/main.json`** (`gh api -X POST repos/OWNER/REPO/rulesets --input .github/rulesets/main.json`; check the admin role id and the field names), tick the settings checklist of [ADR 0018 section 7](decisions/0018-deploys-by-the-server.md), install **Renovate's app** on the public repository only | the owner, after the transfer |
 | **Create the private repository from `private-repo-template/`** and try its `bump-public.yml` (it needs the Actions setting that lets it open pull requests) | the owner; the workflow has not run on GitHub |
@@ -105,7 +104,3 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 | **Backup times with the real data**: a deploy waits for Borg of everything, Borg offsite and a pgBackRest differential; a deploy during the Sunday checks waits for them | the real machine |
 | **"A reboot is pending"** (a new kernel or ZFS) is not signalled anywhere | a small alert if wanted |
 | **comin with the backups before the switch** and its idle cost; **a build that fails halfway** (only evaluation errors and backup failures were injected) | only if comin is considered again |
-
-## Housekeeping
-
-- The old repository `nas-scripts-history` was deleted by the owner (2026-09-30).

@@ -5,7 +5,7 @@
 # The owner must already have added at the DNS provider:  _acme-challenge.test.<domain>  CNAME  <fulldomain from the registration>
 # =============================================================================
 set -uo pipefail
-S=~/lab/tidepool/secrets; REPO=${REPO:-~/Codice/nas-scripts-history-clean}; WT=${WT:-~/lab/tidepool/wt-edge}
+S=~/lab/tidepool/secrets; REPO=${REPO:-$(cd "$(dirname "$0")/.." && pwd)}; WT=${WT:-$REPO}   # the repository itself; the domain is written to nixos/private/, which git ignores
 [ -s "$S/domain" ] && [ -s "$S/acmedns-register.json" ] || { echo "missing $S/domain or $S/acmedns-register.json"; exit 1; }
 DOMAIN=$(tr -d '\n' < "$S/domain"); NAME="test.$DOMAIN"
 mkdir -p "$WT/nixos/private"; printf '%s' "$DOMAIN" > "$WT/nixos/private/domain"

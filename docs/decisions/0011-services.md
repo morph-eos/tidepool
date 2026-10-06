@@ -36,7 +36,7 @@ Versions: what v0 runs, what the channel (nixos-26.05) packages, and the **lates
 
 ## Results
 
-**Jellyfin: the decisive test.** A Jellyfin **12.1** container (`jellyfin/jellyfin:12.1`, 2.5 GB) started on an empty directory and wrote its database; the **native module's 10.11** was then started on a copy of that data (`exp/services-native`). It **failed to start**: `SQLite Error 1: 'no such column: b.ExtraIds'`, then `Main: Error while starting server`. **A database written by 12.1 cannot be opened by 10.11**: using the module would mean starting from an empty library, losing v0's users, watch history and metadata.
+**Jellyfin: the decisive test.** A Jellyfin **12.1** container (`jellyfin/jellyfin:12.1`, 2.5 GB) started on an empty directory and wrote its database; the **native module's 10.11** was then started on a copy of that data. It **failed to start**: `SQLite Error 1: 'no such column: b.ExtraIds'`, then `Main: Error while starting server`. **A database written by 12.1 cannot be opened by 10.11**: using the module would mean starting from an empty library, losing v0's users, watch history and metadata.
 
 **The other services through their modules**, in the lab VM, behind nginx with certificates from the test CA, with PostgreSQL 17 over its Unix socket (`lab/services-native-bakeoff.sh`):
 
@@ -79,7 +79,7 @@ What running them showed:
 
 Seedvault itself talks to a WebDAV server through **DAVx5's WebDAV mount** or **Nextcloud's own app** ([the discussion](https://github.com/seedvault-app/seedvault/discussions/494)); a recent DAVx5 release stopped being recognised by Seedvault on GrapheneOS ([issue](https://github.com/GrapheneOS/os-issue-tracker/issues/7810)), a client-side matter that does not depend on the server. **Neither server was tried with a real phone.**
 
-**Nextcloud as the OpenID provider** (`exp/services-native`):
+**Nextcloud as the OpenID provider**:
 - **The `oidc` app (2.3.1) is declared** (`extraApps`) and enabled: no app-store step.
 - **A client is created with one command**, `occ oidc:create`, **with the client identifier and secret we choose** (the identifier must be 32 to 64 printable characters), so they can be sops secrets and the command can be run again after `oidc:remove`: it is **idempotent in effect**. The clients are **rows in the database**, so a restore brings them back; **a rebuild from nothing needs the commands again**.
 - **Simpler than v0**: v0 inserted the redirect addresses with SQL into MariaDB (`setup_nextcloud_oidc.sh`) because `oidc:create` cannot add one afterwards, and each service had **two** addresses (two domains). With **one domain** each client has **one** address, so the SQL goes away.

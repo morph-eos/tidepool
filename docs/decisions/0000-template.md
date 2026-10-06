@@ -16,10 +16,10 @@ What problem this decision solves, and which v0 lesson or open issue it answers.
 
 ## Options considered
 
-| Option | Branch / tag | Time box | Result in one line |
+| Option | Where it was tried | Time box | Result in one line |
 |---|---|---|---|
-| A | `exp/<phase>-a` | | |
-| B | `exp/<phase>-b` | | |
+| A | `lab/<phase>-a.sh` | | |
+| B | `lab/<phase>-b.sh` | | |
 
 ## Criteria
 

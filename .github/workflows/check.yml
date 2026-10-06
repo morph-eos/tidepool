@@ -5,6 +5,7 @@ on:
   pull_request:
   push:
     branches: [ main ]
+  workflow_dispatch:   # a run by hand, from the Actions tab
 permissions:
   contents: read
 jobs:

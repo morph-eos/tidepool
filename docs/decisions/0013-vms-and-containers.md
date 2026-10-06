@@ -40,7 +40,7 @@ The owner's use: **tests of every kind, kept ready for any occasion**, "even con
 4. **The throwaway cycle:** create, snapshot, restore, clone, destroy: times and the commands it takes.
 5. **Memory at idle, disk layout (the 2 TB), and the moving parts.**
 
-## Experiments (in the lab VM, branch `exp/vms-incus`; all five were run)
+## Experiments (in the lab VM; all five were run)
 
 The workstation's CPU is AMD with **nested virtualization on** (checked), so real VMs can run inside the NixOS lab VM, which the experiment of [ADR 0010](0010-vm-service-exposure.md) could not do (it used containers).
 
@@ -54,7 +54,7 @@ The workstation's CPU is AMD with **nested virtualization on** (checked), so rea
 
 ## Results
 
-`lab/vms-bakeoff.sh`, `lab/vms-engines-bakeoff.sh` (driven by `lab/vms-engines-run.sh`), `lab/vms-others-bakeoff.sh` and `lab/vms-cycle-bakeoff.sh` (and `lab/vms-lvm-vm-bakeoff.sh` for the LVM VM column), in a fresh NixOS lab VM `host-v` (4 cores, 6 GB, a 60 GB system disk and a 30 GB data disk that holds the ZFS pool; branch `exp/vms-incus`, tag `exp-vms-incus`). **The VMs inside it run on nested KVM** (the workstation's CPU has it on), so their speeds are lower than on the real machine. Image downloads ran at about 2 MB/s in the lab and are timed apart.
+`lab/vms-bakeoff.sh`, `lab/vms-engines-bakeoff.sh` (driven by `lab/vms-engines-run.sh`), `lab/vms-others-bakeoff.sh` and `lab/vms-cycle-bakeoff.sh` (and `lab/vms-lvm-vm-bakeoff.sh` for the LVM VM column), in a fresh NixOS lab VM `host-v` (4 cores, 6 GB, a 60 GB system disk and a 30 GB data disk that holds the ZFS pool). **The VMs inside it run on nested KVM** (the workstation's CPU has it on), so their speeds are lower than on the real machine. Image downloads ran at about 2 MB/s in the lab and are timed apart.
 
 ### R1. What Incus runs from one tool
 
@@ -109,7 +109,7 @@ What this shows:
 | Containers, image catalogue, UI | **none**: no catalogue of images (a cloud image needs the file and a seed ISO by hand, not tried); a LXC connection answers but has no image source, **not tried**; no web UI in the base | **none** |
 | Snapshots | **refused** on the running ISO domain (needs qcow2 disks, `virsh` commands) | a guest is rebuilt, not snapshotted |
 | Firewall | its own `ip libvirt_network` and `ip6` tables next to ours; **two forward lines and a DHCP/DNS rule for `virbr0`** are ours | none for user-mode networking |
-| Our own configuration | **about 58 lines for both** in `others.nix` (the domain XML is hand-written there) | |
+| Our own configuration | **about 58 lines for both** in a lab module (the domain XML is hand-written there) | |
 
 ### R5. The throwaway cycle on Incus, by storage pool (times in ms; VM = the Ubuntu cloud image, 10 GiB disk)
 
@@ -131,9 +131,9 @@ The thin-LVM VM column comes from a **separate run** (a first pass of the script
 
 The **real machine's speed** (the VMs here are nested); a **Windows** guest (no image or licence); **GPU** passthrough or sharing; **Incus's own backup and recovery** (the instances' definitions are in `/var/lib/incus`, the disks in the pool: a restore of an instance onto a rebuilt host was not tried); **ZFS on the real 2 TB disk, which is SMR** ([ADR 0005](0005-storage-layout-and-filesystem.md)): a copy-on-write pool on shingled disks is known to suffer on random writes, and nothing here measures it; **lxcfs**; **rootless Podman**; Quadlet; Immich's multi-container set under Podman (the database over its Unix socket through a bind mount); Jellyfin's `/dev/dri` in a Podman container (gate G2).
 
-### R6. Two pools, as the owner asked (round 2, tag `exp-vms-incus-r2`)
+### R6. Two pools, as the owner asked (round 2)
 
-The owner wants most VM disks on the **2 TB SMR disk kept as ext4**, and the SSD's ZFS pool for what needs speed (a database VM). The lab stands in the 2 TB disk with a loop-file ext4 (**it cannot imitate a shingled disk's speed**). All declared in `incus.nix`:
+The owner wants most VM disks on the **2 TB SMR disk kept as ext4**, and the SSD's ZFS pool for what needs speed (a database VM). The lab stands in the 2 TB disk with a loop-file ext4 (**it cannot imitate a shingled disk's speed**). All declared in the flake (`vms.nix`):
 
 | Check | Result |
 |---|---|
@@ -159,7 +159,7 @@ What it costs: on the `smr` pool a VM's snapshot is a **full copy** (3.5 s) and 
 
 - **Incus** (`virtualisation.incus`, the preseed holding the bridge, the pools, the default profile with the owner's cloud-init, the UI on the VPN address only): VMs of any system, system containers and **OCI application containers** all from it. Docker is **not** needed for "containers for tests": `incus launch docker:<image>` runs them.
 - **Podman, not Docker, for the service containers** of [ADR 0011](0011-services.md) (Jellyfin, Immich): `virtualisation.oci-containers` with the Podman backend, images **pinned by digest**, ports written with an address, no Compose file. This meets the owner's preference and **costs nothing the lab could measure**: the same 10 declared lines, no daemon, one table. **Docker is dropped**, and [the host specification's H04](../specs/host.md) ("Docker Engine answers, the Compose plugin is present") changes to Podman.
-- **The publication gate** (a module of `exp/vms-incus`, `publish-gate.nix`, **declared in the flake**, evaluated before the NixOS firewall's own rule; nothing is done by hand): **a port is public only if it is on a reviewed list**, for Podman, for Incus's declared DNAT and for anything else. This is [ADR 0010](0010-vm-service-exposure.md)'s principle enforced against the engines' default; **it replaces trusting each `-p`**.
+- **The publication gate** (a module of the flake, `publish-gate.nix`, **declared in the flake**, evaluated before the NixOS firewall's own rule; nothing is done by hand): **a port is public only if it is on a reviewed list**, for Podman, for Incus's declared DNAT and for anything else. This is [ADR 0010](0010-vm-service-exposure.md)'s principle enforced against the engines' default; **it replaces trusting each `-p`**.
 - **Two pools, both declared:** **`zp`, ZFS on the SSD**, for what needs speed (a VM that runs a database, anything "clean and calm": instant snapshot, restore and clone, a clone free of space), chosen per instance with the `fast` profile (`incus launch ... -p default -p fast`); and **`smr`, a plain directory pool on the 2 TB disk, which stays ext4**, the **default** for every other instance: no copy-on-write on a shingled disk, which answers the worry above. Size of the SSD's share for VMs is a quota to set when the SSDs are bought ([ADR 0005](0005-storage-layout-and-filesystem.md)).
 - **libvirt with NixVirt is the fallback** for a VM of another system that must be **declared and permanent** (it declares any-OS domains in the flake, which Incus cannot); **microvm.nix** is the fallback for a NixOS service that should be a VM (declared, lightweight). Neither is adopted now because no use case needs them, and each would be a second manager.
 

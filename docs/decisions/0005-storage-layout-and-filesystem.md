@@ -30,8 +30,8 @@ The family's data (photos, documents, databases) does go offsite, and is also co
 | Option | Branch / tag |
 |---|---|
 | A. ext4, as in v0 (the baseline) | none |
-| B. btrfs | `exp/storage-fs`, tag `exp-storage-fs` |
-| C. ZFS (OpenZFS 2.4.4 on the NixOS 26.05 kernel 6.18.54) | `exp/storage-fs`, tag `exp-storage-fs` |
+| B. btrfs | a lab experiment |
+| C. ZFS (OpenZFS 2.4.4 on the NixOS 26.05 kernel 6.18.54) | a lab experiment |
 
 ## Criteria, in this order
 
@@ -75,7 +75,7 @@ finds that block on the raw device and overwrites 4 KiB of it, bypassing the fil
 
 ## Mirror experiment (2026-10-01): what a failed member costs
 
-The first layout used a **mirror of two SSDs** (later reduced to one SSD now and a mirror when a second is bought), so the test that matters is not speed but what happens when a member dies, now and when the second SSD is added. `lab/mirror-bakeoff.sh` (branch `exp/storage-mirror`) in the NixOS lab VM: a mirror of two 6 GB virtual disks, 400 MB written, a checksum list; plain and on LUKS.
+The first layout used a **mirror of two SSDs** (later reduced to one SSD now and a mirror when a second is bought), so the test that matters is not speed but what happens when a member dies, now and when the second SSD is added. `lab/mirror-bakeoff.sh` in the NixOS lab VM: a mirror of two 6 GB virtual disks, 400 MB written, a checksum list; plain and on LUKS.
 
 | | btrfs RAID1 | ZFS mirror |
 |---|---|---|

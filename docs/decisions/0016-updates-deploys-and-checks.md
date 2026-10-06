@@ -52,7 +52,7 @@ The four services exposed to the Internet ([ADR 0008](0008-edge.md)) published *
 
 ## Results
 
-Lab: the integrated host `host-t` and a small test host `host-v` ([the scripts](../../lab/), `lab/updates-u*.sh`; branch `exp/updates`, tag `exp-updates`). The VMs are nested and the lab's link downloads at about **5 MiB/s**: **times are lab times**, and the real machine will differ. One run was lost when two heavy builds starved the workstation's memory: the guest rebooted by itself (uptime 14 minutes afterwards; most likely its own panic-on-lockup setting, not confirmed from a crash dump); the tests were repeated one VM at a time.
+Lab: the integrated host `host-t` and a small test host `host-v` ([the scripts](../../lab/), `lab/updates-u*.sh`). The VMs are nested and the lab's link downloads at about **5 MiB/s**: **times are lab times**, and the real machine will differ. One run was lost when two heavy builds starved the workstation's memory: the guest rebooted by itself (uptime 14 minutes afterwards; most likely its own panic-on-lockup setting, not confirmed from a crash dump); the tests were repeated one VM at a time.
 
 ### 1. What an update costs (U1, U1b, U2)
 
@@ -195,7 +195,7 @@ The same flake evaluated against `nixos-unstable`, since 26.11 is not branched y
 
 ## Follow-up 2026-10-03: the owner's questions after reading the proposal
 
-The owner read the proposal and asked six things; each was tried in the lab (`lab/updates-u11.sh`, `u12`; the prototype modules are on the branch `exp/updates`, not in `reengineering`). His inclination, in words: he **likes design B** (a private flake importing the public one); recorded as a leaning, **to be confirmed** with the other answers.
+The owner read the proposal and asked six things; each was tried in the lab (`lab/updates-u11.sh`, `u12`; the prototype modules were not kept in the flake). His inclination, in words: he **likes design B** (a private flake importing the public one); recorded as a leaning, **to be confirmed** with the other answers.
 
 ### 1. Push notifications (ntfy) in addition to the mail: how hard
 

@@ -1,6 +1,6 @@
 # tidepool — a self-hosted home server, as code
 
-> **This is the README of the v0 archive** (tag `v0`, branch `main`), kept as it was written. It describes the Ubuntu server that tidepool replaces,
+> **This is the README of the v0 archive** (tag `v0`), kept as it was written. It describes the Ubuntu server that tidepool replaces,
 > and it is accurate for that point in time ("Phase 1 ... not started yet" included). The re-engineered system is described in the [root README](../README.md);
 > `docker/` and `nas-scripts/` are still here because they are the specification of what must be migrated.
 

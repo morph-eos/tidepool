@@ -22,7 +22,7 @@ than in a script.
 
 | Option | Branch / tag | Tested how | Result in one line |
 |---|---|---|---|
-| A. SOPS + age (files encrypted in the repository) | `exp/secrets-sops-age`, tag `exp-secrets-sops-age`; the NixOS side is in `exp/host-nixos` (sops-nix) | scenario script, Ansible delivery, NixOS delivery | passes everything; works with both host candidates |
+| A. SOPS + age (files encrypted in the repository) | a lab experiment; the NixOS side (sops-nix) is in the flake | scenario script, Ansible delivery, NixOS delivery | passes everything; works with both host candidates |
 | B. git-crypt | none (script only) | scenario script | passes T1-T3; cannot remove a recipient |
 | C. pass (GPG password store) | none (script only) | scenario script | passes T1-T3, T5; one file per secret, file names visible |
 | D. Ansible Vault | none (script only) | scenario script | passes T1-T3, T5; one shared password, only useful with Ansible |

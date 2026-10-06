@@ -29,7 +29,7 @@ What the comparison sites say ([serverside](https://serverside.com/blog/wireguar
 
 ## Results
 
-`lab/vpn-bakeoff.sh` in the NixOS lab VM (`exp/vpn-wireguard`): the server's WireGuard through `networking.wireguard` with **one peer**; a network namespace stands for a **phone on the VPN**, another for **the outside** (joined by a virtual cable, so its traffic arrives on a real interface; the first version of this test came from the machine itself, whose traffic goes through the loopback, which the firewall always lets through, and its results were thrown away).
+`lab/vpn-bakeoff.sh` in the NixOS lab VM: the server's WireGuard through `networking.wireguard` with **one peer**; a network namespace stands for a **phone on the VPN**, another for **the outside** (joined by a virtual cable, so its traffic arrives on a real interface; the first version of this test came from the machine itself, whose traffic goes through the loopback, which the firewall always lets through, and its results were thrown away).
 A name **`admin.lab.test` listens only on the WireGuard address**; a port **7777** (standing for SSH) is open **only on `wg0`**; the public names go through the usual SNI front end on the LAN address; **unknown names are rejected at the TLS handshake** (a default virtual host with `rejectSSL`).
 
 | Check | Result |

@@ -20,4 +20,4 @@ lab/vm.sh destroy lab0
 
 ## Scripts of the experiments
 
-Every ADR names the script that produced its numbers (`lab/<phase>-bakeoff.sh` and friends); the ones that are generic (`nixos-install.sh`, `*-bakeoff.sh`, `immich-seed.sh`) are in this directory. The scripts that drive one rejected candidate (for example `lab/databasus/`, the UI automation of Databasus) stay on that candidate's experiment branch (`exp/<phase>-<candidate>`, tag `exp-<phase>-<candidate>`).
+Every ADR names the script that produced its numbers (`lab/<phase>-bakeoff.sh` and friends); the ones that are generic (`nixos-install.sh`, `*-bakeoff.sh`, `immich-seed.sh`) are in this directory. The scripts of the experiments that were dropped are not published: the decision record says what was measured.

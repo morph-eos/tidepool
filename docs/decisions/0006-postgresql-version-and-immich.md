@@ -23,9 +23,9 @@ The owner asked to try PostgreSQL 17 *with Immich* ("so we solve many problems")
 
 | Option | Branch | Result in one line |
 |---|---|---|
-| A. The native NixOS module `services.immich` | `exp/immich-pg17` | **not usable**: nixos-26.05 marks `immich-2.7.5` insecure (no more 2.x updates, CVE-2026-59258; 3.x is only in the unstable channel) |
-| B. Immich's containers, **and PostgreSQL 17 from Immich's image** (`17-vectorchord0.4.3-pgvectors0.3.0`) | `exp/immich-pg17` (`immich-lab.nix`) | works; the simplest move from v0 |
-| C. Immich's containers, **and PostgreSQL 17 as the native NixOS service** (nixpkgs: VectorChord 1.1.1, pgvector 0.8.2), reached over its Unix socket | `exp/immich-pg17` (`immich-pgnative.nix`) | works; the database can then use the NixOS modules for backup |
+| A. The native NixOS module `services.immich` | a lab experiment | **not usable**: nixos-26.05 marks `immich-2.7.5` insecure (no more 2.x updates, CVE-2026-59258; 3.x is only in the unstable channel) |
+| B. Immich's containers, **and PostgreSQL 17 from Immich's image** (`17-vectorchord0.4.3-pgvectors0.3.0`) | a lab experiment | works; the simplest move from v0 |
+| C. Immich's containers, **and PostgreSQL 17 as the native NixOS service** (nixpkgs: VectorChord 1.1.1, pgvector 0.8.2), reached over its Unix socket | a lab experiment | works; the database can then use the NixOS modules for backup |
 
 All images are upstream's, pinned by digest (Immich v3.2.4, the latest release on 2026-09-28).
 

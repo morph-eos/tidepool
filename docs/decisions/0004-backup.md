@@ -89,7 +89,7 @@ Things the experiment exposed, each one a cost of the tool:
 Databasus is, in practice, the only open-source tool that combines a web UI with full/incremental physical backups and WAL streaming. The others with a UI are logical only (pgbackweb, pg_dump based);
 Bacula and Bareos have web UIs and PostgreSQL plugins but are heavy general-purpose systems. **Barman, WAL-G, pghoard and pgmoneta have no UI.**
 
-**Databasus, tried in the lab with its web UI** (v3.60.0, container image pinned by digest, 1.13 GB; driven with a headless Chrome and screenshots, scripts in branch `exp/pitr-databasus`; the pictures are in
+**Databasus, tried in the lab with its web UI** (v3.60.0, container image pinned by digest, 1.13 GB; driven with a headless Chrome and screenshots; the pictures are in
 [docs/evidence/databasus/](../evidence/databasus/)). **This corrects what I had written after reading its documentation**, which said the agent is required: for a database the server can reach directly, **no agent is needed**.
 Databasus opens a **physical replication slot** and a walsender of its own (`databasus_slot_…`, `databasus_wal_receiver_…`) and streams the WAL from its container. PostgreSQL's `archive_command` stayed empty.
 The agent (a downloaded binary started by hand with a token) is for databases the server cannot reach.
@@ -101,7 +101,7 @@ The agent (a downloaded binary started by hand with a token) is for databases th
 | Incremental backup | under a second, 0.06 MB (needs PostgreSQL 17 with `summarize_wal`) |
 | **Restore to T_good** | **correct to the second**: asked for 15:10:36 UTC, the dropped table is back (500,000 rows), the counter ends at 3756, its last row was committed at 15:10:35.981, no gaps. The UI picks seconds, not milliseconds. Prepared in 4.5 s plus 1.7 s to start ([picture](../evidence/databasus/03-restore-dialog.png)) |
 | **Restore to the latest point**, after a crash | **206 acknowledged commits lost** out of 4728, in line with the other two: the WAL is archived in completed segments every 30 s, which is the `archive_timeout` set on PostgreSQL |
-| Our own configuration | PostgreSQL: `wal_level`, `max_wal_senders`, `summarize_wal`, `archive_timeout` and two `pg_hba.conf` lines (6). NixOS: **13 lines** to declare the container, its volume and the firewall rule it needs to reach the host (the module is in the branch `exp/pitr-databasus`). Custom scripts: **0** |
+| Our own configuration | PostgreSQL: `wal_level`, `max_wal_senders`, `summarize_wal`, `archive_timeout` and two `pg_hba.conf` lines (6). NixOS: **13 lines** to declare the container, its volume and the firewall rule it needs to reach the host (the module was not kept in the flake). Custom scripts: **0** |
 | Declared as code | the **container is**; its **configuration is not**: the first account, the schedules and the retention live in its own database. The web application has **no API documentation** (`/openapi.json` returns the application's own page), so configuration as code would mean reverse-engineering the calls of its UI |
 
 What the lab showed about running it:
@@ -178,7 +178,7 @@ What **was** run is the point-in-time bake-off below and the offsite bake-off of
 
 The owner's answers after round 1: stay on **PostgreSQL 14** (Immich's version) for now; minutes to a few hours of loss are acceptable, *closer to a point in time is better*; a GUI is **not decisive**, what counts is that the integration works out of the box and survives updates without glue around it;
 Databasus must be judged **with and without its agent**; Barman Cloud and object storage are to be tried as well, because Barman's local-disk model is heavier (its own catalog and versions).
-Everything below ran in the NixOS lab VM (`exp/pitr-pg14`, `lab/pitr-bakeoff.sh`, PostgreSQL 14.24, pgBackRest 2.58.0, Barman 3.14.1, Garage as a local S3 endpoint), with the same scenario as round 1: a full backup under load, `archive_timeout` 30 s, a dropped table, a `kill -9`, a restore to the moment before the mistake, and a restore to the latest point.
+Everything below ran in the NixOS lab VM (`lab/pitr-bakeoff.sh`, PostgreSQL 14.24, pgBackRest 2.58.0, Barman 3.14.1, Garage as a local S3 endpoint), with the same scenario as round 1: a full backup under load, `archive_timeout` 30 s, a dropped table, a `kill -9`, a restore to the moment before the mistake, and a restore to the latest point.
 
 ### A correction to the test itself
 
@@ -268,7 +268,7 @@ Not chosen, and why:
 - **Media:** a plain copy on the 16 TB disk, not Borg (confirmed by "the rest of the proposal"): written once, incompressible, nothing personal, and the copy can be mounted directly if the media disk dies.
 A restore drill must bring back **both** the database and the files, because a database restored without the files left six originals missing in the lab.
 
-**How Borg is run (measured in the lab, `exp/borg-modules`):** through the NixOS module **`services.borgbackup.jobs.<name>`**, which writes the job's script itself and installs a timer: it **initializes the repository if it is missing** (`doInit`), creates the archive, **prunes** by the declared retention and **compacts**, with the passphrase read from a file (`passCommand`, a sops secret in production), `failOnWarnings = false` (a file that changes during the read is a warning, not a failure), and `startAt` for the schedule. Two jobs (the offsite repository and the repository of everything) are about a dozen lines each and **no script of ours**.
+**How Borg is run (measured in the lab):** through the NixOS module **`services.borgbackup.jobs.<name>`**, which writes the job's script itself and installs a timer: it **initializes the repository if it is missing** (`doInit`), creates the archive, **prunes** by the declared retention and **compacts**, with the passphrase read from a file (`passCommand`, a sops secret in production), `failOnWarnings = false` (a file that changes during the read is a warning, not a failure), and `startAt` for the schedule. Two jobs (the offsite repository and the repository of everything) are about a dozen lines each and **no script of ours**.
 In the lab three runs in one day left one archive per day (the pruning works) and a restore of the latest archive was identical to the source.
 `services.borgmatic` was also tried: it adds consistency checks (including an *extract* check) and monitoring hooks, but it **does not create the repository** (a manual `borgmatic repo-create`), which is a manual step under P1. So the plain module is the choice.
 What the module does **not** do, and is left to later phases: a periodic `borg check`, a verification restore, and a notification when a job fails (phase 5 and the restore drill of phase 7). **For a `repokey` repository, the key is inside the repository: export it (`borg key export`) and keep it with the passphrase** (Proton Pass and paper), or a damaged repository configuration loses the backup.

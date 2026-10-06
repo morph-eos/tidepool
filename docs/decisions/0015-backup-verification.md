@@ -16,7 +16,7 @@ A backup that has never been restored is a hope. The restore drill of [ADR 0014]
 
 ## Candidates and results
 
-`exp/backup-verify` (tag `exp-backup-verify`), on the integrated lab host with the drill's data (a 190 MB pgBackRest repository, two small Borg repositories). **Every figure is a lab figure**; the real repositories are 165 GB and the timings will be long.
+Everything ran in the lab, on the integrated lab host with the drill's data (a 190 MB pgBackRest repository, two small Borg repositories). **Every figure is a lab figure**; the real repositories are 165 GB and the timings will be long.
 
 ### Borg
 

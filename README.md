@@ -11,9 +11,9 @@
 
 | Where | What |
 |---|---|
-| tag `v0` (branch `main`) | the archive of v0: 19 snapshots reconstructed from backups, anonymized. Its README is [docs/v0-README.md](docs/v0-README.md) |
-| branch `reengineering` | this work: the integrated result of the closed phases |
-| branches `exp/<phase>-<candidate>`, tags `exp-<phase>-<candidate>` | one experiment each, kept after its decision so that an ADR can point at something that never moves |
+| branch `main` | what is published and what the server deploys: the integrated result of the closed phases. Once the repository is public it is protected by [a ruleset](.github/rulesets/main.json) |
+| branch `reengineering` | where the phases are developed; merged into `main` when a phase closes |
+| tag `v0` | the archive of v0: 19 snapshots reconstructed from backups, anonymized. Its README is [docs/v0-README.md](docs/v0-README.md) |
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
 | [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks, [what is still open](docs/pending.md) |
 | [lab/](lab/) | the tooling and the test scripts: QEMU/KVM VMs, the restore drill, the encrypted-layout test, the deploy tests, the migration rehearsal |
@@ -65,6 +65,8 @@ record the measurements, decide in a record, freeze. In the lab, with the data o
 
 The lab's times are lab times (nested VMs, a slow link): they say what changes, not how long the real machine will take.
 
+The experiments behind each decision (the candidates that were tried and dropped) are not published: the decision record keeps what was measured, and the scripts worth keeping are in [lab/](lab/).
+
 ## Try it
 
 You need a Linux workstation with QEMU/KVM, `ssh` and Python 3; nothing is installed with root and nothing leaves `~/lab/tidepool/`.
@@ -83,3 +85,7 @@ lab/restore-drill.sh all                                                # seed, 
 - **It is not deployed.** The first deployment needs the owner's chores on the real machine ([docs/pending.md](docs/pending.md)): the firmware and Secure Boot setup, the disks, the private repository and its tokens, the first kernel update at the console.
 - **Only the real machine can answer** the open questions listed there: the TPM and firmware, the radio, the GPU containers, real certificates and mail, and the timings on the real data.
 - **The old scripts are an archive.** `docker/` and `nas-scripts/` are anonymized (addresses are documentation addresses) and were not re-tested after that.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The scripts in `docker/` and `nas-scripts/` are an unmaintained archive of v0, with its security problems, and come with no warranty.

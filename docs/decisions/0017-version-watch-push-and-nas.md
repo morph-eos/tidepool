@@ -144,9 +144,9 @@ Listing the host's sockets showed **Valkey on every interface (6379), Immich on 
 
 ## 6. Before the repository becomes public
 
-- **Done:** the owner's domain was in **one commit** (`nixos/private/domain` of the services experiment, on `exp/services-native` and `exp/observability` and their tags). The commits were **rewritten** (the file now holds `example.org`), re-signed, the branches and tags force-pushed, and the old objects removed from the local clone. A scan of every commit of every branch and tag for the domain, the dynamic-DNS name, the router address, age keys, private-key blocks and tokens finds **nothing else**.
+- **Done:** the owner's domain was in **one commit** (`nixos/private/domain` of the services experiment). The commits were **rewritten** (the file now holds `example.org`), re-signed, the branches and tags force-pushed, and the old objects removed from the local clone. A scan of every commit of every branch and tag for the domain, the dynamic-DNS name, the router address, age keys, private-key blocks and tokens finds **nothing else**.
 - **Still to do:** GitHub may keep the old commits reachable by their hash for a while after a force push. **Safest: publish from a fresh repository** (create a new public one and push only the branches and tags that should be public) rather than flipping this one. The scan must be repeated on what is pushed.
-- **The old scripts** (`main`, tag `v0`) are what the owner means by "security problems": they are to be fixed or left out of the public repository; this ADR did not audit them beyond the secret scan above.
+- **The old scripts** (tag `v0`) are what the owner means by "security problems": they are to be fixed or left out of the public repository; this ADR did not audit them beyond the secret scan above.
 
 ## 7. The phone: Android with GrapheneOS
 
