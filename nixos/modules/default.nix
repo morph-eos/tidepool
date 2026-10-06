@@ -11,6 +11,7 @@
     ./secrets.nix
     ./database.nix
     ./backup.nix
+    ./offsite.nix
     ./services.nix
     ./versions.nix
     ./push.nix

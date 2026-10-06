@@ -1,6 +1,6 @@
 # 0007. The offsite copy
 
-- **Status:** accepted in part (2026-10-01): Borg is the tool and Hetzner Storage Box the clean reference and fallback; **Proton Drive through a small container of our own was tested on 2026-10-06** against the criteria fixed in advance: it meets the three must-haves and waits for the owner's acceptance of the cautions (section "Proton Drive, tested"); the destination is settled by that test
+- **Status:** accepted in part (2026-10-01): Borg is the tool and Hetzner Storage Box the clean reference and fallback; **Proton Drive through a small container of our own was tested on 2026-10-06** against the criteria fixed in advance: it met the three must-haves and **the owner accepted the cautions on 2026-10-06: Proton Drive is the offsite destination** (module `nixos/modules/offsite.nix`, exception 3 of [the register](../exceptions.md)); Hetzner stays the fallback, not opened
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (layer 3 of [ADR 0004](0004-backup.md))
 

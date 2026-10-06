@@ -54,6 +54,11 @@ let
       - alert: BorgBackupStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"borgbackup-job-.*\\.timer"} > 14400) and on() (time() - node_boot_time_seconds > 14400)
         labels: { severity: critical }
+      # the copy to Proton Drive (offsite.nix): the unit failing is UnitFailed; this is for a timer that stopped firing. Three days: a copy runs every night
+      - alert: ProtonOffsiteStale
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name="proton-offsite-sync.timer"} > 259200) and on() (time() - node_boot_time_seconds > 259200)
+        labels: { severity: warning }
+        annotations: { summary: "the copy of the offsite repository to Proton Drive has not run for three days" }
       - alert: PgBackrestStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"pgbackrest-.*\\.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
         labels: { severity: critical }

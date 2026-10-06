@@ -16,6 +16,7 @@
     # The network. Until the Ethernet cable is connected the machine is on WiFi: the LAN interface is then the WiFi one (set by tidepool.wifi). With the cable: remove `wifi`, set lanInterface to the Ethernet interface's name.
     wifi = { enable = true; interface = "REPLACE-wifi-interface"; ssid = "REPLACE-with-your-network-name"; };   # the secret `wifi-psk` in secrets.yaml holds one line: psk_home=<64 hex digits from `wpa_passphrase 'SSID' 'passphrase'`>
     nas.enable = true;
+    # offsite.proton.enable = true;   # the copy of the 2 TB Borg repository to Proton Drive (ADR 0007): needs the secret `proton-keyring-password` (a long random line) and one `sudo proton-offsite-cli auth login`, runbook 1.6
     push.enable = true;
     encryption.enable = true;          # LUKS on the disks, the TPM opens them: docs/encryption-runbook.md of the public repository
     # encryption.secureBoot = true;    # stage 2 of that runbook, after `sbctl create-keys`
