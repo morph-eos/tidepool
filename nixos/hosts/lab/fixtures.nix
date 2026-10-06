@@ -53,6 +53,6 @@ in
     lab-smtp-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3.withPackages (p: [ p.aiosmtpd ])}/bin/python ${sink}"; };
     lab-heartbeat-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3}/bin/python ${ping}"; };
   };
-  networking.hosts."127.0.0.1" = map (n: "${n}.${d}") [ "vault" "photos" "jelly" "cloud" "dav" "sync" ];
+  networking.hosts."127.0.0.1" = map (n: "${n}.${d}") [ "vault" "photos" "media" "cloud" "backup" "push" "sync" "metrics" "alerts" ];
   environment.systemPackages = with pkgs; [ openssl python3 sops age ];
 }

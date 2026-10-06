@@ -66,7 +66,7 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 
 | Item | Why it waits |
 |---|---|
-| **DNS name `ntfy.<domain>`** (the wildcard certificate covers it); the **two ntfy logins** (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; the phone is an **Android with GrapheneOS** (F-Droid ntfy app, battery unrestricted; no relay needed) |
+| **DNS name `push.<domain>`** (the wildcard certificate covers it); the **two ntfy logins** (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; the phone is an **Android with GrapheneOS** (F-Droid ntfy app, battery unrestricted; no relay needed) |
 | **Try push on a real phone**, with Proton VPN on | the real machine |
 | **The Samba user's password**: `smbpasswd -a nas` once (runbook); the database is in the Borg job | the deployment; if the owner wants it declared it becomes exception 4 |
 | **The NAS on the LAN:** the **interface name** (private value), the **Time Machine partition** of the 16 TB disk mounted by the private values, a Mac that sees the share and backs up to it | the real machine and a Mac |
