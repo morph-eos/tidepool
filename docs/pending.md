@@ -68,7 +68,7 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 |---|---|
 | **DNS name `ntfy.<domain>`** (the wildcard certificate covers it); the **two ntfy logins** (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; the phone is an **Android with GrapheneOS** (F-Droid ntfy app, battery unrestricted; no relay needed) |
 | **Try push on a real phone**, with Proton VPN on | the real machine |
-| **The Samba user's password**: `smbpasswd -a nas` once (runbook); the database is in the Borg job | the deployment; if the owner wants it declared it becomes exception 3 |
+| **The Samba user's password**: `smbpasswd -a nas` once (runbook); the database is in the Borg job | the deployment; if the owner wants it declared it becomes exception 4 |
 | **The NAS on the LAN:** the **interface name** (private value), the **Time Machine partition** of the 16 TB disk mounted by the private values, a Mac that sees the share and backs up to it | the real machine and a Mac |
 | **The version watch on the real machine:** the first weekend mail (a deliberately old lock proves it), whether the monthly tier (waiting on nixpkgs, majors, end of life) is the right amount of mail; **Incus is not watched** (LTS against feature releases: a line-aware source is missing) | the owner; a weekend after the deployment |
 | **Nextcloud after the deployment:** start at 33 (v0's major), then 34 and 35 as separate deploys with a ZFS snapshot before each ([ADR 0017 section 9](decisions/0017-version-watch-push-and-nas.md)) | the real machine; 35 when nixpkgs has a settled 35.0.x |
