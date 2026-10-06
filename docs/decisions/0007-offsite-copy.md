@@ -1,6 +1,6 @@
 # 0007. The offsite copy
 
-- **Status:** accepted in part (2026-10-01): Borg is the tool and Hetzner Storage Box the clean reference and fallback; **Proton Drive through a small container of our own is tested first**, against criteria fixed now; the destination is settled by that test
+- **Status:** accepted in part (2026-10-01): Borg is the tool and Hetzner Storage Box the clean reference and fallback; **Proton Drive through a small container of our own was tested on 2026-10-06** against the criteria fixed in advance: it meets the three must-haves and waits for the owner's acceptance of the cautions (section "Proton Drive, tested"); the destination is settled by that test
 - **Date:** 2026-09-30
 - **Phase:** 2, Backup (layer 3 of [ADR 0004](0004-backup.md))
 
@@ -63,9 +63,27 @@ The amounts sent are the same for every tool (the changed data, deduplicated); o
 
 - **A real provider**: latency, throughput, the first upload of 200 GB over the home uplink (at 50 Mbit/s up, 200 GB is about 9 hours of saturated link; check the real speed), a provider's own append-only or object-lock configuration.
 - **restic or Borg against Hetzner Storage Box or BorgBase** (the protocol is the same as the lab's SSH server, but a provider restricts what a key may do in its own way).
-- **The official Proton Drive CLI** (it needs the owner's login and a desktop session) and gate G3b.
+- **The official Proton Drive CLI**: tested on 2026-10-06 (section below).
 - **pgBackRest writing straight to an S3 repository** for the databases: it did (ADR 0004, round 2), so the database repository can reach the offsite by its own native repository line instead of through the file tool.
 - Real restore time at 200 GB, and memory use of the tools at that size.
+
+## Proton Drive, tested (2026-10-06)
+
+The official CLI (0.8.0, then 0.9.0) in a container with a headless keyring, against a Borg repository of 175 MB (14 segments), driven by [a sync script of 13 lines](../../lab/proton-offsite/) (the files and how to repeat it are there). The seven criteria fixed above, in order:
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | **Headless login** | **Passes, with a workaround.** Without a keyring the CLI stops at once ("libsecret not available"). With `dbus` and `gnome-keyring` in the container (252 MB against 81 MB for the bare image) `auth login` prints an address to open **on any device** and waits; the session then lives in a keyring file on a volume, and **a fresh container uses it without a new login**. The keyring's password is a secret to keep (sops) |
+| 2 | **Unattended, loud on failure** | **Passes.** With no session, a wrong keyring password or a corrupted session file the CLI exits **1** ("You need to login first") and the sync script stops, so a systemd unit fails and the `UnitFailed` mail goes out. Every run is a new container, so a reboot changes nothing. How long a session lasts (months) **cannot be measured now**: when it lapses the failure is loud and the login is repeated by hand |
+| 3 | **Updates** | **Passes.** Releases have versioned URLs and a published SHA-512 (`proton.me/download/drive/cli/<version>/linux-x64/proton-drive`), so they can be pinned by hash. 0.9.0 (released the day before) **matched the checksum, used the session made by 0.8.0, and the script ran unchanged**. The CLI is **before 1.0** (0.8.0 to 0.9.0 in about three months): every update needs this test |
+| 4 | **Size** | **Passes.** The custom component is **about 21 lines** (the sync 13, the image 2, the keyring wrapper 6) plus a unit and a secret, against **541 lines** for the three scripts v0 uses for the same job |
+| 5 | **Restore** | **Passes.** The whole repository downloaded from Proton was **byte for byte the same** (every SHA-256), `borg check --verify-data` passed, an archive extracted identical to the source; the same after a day of changes and a compaction. 173 MiB came back in 63 s on the lab link |
+| 6 | **Deletion** | **Weaker than Hetzner's snapshots.** The CLI deletes for good only from the trash, so the sync **trashes** what the repository no longer has; a trashed file comes back with `filesystem restore`. An overwrite keeps the old revision (the stored size doubles) but **the CLI cannot read an old revision**, only the web interface can. How long the trash and the revisions are kept depends on the plan and was not measured. **The trash is the whole account's**: `empty-trash` must never be run |
+| 7 | **First upload** | **Possible, slow.** 1.95 GiB in four files of 500 MiB (a Borg segment) went up in 1121 s from the workstation on the home link: **1.8 MiB/s, so about 30 hours for 190 GiB**, in the background. No limit was hit. A day of changes (a new archive, a prune, a compaction) uploaded **41 MiB** of the 175 MB repository and a quiet night costs **12 s** |
+
+**Cautions.** (a) The CLI is young and says so with its version number. (b) `auth logout` **only removes the local credentials: the session stays valid at Proton** (a copy of the session still worked after it); a lost session is revoked in the account's security settings. (c) Proton records a SHA-1 of each file that it does not verify, so the integrity check is **ours**: `borg check --verify-data` on a restored copy, in the restore drill from the offsite. (d) This is a custom component under [P1](../principles.md): it goes in [the exceptions register](../exceptions.md) when adopted.
+
+**Outcome under the rule above:** it meets the three must-haves (1, 2 and 5), so Proton Drive is adopted and Hetzner stays closed, **if the owner accepts the cautions**; otherwise Hetzner is the answer and costs about €3.20 a month. The module (the image built from the Containerfile, a timer after the offsite Borg job, the keyring password as a secret, the CLI pinned by hash) is not written yet.
 
 ## Criteria
 
