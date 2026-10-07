@@ -9,6 +9,16 @@ Copy this directory to a **new private repository**. It holds the values of one 
 5. In Settings > Actions > General turn on "Allow GitHub Actions to create and approve pull requests" for `bump-public.yml`.
 6. **Renovate on the server:** create a **machine user** (a second free GitHub account), invite it to the public repository with the **Write** role (not Admin), create a **fine-grained token** for it (contents and pull requests: read and write, on the public repository only), put it in `secrets.yaml` as `renovate-token`. It expires: when it does, the `renovate` unit fails and the `UnitFailed` mail says so.
 7. **WiFi** (until the cable is connected): compute the key with `wpa_passphrase 'YOUR SSID' 'your passphrase'` (it prints `psk=<64 hex digits>`; keep the hex, not the passphrase) and put one line in `secrets.yaml` as `wifi-psk`: `psk_home=<the 64 hex digits>`. The router must give the machine the same address every time (a reservation by the card's address); the machine's WiFi address is the card's own, not a random one.
+8. **Certificates** (the DNS challenge is delegated to acme-dns, [ADR 0008](../docs/decisions/0008-edge.md)): for **each certificate name** (the domain, and `compute.<domain>` if you use `tidepool.compute.names.enable`) register once with the public instance, `curl -s -X POST https://auth.acme-dns.io/register` (it answers `username`, `password`, `fulldomain`, `subdomain`, `allowfrom`; **the password is shown only once**). At the DNS provider make a CNAME from `_acme-challenge` (and `_acme-challenge.compute`) to that answer's `fulldomain`. Put the answers in `secrets.yaml` as **`acme-dns-credentials`**, one JSON object keyed by the certificate's name:
+
+   ```json
+   {
+     "example.org":         { "username": "...", "password": "...", "fulldomain": "...auth.acme-dns.io", "subdomain": "...", "allowfrom": [] },
+     "compute.example.org": { "username": "...", "password": "...", "fulldomain": "...auth.acme-dns.io", "subdomain": "...", "allowfrom": [] }
+   }
+   ```
+
+   The host reads it at `/run/secrets/acme-dns-credentials` (owner `acme`) and nothing else is needed. Check after the first deploy: `systemctl status acme-order-renew-<domain>` and `journalctl -u 'acme-*'`; a name with no entry fails with "no account".
 
 ## Adding your own modules (anything the public repository does not have)
 

@@ -48,8 +48,6 @@ in
     security.acme.certs = lib.mkIf (!cfg.lab && opts.names.tls == null) {
       ${zone} = {
         extraDomainNames = [ "*.${zone}" ];
-        dnsProvider = "acme-dns";
-        environmentFile = "/var/lib/acme-dns/env";
         group = "nginx";
       };
     };

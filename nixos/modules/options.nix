@@ -26,6 +26,7 @@ in
       big2tb = mkOption { type = types.str; description = "The second disk: the offsite repository and the VM pool."; };
     };
     arcMaxMiB = mkOption { type = types.int; default = 3072; description = "Cap of the ZFS cache."; };
+    acmeDns.apiBase = mkOption { type = types.str; default = "https://auth.acme-dns.io"; description = "The acme-dns server that holds the certificates' challenge records (ADR 0008): the public instance. The registrations' credentials are the sops secret `acme-dns-credentials`."; };
     wireguard.peers = mkOption { type = types.listOf types.attrs; default = [ ]; };
     services = {
       jellyfin.enable = mkOption { type = types.bool; default = true; };

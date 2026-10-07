@@ -68,13 +68,19 @@ in
   security.acme = {
     acceptTerms = true;
     defaults.email = lib.mkDefault "admin@${d}";
+    # every certificate of the real host is ordered by the DNS challenge, delegated by CNAME to acme-dns (ADR 0008); the lab has HTTP-01 and its own test CA
+    defaults.dnsProvider = lib.mkIf (!cfg.lab) "acme-dns";
+    defaults.environmentFile = lib.mkIf (!cfg.lab) (pkgs.writeText "acme-dns-env" ''
+      ACME_DNS_API_BASE=${cfg.acmeDns.apiBase}
+      ACME_DNS_STORAGE_PATH=${config.sops.secrets.acme-dns-credentials.path}
+    '');
     certs = lib.mkIf (!cfg.lab) {
       ${d} = {
         extraDomainNames = [ "*.${d}" ];
-        dnsProvider = "acme-dns";
-        environmentFile = "/var/lib/acme-dns/env";   # ACME_DNS_API_BASE and ACME_DNS_STORAGE_PATH; the credentials file is a sops secret owned by acme (private repository)
         group = "nginx";
       };
     };
   };
+  # the registrations' credentials, one entry per certificate name (docs/names.md, the template's README): a JSON file in lego's format, in the sops file. The module's user reads it; nothing is in the Nix store
+  sops.secrets.acme-dns-credentials = lib.mkIf (!cfg.lab) { owner = "acme"; mode = "0400"; };
 }
