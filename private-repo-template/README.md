@@ -3,7 +3,7 @@
 Copy this directory to a **new private repository**. It holds the values of one machine and imports the public `tidepool` flake. See `docs/decisions/0018-deploys-by-the-server.md`.
 
 1. Replace `OWNER`, `PRIVATE-REPO`, every `REPLACE-...` and the example values in `host.nix`.
-2. Create the machine's age key; write `.sops.yaml`; create `secrets.yaml` with the secrets of the public example file (`nixos/secrets/example.yaml` lists the names) **and** `deploy-key`.
+2. Create the machine's age key (`age-keygen -o ~/.config/tidepool/age.key`; **write it down in Proton Pass and on paper**, and keep it out of the repository) and write its public half into `.sops.yaml` (`creation_rules: - path_regex: secrets\.yaml$ ... age: [ <the public key> ]`). Then `tools/secrets-init.sh` makes `secrets.yaml`: it **generates** what can be generated (the Borg and pgBackRest passphrases, the Nextcloud admin password, the VPN key, the ntfy logins, the deploy key, the Proton keyring password) and leaves a `REPLACE-...` line for what somebody else issues (Brevo, Healthchecks, the Wi-Fi, GitHub, acme-dns). `tools/check.sh` lists what is left; `tools/check.sh --build` also evaluates the host.
 3. Generate the deploy key **on the workstation**: `ssh-keygen -t ed25519 -N '' -C tidepool-deploy -f deploy`; put the private half in `secrets.yaml` as `deploy-key`; add `deploy.pub` to this repository as a **read-only deploy key** (Settings > Deploy keys; leave "Allow write access" off); delete both files.
 4. `nix flake lock`, commit, push. Install the machine with `nixos-install --flake .#tidepool` from a clone.
 5. In Settings > Actions > General turn on "Allow GitHub Actions to create and approve pull requests" for `bump-public.yml`.
@@ -19,6 +19,16 @@ Copy this directory to a **new private repository**. It holds the values of one 
    ```
 
    The host reads it at `/run/secrets/acme-dns-credentials` (owner `acme`) and nothing else is needed. Check after the first deploy: `systemctl status acme-order-renew-<domain>` and `journalctl -u 'acme-*'`; a name with no entry fails with "no account".
+
+## The tools
+| | |
+|---|---|
+| `tools/secrets-init.sh` | makes `secrets.yaml` once (needs `sops`, `age`, `wg`, `openssl`, `ssh-keygen`, Python with `bcrypt`); writes `vpn-server.pub` and `deploy.pub` |
+| `tools/check.sh [--build]` | the placeholders still in `host.nix` and `secrets.yaml`; with `--build` the whole host is evaluated; exit status = the number of problems |
+| `tools/set-wifi.sh` | asks the Wi-Fi passphrase and writes the 64 hex digits for the network in `host.nix` |
+| `tools/add-peer.sh NAME N` | a VPN device: its key pair, its line in `vpn-peers.nix`, and the client's configuration shown once ([docs/vpn-clients.md](docs/vpn-clients.md)) |
+
+A move from an existing server adds its own script next to these (a private repository can have one that copies the old WebDAV login, Syncthing identity and application tokens into `secrets.yaml` without printing them).
 
 ## Adding your own modules (anything the public repository does not have)
 

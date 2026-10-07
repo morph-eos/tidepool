@@ -38,5 +38,6 @@ Measured on the replica: Immich dump 3 s, Nextcloud conversion 18 s, everything 
 
 - **Nextcloud's patch step is rehearsed**: v0 is on 33.0.2 and the module on 33.0.9; the first start ran the upgrade (`occ upgrade`) without incident and everything verified. Nothing is left to check here except the real data's size.
 - **Syncthing 2.0.14 to 2.1.3 is rehearsed** (the replica runs 2.0.14): the device ID and the folder list survive. What the real index database holds, and how long it takes to settle, depends on the real data.
-- **Jellyfin media**: v0 has two media trees; the lab uses two mounts. Decide the final host paths and set `jellyfin.mediaMounts` to match (container paths stay what the libraries already say).
+- **Jellyfin media**: v0 has two media trees, and the libraries point at their container paths (`/media`, `/media2`). Both go on the 16 TB disk, and `services.jellyfin.mediaMounts` maps each container path to its folder there (the private `host.nix`); the tree that was on the 2 TB disk is copied to the 16 TB disk **before the 2 TB disk is formatted** (runbook 1.1 and 1.2).
+- **Time Machine**: v0's partition is HFS+, which Linux cannot write when it is journaled; it is made ext4 and the Mac starts a fresh backup (runbook 1.2).
 - **`smartcheck`** is not carried over: the monitoring layer replaces it ([ADR 0012](decisions/0012-observability.md)).
