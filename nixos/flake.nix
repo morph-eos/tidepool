@@ -26,6 +26,8 @@
         # the same with the signed boot images on from the start: a rebuild that restored the signing keys from Borg before installing (lab/restore-drill.sh with DRILL_SECURE=1)
         # the lab host with the copy to Proton Drive switched on (lab/proton-offsite/): it needs the CLI's login, so it is not the plain lab host
         lab-offsite = (mk ./hosts/lab).extendModules { modules = [ { tidepool.offsite.proton.enable = true; } ]; };
+        # the lab host with the names of the Incus instances on, and one instance public (lab/compute-names.sh)
+        lab-compute = (mk ./hosts/lab).extendModules { modules = [ { tidepool.vms = { names.enable = true; public = [ "pub" ]; }; } ]; };
         lab-secure-sb = (mk ./hosts/lab-secure).extendModules { modules = [ { tidepool.encryption.secureBoot = true; } ]; };
         # the real host: the values that are private (domain, disks by serial, VPN peers) come from the private repository; this repository holds an example
         tidepool = mk ./hosts/tidepool;

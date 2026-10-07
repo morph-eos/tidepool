@@ -21,6 +21,7 @@
     ./edge.nix
     ./vpn.nix
     ./vms.nix
+    ./vm-names.nix
     ./publish-gate.nix
     ./observability.nix
     ./verify.nix
