@@ -8,6 +8,11 @@ let
     openssl req -newkey rsa:2048 -nodes -subj "/CN=localhost" -keyout key.pem -out csr.pem
     openssl x509 -req -in csr.pem -CA minica.pem -CAkey minica.key -CAcreateserial -days 3650 -out cert.pem -extfile <(printf "subjectAltName=DNS:localhost,IP:127.0.0.1")
   '';
+  # a wildcard for the instances' names (vm-names.nix): a wildcard cannot be ordered by HTTP-01, so the lab serves it with a self-signed one (curl -k)
+  computeTls = pkgs.runCommand "lab-compute-tls" { nativeBuildInputs = [ pkgs.openssl ]; } ''
+    mkdir $out; cd $out
+    openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=compute.${d}" -addext "subjectAltName=DNS:*.compute.${d}" -keyout key.pem -out cert.pem
+  '';
   pebbleCfg = pkgs.writeText "pebble.json" (builtins.toJSON { pebble = {
     listenAddress = "127.0.0.1:14000"; managementListenAddress = "127.0.0.1:15000";
     certificate = "${pebbleTls}/cert.pem"; privateKey = "${pebbleTls}/key.pem";
@@ -36,6 +41,7 @@ let
   '';
 in
 {
+  tidepool.vms.names.tls = lib.mkIf config.tidepool.vms.names.enable (lib.mkDefault { cert = "${computeTls}/cert.pem"; key = "${computeTls}/key.pem"; });
   security.pki.certificateFiles = [ "${pebbleTls}/minica.pem" ];
   security.acme.defaults = { server = "https://localhost:14000/dir"; email = "lab@example.test"; };
   systemd.services = {
