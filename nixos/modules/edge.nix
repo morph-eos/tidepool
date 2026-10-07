@@ -7,6 +7,7 @@ let
   acme = if cfg.lab then { enableACME = true; } else { useACMEHost = d; };
   proxy = port: { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; };
   public = port: acme // { forceSSL = true; locations."/" = proxy port; };
+  catchAll = { rejectSSL = true; locations."/".return = "444"; };   # nginx's 444 closes the connection with no answer; over TLS the handshake is refused (no certificate shown)
   # reachable only through the VPN: the name listens on the WireGuard address, whatever answers behind it stays on the loopback
   vpnOnly = port: acme // {
     forceSSL = true;
@@ -48,6 +49,12 @@ in
             client_body_temp_path /srv/data/webdav/.tmp;
           '';
         };
+      };
+      # a name that is nobody's gets no answer at all, never another service's page (without these nginx answers an unknown name with the first virtual host of the address): one for the
+      # public addresses, one for the VPN address
+      "_" = catchAll // { default = true; };
+      "_vpn" = catchAll // {
+        listen = [ { addr = "10.100.0.1"; port = 443; ssl = true; extraParameters = [ "default_server" ]; } { addr = "10.100.0.1"; port = 80; ssl = false; extraParameters = [ "default_server" ]; } ];
       };
       # the names of the machine's own tools, VPN only (ADR 0008). Incus has no name here: it keeps its own TLS and client certificates on <VPN address>:8443, so a proxy would break them;
       # give that address a DNS name (compute.<domain>) and open https://compute.<domain>:8443

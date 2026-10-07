@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# lab/compute-names.sh — the names <instance>.compute.<domain> of vm-names.nix (issue 11)
+# lab/compute-names.sh — the names <instance>.compute.<domain> of compute-names.nix (issue 11)
 #
 # Usage: lab/compute-names.sh <vm-name>      (a NixOS lab VM with Incus, built from the flake in ~/nixos-new/nixos; it is switched to the host lab-compute)
 #
@@ -44,11 +44,30 @@ r "a private VM answers on the VPN address"                   hello-virt  body v
 r "a private container is not served on the public listener"  no          nothello priv.compute.$D $P
 r "a listed container answers on the public listener"         hello-pub   body pub.compute.$D $P
 r "a listed container also answers on the VPN address"        hello-pub   body pub.compute.$D $V
-r "an unknown name is an error, not another site"             502         get nobody.compute.$D $V
-r "a name with a dot cannot name another host"                no          nothello a.b.compute.$D $V
+r "an unknown instance is a 502, not another site"            502         get nobody.compute.$D $V
 launch later; serve later; sleep 3
 r "an instance created afterwards answers with no change"     hello-later body later.compute.$D $V
 r "the name never reaches port 8080 of the instance"          hello-pub   body pub.compute.$D $V
+# the other virtual hosts still answer, and a name that is nobody's gets no answer on both addresses, never another service's page
+r "a name that is nobody's gets no answer (VPN address)"    000         get nobody.lab.test $V
+r "a name that is nobody's gets no answer (public address)" 000         get nobody.lab.test $P
+r "the same over plain HTTP"                                000         curl -s -o /dev/null -w '%{http_code}' --max-time 8 --resolve nobody.lab.test:80:$V http://nobody.lab.test/
+r "a name with a dot under compute gets no answer"          000         get a.b.compute.$D $V
+r "a VPN-only service still answers on the VPN address"     200         get sync.$D $V
+# the bridge's DNS through the VPN address (a raw query: the lab VM has no dig)
+dnsq() { python3 - "$1" "$2" <<'PY'
+import socket, struct, sys
+name, server = sys.argv[1], sys.argv[2]
+q = struct.pack(">HHHHHH", 0x1234, 0x0100, 1, 0, 0, 0) + b"".join(bytes([len(l)]) + l.encode() for l in name.split(".")) + b"\0" + struct.pack(">HH", 1, 1)
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(5); s.sendto(q, (server, 53))
+try:
+    a = s.recv(512)
+    print(".".join(str(b) for b in a[-4:]) if a[3] & 15 == 0 and struct.unpack(">H", a[6:8])[0] else "none")
+except Exception:
+    print("none")
+PY
+}
+r "the VPN address answers .incus names (ssh by name)"      "$(inc list priv -f csv -c 4 | cut -d' ' -f1)"  dnsq priv.incus $V
 echo "failed units: $(systemctl --failed --no-legend | wc -l)"
 inc delete -f priv pub virt later >/dev/null 2>&1
 REMOTE_EOF
