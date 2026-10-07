@@ -15,6 +15,7 @@
 | branch `reengineering` | where the phases are developed; merged into `main` when a phase closes |
 | tag `v0` | the archive of v0: 19 snapshots reconstructed from backups, anonymized. Its README is [docs/v0-README.md](docs/v0-README.md) |
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
+| [docs/working-on-it.md](docs/working-on-it.md) | **start here when picking the project up**: the repositories and what each is for, the rules, where each kind of thing is written |
 | [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks (the order of the first deployment is in [the deployment runbook](docs/deployment-runbook.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
 | [lab/](lab/) | the tooling and the test scripts: QEMU/KVM VMs, the restore drill, the encrypted-layout test, the deploy tests, the migration rehearsal |
 | [private-repo-template/](private-repo-template/) ([how it works](docs/private-repository.md)) | the template of the **private** repository that holds one machine's values and secrets and imports this one |
