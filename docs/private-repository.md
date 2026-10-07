@@ -1,5 +1,7 @@
 # The private repository
 
+(The whole organization, with the other repositories and folders, is in [working-on-it.md](working-on-it.md).)
+
 The public repository (this one) is the whole system **except the values that identify one machine**. Those live in a second, **private** repository that you create from [`private-repo-template/`](../private-repo-template/) and that **imports this flake**. Why it is split, and how the server reads it: [ADR 0003](decisions/0003-secrets.md), [ADR 0018](decisions/0018-deploys-by-the-server.md) sections 2 and 4.
 
 ## What is in it
