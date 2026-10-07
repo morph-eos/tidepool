@@ -1,0 +1,8 @@
+# nothing secret is ever in this repository in clear: the age key, plain secrets and local build results stay out
+*.key
+age.key
+*.plain
+result
+result-*
+__pycache__/
+.env
