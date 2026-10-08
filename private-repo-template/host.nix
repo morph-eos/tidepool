@@ -18,6 +18,9 @@
     wireguard.peers = import ./vpn-peers.nix;   # one entry per device: tools/add-peer.sh (docs/vpn-clients.md); the server's own public key is in vpn-server.pub (written by tools/secrets-init.sh)
     nas.enable = true;
     nas.timeMachine.path = "/mnt/timemachine";   # the Time Machine partition of the 16 TB disk; Linux cannot write a journaled HFS+, so make it ext4 and mount it below. Remove both if you have no Mac
+    # The name, palette and logo are ON by default (nixos/brand/ of the public repository). For your own: copy that directory here and say `brand.file = ./brand/brand.json;`; `brand.enable = false;` turns it off (docs/decisions/0020-brand-identity.md)
+    # sso.enable = true;                 # Nextcloud as the single sign-on of Immich; needs the secret `immich-oauth-secret` (tools/secrets-init.sh makes it)
+    # admin.enable = true;               # admin.<domain> on the VPN: the private tools and the services on one page, with a status for each (needs the DNS record: docs/names.md, ADR 0021)
     # compute.names.enable = true;        # <instance>.compute.<domain> for the Incus instances' port 80, VPN only: needs the DNS of docs/names.md first
     # compute.public = [ "alpha" ];      # the instances that are also reachable from the Internet (each needs its own DNS record)
     # offsite.proton.enable = true;   # the copy of the 2 TB Borg repository to Proton Drive (ADR 0007): needs the secret `proton-keyring-password` (a long random line) and one `sudo proton-offsite-cli auth login`, runbook 1.6

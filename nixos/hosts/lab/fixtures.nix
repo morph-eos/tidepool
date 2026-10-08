@@ -42,6 +42,8 @@ let
 in
 {
   tidepool.compute.names.tls = lib.mkIf config.tidepool.compute.names.enable (lib.mkDefault { cert = "${computeTls}/cert.pem"; key = "${computeTls}/key.pem"; });
+  # Immich's container calls Nextcloud over HTTPS for the single sign-on: the lab's certificates come from a test CA that changes at every start, so the container does not verify them (the lab only)
+  virtualisation.oci-containers.containers.immich-server.environment.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   security.pki.certificateFiles = [ "${pebbleTls}/minica.pem" ];
   security.acme.defaults = { server = "https://localhost:14000/dir"; email = "lab@example.test"; };
   systemd.services = {
@@ -59,6 +61,6 @@ in
     lab-smtp-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3.withPackages (p: [ p.aiosmtpd ])}/bin/python ${sink}"; };
     lab-heartbeat-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3}/bin/python ${ping}"; };
   };
-  networking.hosts."127.0.0.1" = map (n: "${n}.${d}") [ "vault" "photos" "media" "cloud" "backup" "push" "sync" "metrics" "alerts" ];
+  networking.hosts."127.0.0.1" = map (n: "${n}.${d}") [ "vault" "photos" "media" "cloud" "backup" "push" "sync" "metrics" "alerts" "admin" ];
   environment.systemPackages = with pkgs; [ openssl python3 sops age ];
 }

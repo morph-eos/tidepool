@@ -4,7 +4,7 @@
 let
   cfg = config.tidepool;
   d = cfg.domain;
-  mailFrom = "alerts@${d}"; mailTo = "admin@${d}";
+  mailFrom = "${config.tidepool.brand.name} alerts <alerts@${d}>"; mailTo = "admin@${d}";
   smtp = if cfg.lab
     then { smarthost = "127.0.0.1:1025"; require_tls = false; }
     else { smarthost = "smtp-relay.brevo.com:587"; require_tls = true; auth_username = "alerts@${d}"; auth_password_file = "/run/credentials/alertmanager.service/smtp-password"; };

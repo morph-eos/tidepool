@@ -2,7 +2,7 @@
 # What is still missing before the day: placeholders in host.nix and in secrets.yaml, and whether the host builds. Exit status = the number of problems.
 # Usage: tools/check.sh [--build]       (--build also evaluates the whole host: needs Nix)
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 export SOPS_AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/tidepool/age.key}"
 SOPS="${SOPS:-sops}"
 bad=0

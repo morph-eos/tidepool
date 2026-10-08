@@ -18,7 +18,7 @@ The [method](method.md) says *how* decisions are made. These say what a good ans
 
 1. **It is a gate before it is a score.** In every decision, an option that needs custom glue is set aside unless nothing else meets a *must*. The ADR records, for each option, whether a module exists and how much glue it would need.
 2. **Exceptions are written down** in [the exceptions register](exceptions.md): what the glue is, why there is no native way, who keeps it up to date, the test that runs at every upgrade, and how it is removed when a native way appears. An exception without an entry is a violation.
-3. **It is measured.** Lines of custom script and number of exceptions are reported at the end of each phase. v0 is the baseline: 34 scripts in `nas-scripts/` plus the ones under `docker/`.
+3. **It is measured.** Lines of custom script and number of exceptions are reported at the end of each phase. v0 is the baseline: 34 scripts in `nas-scripts/` plus the ones under `docker/` (in the tag `v0`).
 4. **Upgrades are routine, and proved.** Updating the pinned inputs (`flake.lock`), rebuilding and running the checks must be the whole upgrade procedure. A restore drill is part of the checks (phase 7).
 
 **What it does not forbid.** The lab tooling in `lab/` is scaffolding for experiments, not part of the running system, and is exempt, but is also kept small. A one-time, read-only human check (the gates) is not glue. Choosing a less featureful tool because it is clean is allowed, and expected.

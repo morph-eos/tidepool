@@ -66,6 +66,14 @@ in
     devices = map (device: { inherit device; }) [ cfg.disks.system cfg.disks.tank cfg.disks.backup16 cfg.disks.big2tb ];
   };
 
+  # Immich's settings are declared (tidepool.services.immich.settings): the file is rendered by sops-nix, because the single sign-on's client secret is in it
+  sops.templates."immich-config.json" = { content = builtins.toJSON cfg.services.immich.settings; restartUnits = [ "podman-immich-server.service" ]; };   # the file is read at start
+  tidepool.services.immich.settings = {
+    server.externalDomain = "https://photos.${d}";
+    server.loginPageMessage = lib.mkIf cfg.brand.enable "${cfg.brand.name}, ${cfg.brand.tagline}";
+    theme.customCss = lib.mkIf cfg.brand.enable cfg.brand.css.immich;
+  };
+
   virtualisation.oci-containers.containers = {
     immich-redis = {
       image = "docker.io/valkey/valkey:8-bookworm@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf";
@@ -74,8 +82,8 @@ in
     };
     immich-server = {
       image = "ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2";
-      environment = dbEnv // { IMMICH_MACHINE_LEARNING_URL = "http://127.0.0.1:3003"; IMMICH_HOST = "127.0.0.1"; };
-      volumes = [ "/srv/data/immich/upload:/data" "/run/postgresql:/run/postgresql" ];
+      environment = dbEnv // { IMMICH_MACHINE_LEARNING_URL = "http://127.0.0.1:3003"; IMMICH_HOST = "127.0.0.1"; IMMICH_CONFIG_FILE = "/etc/immich/config.json"; };
+      volumes = [ "/srv/data/immich/upload:/data" "/run/postgresql:/run/postgresql" "${config.sops.templates."immich-config.json".path}:/etc/immich/config.json:ro" ];
       dependsOn = [ "immich-redis" ];
       extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };

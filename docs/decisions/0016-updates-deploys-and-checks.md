@@ -195,7 +195,7 @@ The same flake evaluated against `nixos-unstable`, since 26.11 is not branched y
 
 ## Follow-up 2026-10-03: the owner's questions after reading the proposal
 
-The owner read the proposal and asked six things; each was tried in the lab (`lab/updates-u11.sh`, `u12`; the prototype modules were not kept in the flake). His inclination, in words: he **likes design B** (a private flake importing the public one); recorded as a leaning, **to be confirmed** with the other answers.
+The owner read the proposal and asked six things; each was tried in the lab (`lab/experiments/updates-u11.sh`, `u12`; the prototype modules were not kept in the flake). His inclination, in words: he **likes design B** (a private flake importing the public one); recorded as a leaning, **to be confirmed** with the other answers.
 
 ### 1. Push notifications (ntfy) in addition to the mail: how hard
 
@@ -225,7 +225,7 @@ What it asks of the owner beyond the 36 lines: **the Android or iOS app on the p
 
 **The case the owner fears** (the packages stop coming and nobody notices) **is not caught by an alert today**: nothing compares the module's version with upstream's. What would show it: the weekly look at the services' advisories ([the proposal](#proposed-decision-for-the-owner)) next to the version in `flake.lock` (a one-line check in the runbook), and the build refusing a package marked insecure or removed. **A native automatic signal does not exist**; it would be a script.
 
-**The way out, tried** (`lab/updates-u11.sh`): Nextcloud, as the module runs it, started from the **official container image** (`nextcloud:33-apache`) **on the same data and the same PostgreSQL database**. The state to carry is three things, all already outside the module's Nix-store paths: `config/`, `data/` and the database.
+**The way out, tried** (`lab/experiments/updates-u11.sh`): Nextcloud, as the module runs it, started from the **official container image** (`nextcloud:33-apache`) **on the same data and the same PostgreSQL database**. The state to carry is three things, all already outside the module's Nix-store paths: `config/`, `data/` and the database.
 
 | Step | What it took |
 |---|---|

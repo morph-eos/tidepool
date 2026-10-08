@@ -1,8 +1,8 @@
 # Host specification (the same test for every candidate)
 
-Distilled from the host layer of v0 (see [the v0 README](../v0-README.md)): SSH policy, fail2ban, Docker (now Podman), crash diagnostics, a systemd timer, disks identified by serial number and
+Distilled from the host layer of v0 (see the README of the tag `v0`: `git show v0:README.md`): SSH policy, fail2ban, Docker (now Podman), crash diagnostics, a systemd timer, disks identified by serial number and
 a delivered secret. Every candidate for "the host as code" (see [ADR 0002](../decisions/0002-host-as-code.md)) must reach this state from an empty Ubuntu 24.04 machine, with one command,
-and [`lab/check-host.sh`](../../lab/check-host.sh) verifies it from the outside. The checker knows nothing about the tool that built the machine.
+and [`lab/experiments/check-host.sh`](../../lab/experiments/check-host.sh) verifies it from the outside. The checker knows nothing about the tool that built the machine.
 
 | ID | Requirement | Why (v0 lesson) |
 |---|---|---|
