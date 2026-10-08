@@ -1,6 +1,6 @@
 # The admin page (ADR 0021): one page, on the VPN only, that lists the machine's private tools and shows whether each answers, so that Prometheus, Alertmanager, Syncthing, Incus and the services are
-# one click from each other. Homepage (gethomepage.dev) through its NixOS module: the page is declared here, there is no script. Off by default (tidepool.admin.enable): it needs the name `admin.<domain>`
-# in the DNS, pointing at the VPN address (docs/names.md).
+# one click from each other. Homepage (gethomepage.dev) through its NixOS module: the page is declared here, there is no script. On by default (tidepool.admin.enable): it is reached once the name `admin.<domain>`
+# is in the DNS, pointing at the VPN address (docs/names.md).
 { config, lib, ... }:
 let
   cfg = config.tidepool;
@@ -12,7 +12,7 @@ let
   port = 8082;
 in
 {
-  options.tidepool.admin.enable = lib.mkEnableOption "the admin page, admin.<domain>, on the VPN only (Homepage)";
+  options.tidepool.admin.enable = lib.mkOption { type = lib.types.bool; default = true; description = "The admin page, admin.<domain>, on the VPN only (Homepage). On by default; it is reached once the DNS has the name (an A record to the VPN address); `false` leaves it out."; };
   config = lib.mkIf cfg.admin.enable {
     services.homepage-dashboard = {
       enable = true;

@@ -14,7 +14,7 @@ r() { local desc="$1" want="$2"; shift 2; local got; got=$("$@" 2>/dev/null); if
 has() { local desc="$1" re="$2"; shift 2; if "$@" 2>/dev/null | grep -q -E -e "$re"; then echo "PASS $desc"; else echo "FAIL $desc (no match for $re)"; fi; }
 cd ~/nn/nixos
 sudo rm -rf /var/lib/acme/.lego/accounts; sudo systemctl reset-failed
-sudo nixos-rebuild test --flake path:$PWD#lab-brand 2>&1 | tail -1
+sudo nixos-rebuild test --flake path:$PWD#lab-brand > /tmp/switch.log 2>&1; rc=$?; tail -n 1 /tmp/switch.log; [ $rc -eq 0 ] || { echo "FAIL the switch to the host lab-brand failed (exit $rc): $(grep -m1 -i 'error' /tmp/switch.log | cut -c1-160)"; }
 sudo systemctl restart "acme-order-renew-*.service" nginx; sleep 15
 V=10.100.0.1
 r "the operating system carries the name"                      "NAME=Tidepool" grep -E "^NAME=" /etc/os-release

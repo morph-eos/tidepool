@@ -1,6 +1,6 @@
 # 0021. One admin page for the private tools
 
-- **Status:** accepted as a trial (2026-10-08): built and proven in the lab (`nixos/modules/admin.nix`, off by default); the owner decides after using it on the real machine
+- **Status:** accepted as a trial (2026-10-08): built and proven in the lab (`nixos/modules/admin.nix`, **on by default** since 2026-10-08 at the owner's request); the owner decides after using it on the real machine
 - **Date:** 2026-10-08
 - **Phase:** after the first deployment is prepared
 
@@ -24,7 +24,7 @@ The machine's private tools are reachable only through the VPN and each has its 
 
 ## What was built, and proved
 
-`tidepool.admin.enable` (off by default: it needs the name `admin.<domain>` in the DNS, an A record to 10.100.0.1, [names](../names.md)). Homepage listens on **the loopback only** (`HOSTNAME=127.0.0.1`: the Next.js server otherwise listens everywhere) and nginx serves it on the **VPN address only**. The groups: Monitoring (Prometheus with its widget, Alertmanager), Machine (Syncthing, Incus, ntfy), Services (Nextcloud, Immich, Jellyfin, Vaultwarden). The status of each is asked of the machine itself, by a loopback address where the program has one (the public names would need the router to loop back); the brand gives the title and the colours ([ADR 0020](0020-brand-identity.md)).
+`tidepool.admin.enable` (**on by default**: it is reached once the name `admin.<domain>` is in the DNS, an A record to 10.100.0.1, [names](../names.md); the wildcard certificate already covers it). Homepage listens on **the loopback only** (`HOSTNAME=127.0.0.1`: the Next.js server otherwise listens everywhere) and nginx serves it on the **VPN address only**. The groups: Monitoring (Prometheus with its widget, Alertmanager), Machine (Syncthing, Incus, ntfy), Services (Nextcloud, Immich, Jellyfin, Vaultwarden). The status of each is asked of the machine itself, by a loopback address where the program has one (the public names would need the router to loop back); the brand gives the title and the colours ([ADR 0020](0020-brand-identity.md)).
 
 In the lab ([docs/evidence/admin-page.png](../evidence/admin-page.png)): the page answers on the VPN address; every service shows a green status; Prometheus' widget reads 9 targets up, 0 down, 29 in total; the page lists the tools and links to their own addresses (`lab/brand-check.sh`, in the gate's `brand` step). **It uses about 250 MB of memory** (measured on the lab host, with the Next.js server resident), which is more than all the other observability pieces together (about 107 MiB without Grafana).
 
@@ -37,3 +37,7 @@ In the lab ([docs/evidence/admin-page.png](../evidence/admin-page.png)): the pag
 
 ## To decide after a few weeks of use
 Keep it, replace it by one of the other launchers, or drop it (`tidepool.admin.enable = false`); and whether Grafana is then wanted next to it for the trends.
+
+## Update (2026-10-08, later): on by default
+
+The owner asked for the page to be on by default. A deployment that does not want it says `tidepool.admin.enable = false`. Cost: about 250 MB of memory on every host that carries it (the lab's included); without the DNS record the page is simply unreachable, nothing else is affected. The CI's `brand` check holds both states (on by default and left out, loopback only, VPN address only).

@@ -38,6 +38,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 | The copy to Proton Drive | every night at **04:50** (`proton-offsite-sync`), after the offsite job; fails: `UnitFailed` (a lapsed login included); does not run for 3 days: `ProtonOffsiteStale`; runs more than 8 hours (a hang; the first upload warns once): `BackupJobRunningLong` | [0007](decisions/0007-offsite-copy.md) |
 | Heartbeat by webhook (the machine and Alertmanager are alive) | every 2 minutes | [0012](decisions/0012-observability.md) |
 | Heartbeat by mail through Brevo (the mail path works) | about every 6 hours (4 mails a day, counted in the 300-a-day budget) | [0012](decisions/0012-observability.md) |
+| `nix flake check` (the CI: both hosts, the alert rules, the brand and sign-on facts, the documents, the template, shell, a secrets scan) | **on every pull request and on `main`**, about 3 minutes on a hosted runner | [working-on-it](working-on-it.md) |
 | The gate (`lab/gate.sh`: the host comes up, the brand and sign-on in a browser, the instances' names; `--full` adds the restore drill) | **by hand, in the lab, before a push to `main`** when the change touches what it covers, and at every update of a pinned program | [working-on-it](working-on-it.md), [lab/README](../lab/README.md) |
 
 ## Why the pieces fit (the checks made on 2026-10-03)
@@ -52,7 +53,6 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 | What | When | Notes |
 |---|---|---|
 | Renovate: pull requests for container digests (and `flake.lock` if chosen) | weekly | the owner's weekly look at the pull requests and at the exposed services' advisories |
-| `nix flake check` on every pull request and push | on each | a hosted runner fits it (4.1 GB of memory, 6.9 GB of disk, minutes) |
 | Deploys | monthly, or when a serious advisory lands | by the owner, after the checks, with a ZFS snapshot of the two datasets first |
 | The full restore drill | before each release move, after changes to storage, backup, database or Incus modules, and once a quarter | on the owner's workstation |
 | Move to NixOS 26.11 | within weeks of its release (due 2026-11-30), before 26.05 ends on 2026-12-31 | |

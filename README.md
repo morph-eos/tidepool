@@ -39,6 +39,7 @@ One decision per row, each with its measurements in the linked record. The rule 
 | Remote access | plain WireGuard; a VM service is private unless the flake says otherwise | [0009](docs/decisions/0009-remote-access-vpn.md), [0010](docs/decisions/0010-vm-service-exposure.md) |
 | Services | native Nextcloud, Vaultwarden, Syncthing and Samba; Jellyfin and Immich as pinned containers (Podman) | [0011](docs/decisions/0011-services.md) |
 | Single sign-on, brand | Nextcloud is the identity provider (Immich is its first client, declared in the flake with all of Immich's settings); one name, palette and logo, from one JSON file that another deployment replaces, applied where a program has a setting for it (Nextcloud, Immich, Jellyfin, Prometheus), with a browser check at every update | [0011](docs/decisions/0011-services.md), [0020](docs/decisions/0020-brand-identity.md) |
+| Admin page | Homepage on the VPN (`admin.<domain>`, on by default): the private tools and the services on one page, with a status for each | [0021](docs/decisions/0021-admin-page.md) |
 | Observability | Prometheus and Alertmanager with declared rules, mail only, a heartbeat to an outside watcher | [0012](docs/decisions/0012-observability.md) |
 | VMs | Incus, with two pools | [0013](docs/decisions/0013-vms-and-containers.md) |
 | Proof | the host is rebuilt from an empty disk and the data restored, on demand: the restore drill | [0014](docs/decisions/0014-automation-and-restore-drill.md), [runbook](docs/restore-drill.md) |

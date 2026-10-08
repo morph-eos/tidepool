@@ -56,9 +56,8 @@ Things not done yet, so they are not lost. Each waits for the owner, for the rea
 
 | Item | Why it waits |
 |---|---|
-| **The restore drill, `lab/gate.sh --full`, run again on the tree as it is**: the last full run is older than the changes to Immich's declared settings, the sops template, the brand and the single sign-on | an hour of the workstation; before the deployment |
-| **The admin page on the real machine** ([ADR 0021](decisions/0021-admin-page.md), a trial): the DNS record `admin` to 10.100.0.1; look at it for a few weeks and decide to keep it, replace it or drop it (and whether Grafana joins it); Nextcloud's status dot may need the router to loop back | the owner's DNS; the real machine |
-| **The brand's work on `main`**: the study, the module, the single sign-on and the reductions are on a branch and not merged; `lab/gate.sh` passes on them | the owner's word to publish; then `nix flake update tidepool` in the private repository |
+| **The restore drill, `lab/gate.sh --full`, run once more on the final tree before the deployment**: it passed on 2026-10-08 on a fresh machine (254 s to rebuild, 312 s to restore, 15 checks), but before a fix to the default virtual hosts of the lab and the admin page | an hour of the workstation; before the deployment |
+| **The admin page on the real machine** ([ADR 0021](decisions/0021-admin-page.md), a trial, on by default): the DNS record `admin` to 10.100.0.1; look at it for a few weeks and decide to keep it, replace it or drop it (and whether Grafana joins it); Nextcloud's status dot may need the router to loop back | the owner's DNS; the real machine |
 
 ## Updates on the real machine
 
