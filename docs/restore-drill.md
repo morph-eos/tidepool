@@ -76,7 +76,7 @@ TIDEPOOL_HOST=lab TIDEPOOL_LAYOUT=disko lab/nixos-install.sh host-t     # the fi
 lab/restore-drill.sh all                                                 # seed, disaster, rebuild, restore, verify: about 30 minutes
 ```
 
-It ends in `DRILL RESULT: PASS` or `FAIL`, with the times in `/tmp/drill`. The encrypted variant: `lab/vm.sh create host-s --uefi --tpm --blank --disk 30 --data-disk 10 --extra-disk 6 --extra-disk 6 --mem 10240`, the steps of `lab/experiments/tpm-u21.sh`, then `DRILL_VM=host-s DRILL_SECURE=1 DRILL_DISK_GB=30 DRILL_DATA_GB=10 lab/restore-drill.sh seed`, `disaster`, `restore`.
+If the VMs' downloads from `cache.nixos.org` fail or crawl (QEMU's user-mode network drops big ones), use the caches of [lab/nix-cache-proxy.py](../lab/nix-cache-proxy.py): the installs then take about five minutes. It ends in `DRILL RESULT: PASS` or `FAIL`, with the times in `/tmp/drill`. The encrypted variant: `lab/vm.sh create host-s --uefi --tpm --blank --disk 30 --data-disk 10 --extra-disk 6 --extra-disk 6 --mem 10240`, the steps of `lab/experiments/tpm-u21.sh`, then `DRILL_VM=host-s DRILL_SECURE=1 DRILL_DISK_GB=30 DRILL_DATA_GB=10 lab/restore-drill.sh seed`, `disaster`, `restore`.
 
 ## E2. Between drills: the checks that run by themselves
 

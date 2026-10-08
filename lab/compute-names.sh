@@ -19,7 +19,7 @@ r() { # r <description> <expected> <command...>
 }
 # Pebble keeps its accounts in memory: after a reboot the ones lego saved are unknown to it
 sudo rm -rf /var/lib/acme/.lego/accounts; sudo systemctl reset-failed
-sudo nixos-rebuild test --flake path:$HOME/nixos-new/nixos#lab-compute 2>&1 | tail -1
+sudo nixos-rebuild test --flake path:$HOME/nixos-new/nixos#lab-compute > /tmp/switch.log 2>&1; rc=$?; tail -n 1 /tmp/switch.log; [ $rc -eq 0 ] || { echo "FAIL the switch to the host lab-compute failed (exit $rc): $(grep -m1 -i 'error' /tmp/switch.log | cut -c1-160)"; }
 sudo systemctl restart 'acme-order-renew-*.service' nginx; sleep 8
 # incus reads its standard input, which here is the rest of this script
 inc() { sudo incus "$@" </dev/null; }

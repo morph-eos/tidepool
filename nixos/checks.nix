@@ -15,7 +15,8 @@ let
   off = ext [ { tidepool.brand.enable = false; } ];
   withJellyfin = ext [ { tidepool.services.jellyfin = { enable = lib.mkForce true; mediaMounts = lib.mkForce { "/media" = "/tmp"; }; }; } ];
   withSso = ext [ { tidepool.sso.enable = true; } ];
-  withAdmin = ext [ { tidepool.admin.enable = true; } ];
+  withAdmin = base;
+  noAdmin = ext [ { tidepool.admin.enable = false; } ];
 
   # assertions about the brand and the single sign-on: the module system's merging (a file, a field, nothing), and the constraints the lab found (a client id of 32 to 64 characters)
   facts = {
@@ -31,7 +32,7 @@ let
       && (let n = lib.stringLength withSso.tidepool.services.immich.settings.oauth.clientId; in n >= 32 && n <= 64);
     "Immich's secret is a sops placeholder, never a value" = lib.hasPrefix "<SOPS:" withSso.tidepool.services.immich.settings.oauth.clientSecret && withSso.sops.secrets ? immich-oauth-secret;
     "the discovery document is answered where Immich asks" = withSso.services.nginx.virtualHosts."cloud.${withSso.tidepool.domain}".locations ? "= /.well-known/openid-configuration";
-    "the admin page is off unless asked" = !base.services.homepage-dashboard.enable;
+    "the admin page is on by default and can be left out" = base.services.homepage-dashboard.enable && !noAdmin.services.homepage-dashboard.enable && !(noAdmin.services.nginx.virtualHosts ? "admin.${noAdmin.tidepool.domain}");
     "the admin page listens on the loopback and is served on the VPN address only" = withAdmin.systemd.services.homepage-dashboard.environment.HOSTNAME == "127.0.0.1"
       && lib.all (l: l.addr == "10.100.0.1") withAdmin.services.nginx.virtualHosts."admin.${withAdmin.tidepool.domain}".listen
       && withAdmin.services.homepage-dashboard.allowedHosts == "admin.${withAdmin.tidepool.domain}";

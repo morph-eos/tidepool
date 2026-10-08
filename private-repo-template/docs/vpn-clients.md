@@ -12,7 +12,7 @@ The configuration routes `10.100.0.0/24` (the VPN) and `10.100.1.0/24` (the Incu
 
 ## Reach the machine
 - SSH: `ssh -p 2222 <admin>@10.100.0.1` (only through the VPN).
-- The VPN-only names: `https://sync.<domain>`, `https://metrics.<domain>`, `https://alerts.<domain>`, `https://compute.<domain>:8443` (they resolve to 10.100.0.1). If the router drops answers that point to a private address (DNS rebind protection), add an exception for the domain.
+- The VPN-only names: `https://sync.<domain>`, `https://metrics.<domain>`, `https://alerts.<domain>`, `https://compute.<domain>:8443`, and `https://admin.<domain>`, the page that lists them all (they resolve to 10.100.0.1). If the router drops answers that point to a private address (DNS rebind protection), add an exception for the domain.
 - The Incus instances: `https://<instance>.compute.<domain>` (their port 80); and by SSH with a name, `ssh <user>@<instance>.incus`, once the device sends the `.incus` names to 10.100.0.1:
   - Linux with systemd-resolved: `resolvectl dns <wireguard interface> 10.100.0.1` and `resolvectl domain <wireguard interface> '~incus'`;
   - macOS: a file `/etc/resolver/incus` holding `nameserver 10.100.0.1`;

@@ -21,7 +21,7 @@ One domain (`tidepool.domain` in the private `host.nix`), one wildcard certifica
 | `metrics.` | the measurements and their queries | Prometheus |
 | `alerts.` | the alerts' state and silences | Alertmanager |
 | `compute.` (port 8443) | machines and containers | Incus |
-| `admin.` | the page that lists these tools and the services, with a status for each (off until the DNS record exists: `tidepool.admin.enable`, [ADR 0021](decisions/0021-admin-page.md)) | Homepage |
+| `admin.` | the page that lists these tools and the services, with a status for each (on by default, reached once the DNS record exists; `tidepool.admin.enable = false` leaves it out: [ADR 0021](decisions/0021-admin-page.md)) | Homepage |
 
 Incus is the exception: it keeps its own TLS and client certificates, so nginx does not stand in front of it. Point `compute.<domain>` at 10.100.0.1 and open `https://compute.<domain>:8443`.
 

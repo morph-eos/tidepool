@@ -15,7 +15,7 @@ Do not start the day until every line of this section is true.
 **0.3 Accounts, DNS, router.**
 - The **machine user for Renovate** and its token, passkeys or two-factor on the owner's account ([pending](pending.md)).
 - **Healthchecks.io** with its two checks, and Brevo's SMTP key with the **SPF and DKIM records** in place ([ADR 0012](decisions/0012-observability.md)).
-- **DNS:** the names are in [the names page](names.md): the six public ones to the house, and the VPN ones (`sync`, `metrics`, `alerts`, `compute`) to 10.100.0.1; the two CNAMEs for the challenge exist; the test one is removed; the CAA record bound to the account waits for the first real certificate ([ADR 0008](decisions/0008-edge.md)).
+- **DNS:** the names are in [the names page](names.md): the six public ones to the house, and the VPN ones (`sync`, `metrics`, `alerts`, `compute`, and `admin` for the admin page) to 10.100.0.1; the two CNAMEs for the challenge exist; the test one is removed; the CAA record bound to the account waits for the first real certificate ([ADR 0008](decisions/0008-edge.md)).
 - **Router:** a reservation of the WiFi card's address, and the forwards **80/tcp, 443/tcp, 22000 tcp+udp (Syncthing) and 51820/udp (WireGuard)**. SSH (port 2222) is open on the VPN only.
 
 **0.4 The machine.** The NVMe SSD fitted. In the firmware: a **password**, the **TPM enabled**, **VT-d on**, UEFI. Note whether the TPM is the CPU's firmware TPM ([ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md)).
