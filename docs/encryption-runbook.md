@@ -1,6 +1,6 @@
 # Encrypted disks, the TPM and signed boot images: installing, and living with them
 
-The design is in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) (decided 2026-10-05: the TPM alone, **no PIN**, so that the machine reboots by itself; the residual risk is accepted) and was tried in a VM with an emulated TPM and Secure Boot firmware (`lab/tpm-u21.sh`). **It has not been done on the real machine**: the first time, do it at the console.
+The design is in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) (decided 2026-10-05: the TPM alone, **no PIN**, so that the machine reboots by itself; the residual risk is accepted) and was tried in a VM with an emulated TPM and Secure Boot firmware (`lab/experiments/tpm-u21.sh`). **It has not been done on the real machine**: the first time, do it at the console.
 
 ## What is protected, and what is not
 

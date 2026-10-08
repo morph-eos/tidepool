@@ -36,7 +36,7 @@ v0 has no monitoring beyond a `smartcheck` container that writes a log nobody re
 
 ## Results
 
-`lab/observability-bakeoff.sh` in the NixOS lab VM. Real failures are made on purpose; the time is counted until the notification arrives in a **mail sink** (a small SMTP server logging to a file) and in **ntfy**. **The lab timings are short on purpose** (rule `for:` of 1-2 minutes, the evaluation every 15 s); the production values are in the decision.
+`lab/experiments/observability-bakeoff.sh` in the NixOS lab VM. Real failures are made on purpose; the time is counted until the notification arrives in a **mail sink** (a small SMTP server logging to a file) and in **ntfy**. **The lab timings are short on purpose** (rule `for:` of 1-2 minutes, the evaluation every 15 s); the production values are in the decision.
 
 **A: Prometheus, Alertmanager, ntfy**
 

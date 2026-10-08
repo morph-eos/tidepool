@@ -77,12 +77,17 @@ tar -C "$REPO" -cf - nixos | ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1
 ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 'cat > ~/age.key' < "$AGE_KEY"
 
 log "partitioning, formatting, installing (downloads the system: this is the long step)"
-ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR PASSPHRASE='$PASSPHRASE' ENC_BIG2TB=$ENC_BIG2TB BORG_PP='$BORG_PP' bash -s" <<'REMOTE'
+ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" nixos@127.0.0.1 "CACHE='${TIDEPOOL_CACHE:-}' LAYOUT=$LAYOUT HOST_ATTR=$HOST_ATTR PASSPHRASE='$PASSPHRASE' ENC_BIG2TB=$ENC_BIG2TB BORG_PP='$BORG_PP' bash -s" <<'REMOTE'
 set -euo pipefail
 export NIX_CONFIG='experimental-features = nix-command flakes
-download-attempts = 60
+download-attempts = 10
 stalled-download-timeout = 60
-connect-timeout = 15'   # the lab's link drops downloads now and then: a failed download otherwise ends in "dependency failed"
+connect-timeout = 15
+http-connections = 4'   # the default 25 parallel downloads through QEMU's user-mode network stall the big ones (a 250 MB archive failed twelve times in a row)   # the lab's link drops downloads now and then: a failed download otherwise ends in "dependency failed"
+# a cache on the workstation is the only substituter when TIDEPOOL_CACHE is set (several addresses, separated by spaces: the closure of the host copied out of another lab VM with `nix copy --to file://...`, then served; lab/nix-cache-proxy.py for the rest): the VM's own route to cache.nixos.org drops both archives and DNS lookups
+[ -z "${CACHE:-}" ] || export NIX_CONFIG="$NIX_CONFIG
+substituters = $CACHE
+require-sigs = false"   # CACHE: one or more addresses; a cache made by `nix copy` of a lab build is not signed
 # Lock the inputs first, as the normal user: if nixos-install creates flake.lock itself (as root) the hash of the
 # flake directory changes in the middle of the evaluation and it fails with "NAR hash mismatch".
 nix flake lock path:$HOME/nixos

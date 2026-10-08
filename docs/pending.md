@@ -1,6 +1,6 @@
 # Pending items
 
-Things not done yet, so they are not lost. Each waits for the owner, for the real machine, or for a decision.
+Things not done yet, so they are not lost. Each waits for the owner, for the real machine, or for a decision. **This is the only list of what is left to do in this repository**: the other documents point here (a to-do anywhere else is a mistake, and the CI's `docs` check says so).
 
 ## Waiting for the owner
 
@@ -24,6 +24,7 @@ Things not done yet, so they are not lost. Each waits for the owner, for the rea
 | **Disk replacement on a SMART warning** (an alert from `smartd` or similar): the 16 TB disk now holds the only copy of the media | phase 5 |
 | **Self-healing of the primary disk** | deferred by the owner: done properly, with a second SSD attached as a mirror when it can be bought ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | **Scheduled ZFS snapshots** | dropped by the owner: the Borg repositories cover what they would undo; can be added later in code ([ADR 0004](decisions/0004-backup.md)) |
+| **NixOS VM tests in the CI** for what needs a booted service (Nextcloud's theming, the sign-on): the modules are monolithic and need disks and ZFS, so a test node would need the services split first; `lab/gate.sh` does it by hand for now | after the first deployment, if the manual gate is not enough |
 
 ## Gates and checks that need the real server or a maintenance window
 
@@ -50,6 +51,15 @@ Things not done yet, so they are not lost. Each waits for the owner, for the rea
 | The phase 5 rules on **real data**: the smartctl and PostgreSQL archiver rules, the heartbeat against the outside service, real mail delivery, the push to a phone ([ADR 0012](decisions/0012-observability.md)) | the real server |
 | **The edge on the real machine**: the router's port forwarding (80, 443; the range 3000-3099 and the Incus API to question), the firewall on the host (v0 has none), fail2ban against the proxy's logs, HTTP/3, and the DNS records, which stay manual | phase 3 and 6, [ADR 0008](decisions/0008-edge.md) |
 
+## Before the first deployment, on this repository's side
+
+
+| Item | Why it waits |
+|---|---|
+| **The restore drill, `lab/gate.sh --full`, run again on the tree as it is**: the last full run is older than the changes to Immich's declared settings, the sops template, the brand and the single sign-on | an hour of the workstation; before the deployment |
+| **The admin page on the real machine** ([ADR 0021](decisions/0021-admin-page.md), a trial): the DNS record `admin` to 10.100.0.1; look at it for a few weeks and decide to keep it, replace it or drop it (and whether Grafana joins it); Nextcloud's status dot may need the router to loop back | the owner's DNS; the real machine |
+| **The brand's work on `main`**: the study, the module, the single sign-on and the reductions are on a branch and not merged; `lab/gate.sh` passes on them | the owner's word to publish; then `nix flake update tidepool` in the private repository |
+
 ## Updates on the real machine
 
 | Item | Why it waits |
@@ -68,7 +78,7 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 |---|---|
 | **DNS name `push.<domain>`** (the wildcard certificate covers it); the **two ntfy logins** (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; the phone is an **Android with GrapheneOS** (F-Droid ntfy app, battery unrestricted; no relay needed) |
 | **Try push on a real phone**, with Proton VPN on | the real machine |
-| **The Samba user's password**: `smbpasswd -a nas` once (runbook); the database is in the Borg job | the deployment; if the owner wants it declared it becomes exception 4 |
+| **The Samba user's password**: `smbpasswd -a nas` once (runbook); the database is in the Borg job | the deployment; if the owner wants it declared it becomes a new entry in the exceptions register |
 | **The NAS on the LAN:** the interface name is set (the WiFi one, then the Ethernet one with the cable); the Time Machine partition is made ext4 at the cutover (Linux cannot write a journaled HFS+); a Mac that sees the share and backs up to it | the real machine and a Mac |
 | **The version watch on the real machine:** the first weekend mail (a deliberately old lock proves it), whether the monthly tier (waiting on nixpkgs, majors, end of life) is the right amount of mail; **Incus is not watched** (LTS against feature releases: a line-aware source is missing) | the owner; a weekend after the deployment |
 | **Nextcloud after the deployment:** start at 33 (v0's major), then 34 and 35 as separate deploys with a ZFS snapshot before each ([ADR 0017 section 9](decisions/0017-version-watch-push-and-nas.md)) | the real machine; 35 when nixpkgs has a settled 35.0.x |
@@ -77,7 +87,8 @@ Built into the flake and measured in the lab (nothing is on the real server): th
 
 | Item | Why it waits |
 |---|---|
-| **The names of the Incus instances** ([ADR 0010](decisions/0010-vm-service-exposure.md), [names](names.md), issue 11): the DNS records exist; at the deployment the zone's certificate is ordered (the secret `acme-dns-credentials` needs both registrations' usernames and passwords), the CAA record is checked again after it, an instance answers over the VPN and not without it, `ssh <instance>.incus` works from a device that sends the `.incus` names to the server (not tried on a real client) | the real machine and the owner's accounts |
+| **The names of the Incus instances** ([ADR 0010](decisions/0010-vm-service-exposure.md), [names](names.md)): the DNS records exist; at the deployment the zone's certificate is ordered (the secret `acme-dns-credentials` needs both registrations' usernames and passwords), the CAA record is checked again after it, an instance answers over the VPN and not without it, `ssh <instance>.incus` works from a device that sends the `.incus` names to the server (not tried on a real client) | the real machine and the owner's accounts |
+| **The brand and the single sign-on on the real machine** ([ADR 0020](decisions/0020-brand-identity.md)): the social preview image (`docs/brand/social-preview.png`) uploaded in the repository's settings (a manual step); the first login through Nextcloud with real accounts (each needs an email address) and what happens to Immich users that already exist with the same email (not tried); the identity itself, which is a placeholder until the owner chooses | the owner; the real machine |
 | **Account security:** passkeys or two-factor on the owner's GitHub account, which is the root of trust of the ruleset ([ADR 0018 section 7](decisions/0018-deploys-by-the-server.md)) | the owner |
 | **Encryption on the real machine** ([the runbook](encryption-runbook.md)): the firmware password, **Secure Boot into setup mode** (the firmware menu: delete the platform key, keep the revocation list), the three stages, and **the first kernel update at the console** (does the firmware keep its keys, does the firmware TPM open the disks by itself?). The lab did all of it with an emulated TPM, **including the rebuild from blank (14 checks) and the reboot in the window**; the real firmware and TPM are untried | the real machine |
 | **Before the deployment, on the machine:** the **1 TB NVMe SSD** is on its way: when it arrives, fit it, read its path (`ls -l /dev/disk/by-id | grep nvme`) and put it in `tidepool.disks.tank`; **the Ethernet cable is not needed now** (the machine stays on WiFi, [ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md): the `wifi` block of the private template, the key from `wpa_passphrase` in `secrets.yaml`, the router's reservation by the WiFi card's address); **copy the v0 NAS data off the 2 TB disk** (it will be LUKS) and decide where the system SSD's old Ubuntu and Windows partitions are wiped; check in the firmware that **VT-d** is on | the owner |

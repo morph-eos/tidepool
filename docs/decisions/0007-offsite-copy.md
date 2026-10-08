@@ -39,7 +39,7 @@ The owner's constraints: **a few euros a month**, no second site (a relative's h
 
 ## Results
 
-`lab/offsite-bakeoff.sh` in the NixOS lab VM: a 320 MB stand-in data set (120 incompressible 2 MB "photos", 1,500 small "documents", 20 4 MB "music" files); the S3 endpoint is Garage on localhost, Borg's server is the NixOS module over SSH.
+`lab/experiments/offsite-bakeoff.sh` in the NixOS lab VM: a 320 MB stand-in data set (120 incompressible 2 MB "photos", 1,500 small "documents", 20 4 MB "music" files); the S3 endpoint is Garage on localhost, Borg's server is the NixOS module over SSH.
 The second backup follows a change of 30 MB (5 files rewritten, 10 added, 5 deleted). Times are a toy on localhost and say nothing about the uplink.
 
 | | restic, S3 | restic, REST (append-only) | Borg, SSH (full access) | Borg, SSH (append-only key) | Kopia, S3 |

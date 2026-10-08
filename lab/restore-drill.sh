@@ -12,7 +12,24 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; VM="$HERE/vm.sh"; LAB="${TIDEPOOL_LAB:-$H
 OUT="${DRILL_OUT:-/tmp/drill}"; mkdir -p "$OUT"
 G() { "$VM" ssh "$VMNAME" "$@"; }
 GS() { G "sudo bash /tmp/drill-guest.sh $1"; }
+# the pictures the drill puts into Immich: generated (distinct noise, so that Immich does not call them duplicates), a few for each of the two moments (a: before the first backup, b: after it)
+ensure_imgs() {
+    local d="${DRILL_IMGS:-/tmp/drill-imgs}"; [ -d "$d/a" ] && [ -d "$d/b" ] && return 0
+    python3 - "$d" <<'PY' || { echo "cannot make the drill's pictures (needs python3 with Pillow)" >&2; return 1; }
+import os, random, sys
+from PIL import Image
+d = sys.argv[1]
+for sub, n in (("a", 6), ("b", 4)):
+    os.makedirs(f"{d}/{sub}", exist_ok=True)
+    for i in range(n):
+        r = random.Random(f"{sub}{i}")
+        im = Image.new("RGB", (640, 480))
+        im.putdata([(r.randrange(256), r.randrange(256), r.randrange(256)) for _ in range(640 * 480)])
+        im.save(f"{d}/{sub}/drill-{sub}{i}.jpg", quality=85)
+PY
+}
 push() {
+    ensure_imgs || exit 1
     "$HERE/vm.sh" ssh "$VMNAME" 'rm -rf /tmp/imgs' ; tar -C "${DRILL_IMGS:-/tmp/drill-imgs}" -cf - . | G 'mkdir -p /tmp/imgs && tar -C /tmp/imgs -xf -'
     cat "$HERE/drill-guest.sh" | G 'cat > /tmp/drill-guest.sh'; cat "$HERE/immich-seed.sh" | G 'cat > /tmp/immich-seed.sh'
 }

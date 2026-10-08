@@ -1,5 +1,5 @@
 # The few values that differ between the lab and the real machine. Everything else is code shared by both.
-{ lib, ... }:
+{ lib, pkgs, ... }:
 let
   inherit (lib) mkOption mkEnableOption types;
 in
@@ -36,6 +36,10 @@ in
         description = "Media folders read by Jellyfin: the path INSIDE the container = the path on the machine. The libraries of an existing Jellyfin database point at container paths, so a move from another setup keeps its paths here (a private value).";
       };
       syncthing.restoreIdentity = mkEnableOption "the device identity of an existing Syncthing (its certificate and key, the sops secrets `syncthing-cert` and `syncthing-key`), so the device keeps its ID on a move";
+      immich.settings = mkOption {
+        type = (pkgs.formats.json { }).type; default = { };
+        description = "Immich's settings, declared here: with a configuration file, Immich's admin page shows its settings read-only. What is not named keeps Immich's default. Modules add to it (the brand, the single sign-on); a private repository adds its own.";
+      };
       immichMachineLearning.enable = mkOption { type = types.bool; default = true; };
     };
   };

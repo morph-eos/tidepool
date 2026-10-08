@@ -7,7 +7,8 @@ let
   acme = if cfg.lab then { enableACME = true; } else { useACMEHost = d; };
   proxy = port: { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; };
   public = port: acme // { forceSSL = true; locations."/" = proxy port; };
-  catchAll = { rejectSSL = true; locations."/".return = "444"; };   # nginx's 444 closes the connection with no answer; over TLS the handshake is refused (no certificate shown)
+  # the lab orders each name's certificate by HTTP-01, and the challenge for a VPN-only name comes in on the loopback, where only these default virtual hosts answer: they hand out the challenge files (the real host uses the DNS challenge and needs no such thing)
+  catchAll = lib.recursiveUpdate { rejectSSL = true; locations."/".return = "444"; } (lib.optionalAttrs cfg.lab { locations."/.well-known/acme-challenge".root = "/var/lib/acme/acme-challenge"; });   # nginx's 444 closes the connection with no answer; over TLS the handshake is refused (no certificate shown)
   # reachable only through the VPN: the name listens on the WireGuard address, whatever answers behind it stays on the loopback
   vpnOnly = port: acme // {
     forceSSL = true;

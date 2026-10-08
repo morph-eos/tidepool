@@ -16,8 +16,13 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 ## Branches and merging
 - `main` is protected by [a ruleset](../.github/rulesets/main.json): a pull request, the `flake-check` job passing, squash merges only, signed commits (GitHub signs the squash), no force push. The owner merges with the admin bypass **through a pull request**, never by pushing.
 - `reengineering` is kept equal to `main` (the development branch of the earlier phases).
-- A change: a branch, a pull request (the description ends with the generation line when an assistant wrote it), CI green, squash merge, then `reengineering` moved to `main`. CI quirk: a push of more than three refs at once creates no workflow run.
+- A change: a branch, **`lab/gate.sh` when the change touches what it covers**, a pull request (the description ends with the generation line when an assistant wrote it), CI green, squash merge, then `reengineering` moved to `main`. CI quirk: a push of more than three refs at once creates no workflow run.
 - `git reset --hard` discards staged work: commit or stash first.
+
+## Testing: what the CI proves, what you run before pushing to `main`
+- **The CI** (`nix flake check`, about six minutes, on every pull request and on `main`; [nixos/checks.nix](../nixos/checks.nix)): both hosts build; the alert rules pass their unit test; the brand and the single sign-on behave as declared (a brand file of another repository overrides the default, the palette keeps its contrast, Jellyfin's theme is the default, the sign-on client is one Nextcloud accepts); the documents hold together (links, scripts, indexes, one list of what is left); the private repository's template works; no secret is in the tree. It cannot boot a machine.
+- **Before a push or a merge to `main`, run `lab/gate.sh`** when the change touches what it covers: the host comes up whole and its names answer (`smoke`), the brand and the single sign-on in a browser (`brand`), the instances' names (`names`); with `--full` also the restore drill (an hour: before a change to the backups, storage, boot or deploy chain, and before the first deployment). It prints `GO` or `NO GO`. [lab/README.md](../lab/README.md) says which step covers what. Proton Drive's copy is tried by hand when its module or its CLI changes ([lab/proton-offsite/](../lab/proton-offsite/README.md)).
+- A merge that moves a pinned program (a container's digest, nixpkgs) is run through the gate **before** it is merged, not after.
 
 ## The rule that matters most
 **No private information in this repository, in any file, message, branch or pull request.** That means the real domain, addresses, serial numbers, account names, tokens, the names of services that only the owner runs. Placeholders (`example.invalid`, `OWNER`, `REPLACE-...`) stand in for them. It is enforced locally by three git hooks (before a commit, in its message, before a push: the staged changes and the whole history against the private list, and a secret scanner against a baseline); the hooks and how to install them are in the local-only folder. A hook blocking a commit is correct until proven otherwise: reword, do not bypass.
@@ -34,7 +39,7 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 | Names of the services, and the DNS they need | [names.md](names.md) |
 | How big things get | [capacity.md](capacity.md) |
 | The method and the principles | [method.md](method.md), [principles.md](principles.md) |
-| How to prove a change | `lab/*.sh` (each ADR names its script); `lab/vm.sh` makes the VMs |
+| How to prove a change | `lab/gate.sh` before `main`; the CI on every pull request; `lab/vm.sh` makes the VMs; `lab/experiments/` holds the scripts behind the decision records' numbers |
 
 ## Picking up after losing the thread
 1. Read [pending.md](pending.md) (what is left) and [the runbook](deployment-runbook.md) (the order of the day).

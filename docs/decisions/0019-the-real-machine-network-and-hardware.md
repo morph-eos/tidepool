@@ -20,7 +20,7 @@
 
 **Built: `modules/wifi.nix`** (off by default, `tidepool.wifi.enable`): `wpa_supplicant` through the NixOS module, the network's name and the interface as private values, the **key a sops secret** (`wifi-psk`, one line `psk_home=<64 hex digits from wpa_passphrase>`), the radio's **power saving turned off** by a udev rule, DHCP on that interface, and **`tidepool.lanInterface` set to it** (Samba and Avahi follow). With the cable: remove `wifi`, set `lanInterface` to the Ethernet interface's name, **update the router's reservation to the Ethernet port's address** (it is by the card's address, and the two cards have different ones).
 
-## 3. Measured in the lab (`lab/wifi-u23.sh`)
+## 3. Measured in the lab (`lab/experiments/wifi-u23.sh`)
 
 A pair of **virtual radios** (`mac80211_hwsim`), a **real hostapd access point (WPA2) and a DHCP server** in a network namespace, and the lab host connecting to it with the module. The access point is started **after** the activation, as a router is after a boot.
 

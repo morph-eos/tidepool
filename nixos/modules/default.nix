@@ -22,6 +22,9 @@
     ./vpn.nix
     ./vms.nix
     ./compute-names.nix
+    ./brand.nix
+    ./sso.nix
+    ./admin.nix
     ./publish-gate.nix
     ./observability.nix
     ./verify.nix

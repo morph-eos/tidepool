@@ -27,13 +27,14 @@ domain = sys.argv[2]
 reg = lambda: {"username": "REPLACE-acme-dns-username", "password": "REPLACE-acme-dns-password", "fulldomain": "REPLACE-registration.auth.acme-dns.io", "subdomain": "REPLACE-registration", "allowfrom": []}
 acme = {domain: reg(), "compute." + domain: reg()}   # the second one only if tidepool.compute.names.enable is used
 out = {
-    "borg-passphrase": rnd(), "pgbackrest-cipher": rnd(), "nextcloud-admin-pass": rnd(24), "proton-keyring-password": rnd(36),
+    "borg-passphrase": rnd(), "pgbackrest-cipher": rnd(), "nextcloud-admin-pass": rnd(24), "immich-oauth-secret": "".join(secrets.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(48)),   # 32 to 64 printable characters, no colon: what Nextcloud's oidc app accepts
+     "proton-keyring-password": rnd(36),
     "wg-private-key": priv,
     "ntfy-env": f"NTFY_AUTH_USERS=phone:{h(phone)}:user,bridge:{h(bridge)}:user\nNTFY_AUTH_ACCESS=phone:alerts:read-only,bridge:alerts:write-only",
     "ntfy-bridge-env": f"ntfy:\n  auth:\n    basic:\n      username: bridge\n      password: {bridge}",
     "ntfy-phone-password": phone,   # typed once into the ntfy app on the phone (not read by the machine)
     "deploy-key": open(f"{tmp}/deploy").read(),
-    "vaultwarden-env": "# ADMIN_TOKEN is not set: the admin panel is off. Mail for invitations is optional:\n# SMTP_HOST=smtp-relay.brevo.com\n# SMTP_PORT=587\n# SMTP_SECURITY=starttls\n# SMTP_USERNAME=\n# SMTP_PASSWORD=\n# SMTP_FROM=\n",
+    "vaultwarden-env": "# ADMIN_TOKEN is not set: the admin panel is off. Mail for invitations is optional: its settings are Vaultwarden's own (its documentation lists them).\n",
     "acme-dns-credentials": json.dumps(acme, indent=2),
     # from somebody else: tools/check.sh reports each until it is real
     "smtp-password": "REPLACE-brevo-smtp-key", "heartbeat-url": "REPLACE-healthchecks-ping-url", "alertmanager-env": "HEALTHCHECKS_MAIL=REPLACE-address-of-the-second-healthchecks-check",

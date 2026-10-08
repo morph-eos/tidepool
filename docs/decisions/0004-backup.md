@@ -62,7 +62,7 @@ are handled by the archive command and the tool. That is the standard shape of p
 | I. Litestream (SQLite) | continuous replication of the Vaultwarden database | no | |
 | J. **Crash-consistent filesystem snapshots** of the database dataset, every few minutes (sanoid or btrbk, replicated to the large disk) | no PostgreSQL-specific tool at all | no | see the experiment below: the snapshots are valid backups |
 
-**An experiment on E and G** (`lab/pitr-bakeoff.sh`, run in the NixOS lab VM with PostgreSQL 17.11, pgBackRest 2.58.0 and Barman 3.14.1, both from nixpkgs, repositories on a separate disk). A writer inserts one row at a time and records the last row
+**An experiment on E and G** (`lab/experiments/pitr-bakeoff.sh`, run in the NixOS lab VM with PostgreSQL 17.11, pgBackRest 2.58.0 and Barman 3.14.1, both from nixpkgs, repositories on a separate disk). A writer inserts one row at a time and records the last row
 PostgreSQL acknowledged, so a loss can be counted exactly. The scenario: a full backup **while the writer runs**; a moment T_good is noted; a table is dropped (the mistake); the writer goes on; the machine is crashed with `kill -9`.
 Then: restore to T_good, and restore to the latest point. `archive_timeout` is 30 s.
 
@@ -119,7 +119,7 @@ What the lab showed about running it:
 says what it should be. That is a manual step and an invisible piece of configuration, which is what P1 is against. It can be made acceptable (the application's state is a volume that is backed up and restored, and the drill proves it),
 but the tools without a UI express the same schedule as a NixOS timer, in code. The owner prefers a GUI for scheduling the full backups; this is the cost of that preference, to weigh in the decision. The lab confirmed it: the configuration of Databasus is not in the flake, and losing its key or its volume loses the ability to use what it backed up.
 
-**An experiment on J (snapshots)** (`lab/pg-snapshot-check.sh`, run in the NixOS lab VM on ZFS and btrfs): PostgreSQL 16 running pgbench and a counter writer, five snapshots taken at random moments **while it was writing**,
+**An experiment on J (snapshots)** (`lab/experiments/pg-snapshot-check.sh`, run in the NixOS lab VM on ZFS and btrfs): PostgreSQL 16 running pgbench and a counter writer, five snapshots taken at random moments **while it was writing**,
 each restored and started. **All ten recovered**: the pgbench invariant held and the counter had no gaps, recovery took about 2 seconds on ZFS and 11 on btrfs. The **negative control** (plain `cp` of the files of the running cluster,
 which is not a valid backup) broke **6 of 6** times: the cluster did not start. So the check can tell a good backup from a bad one. What J gives: recovery points as often as the snapshot interval (minutes), no GUI, nothing PostgreSQL-specific to maintain.
 What it does not give: recovery to an arbitrary second, which is what WAL archiving (E to H) is for.
@@ -178,7 +178,7 @@ What **was** run is the point-in-time bake-off below and the offsite bake-off of
 
 The owner's answers after round 1: stay on **PostgreSQL 14** (Immich's version) for now; minutes to a few hours of loss are acceptable, *closer to a point in time is better*; a GUI is **not decisive**, what counts is that the integration works out of the box and survives updates without glue around it;
 Databasus must be judged **with and without its agent**; Barman Cloud and object storage are to be tried as well, because Barman's local-disk model is heavier (its own catalog and versions).
-Everything below ran in the NixOS lab VM (`lab/pitr-bakeoff.sh`, PostgreSQL 14.24, pgBackRest 2.58.0, Barman 3.14.1, Garage as a local S3 endpoint), with the same scenario as round 1: a full backup under load, `archive_timeout` 30 s, a dropped table, a `kill -9`, a restore to the moment before the mistake, and a restore to the latest point.
+Everything below ran in the NixOS lab VM (`lab/experiments/pitr-bakeoff.sh`, PostgreSQL 14.24, pgBackRest 2.58.0, Barman 3.14.1, Garage as a local S3 endpoint), with the same scenario as round 1: a full backup under load, `archive_timeout` 30 s, a dropped table, a `kill -9`, a restore to the moment before the mistake, and a restore to the latest point.
 
 ### A correction to the test itself
 

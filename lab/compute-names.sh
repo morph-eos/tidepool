@@ -68,6 +68,9 @@ except Exception:
 PY
 }
 r "the VPN address answers .incus names (ssh by name)"      "$(inc list priv -f csv -c 4 | cut -d' ' -f1)"  dnsq priv.incus $V
+# the lab's test CA can refuse an order that comes in the same second as its start: an ACME order that failed is tried once more, any other unit is reported as it is
+for u in $(systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d' ' -f1 | grep '^acme-order-renew-'); do sudo systemctl reset-failed "$u"; sudo systemctl restart "$u"; done; sleep 5
+systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d" " -f1 | sed 's/^/failed unit: /'
 echo "failed units: $(systemctl --failed --no-legend | wc -l)"
 inc delete -f priv pub virt later >/dev/null 2>&1
 REMOTE_EOF

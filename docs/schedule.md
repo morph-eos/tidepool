@@ -38,6 +38,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 | The copy to Proton Drive | every night at **04:50** (`proton-offsite-sync`), after the offsite job; fails: `UnitFailed` (a lapsed login included); does not run for 3 days: `ProtonOffsiteStale`; runs more than 8 hours (a hang; the first upload warns once): `BackupJobRunningLong` | [0007](decisions/0007-offsite-copy.md) |
 | Heartbeat by webhook (the machine and Alertmanager are alive) | every 2 minutes | [0012](decisions/0012-observability.md) |
 | Heartbeat by mail through Brevo (the mail path works) | about every 6 hours (4 mails a day, counted in the 300-a-day budget) | [0012](decisions/0012-observability.md) |
+| The gate (`lab/gate.sh`: the host comes up, the brand and sign-on in a browser, the instances' names; `--full` adds the restore drill) | **by hand, in the lab, before a push to `main`** when the change touches what it covers, and at every update of a pinned program | [working-on-it](working-on-it.md), [lab/README](../lab/README.md) |
 
 ## Why the pieces fit (the checks made on 2026-10-03)
 

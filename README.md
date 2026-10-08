@@ -1,5 +1,7 @@
 # tidepool — a home server, re-engineered as code
 
+<p align="center"><img src="docs/brand/social-preview.png" alt="tidepool: your own cloud" width="640"></p>
+
 **tidepool** is a family home server: photos, media, a personal cloud, a password manager, file sync, backups and a small VM lab. It used to be one Ubuntu machine,
 34 shell scripts and a Docker Compose file (**v0**, archived in the tag `v0`). This repository is its **re-engineering**: the whole host described as a
 **NixOS flake**, built one decided phase at a time, and **proved in throwaway virtual machines** before anything touches the real machine.
@@ -13,13 +15,12 @@
 |---|---|
 | branch `main` | what is published and what the server deploys: the integrated result of the closed phases. Once the repository is public it is protected by [a ruleset](.github/rulesets/main.json) |
 | branch `reengineering` | where the phases are developed; merged into `main` when a phase closes |
-| tag `v0` | the archive of v0: 19 snapshots reconstructed from backups, anonymized. Its README is [docs/v0-README.md](docs/v0-README.md) |
+| tag `v0` | **the legacy**: v0's scripts and compose file as 19 snapshots reconstructed from backups, anonymized, with their own README. To look at them: `git show v0:README.md`, `git checkout v0`. They are the specification of what was migrated, unmaintained, with their security problems |
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
 | [docs/working-on-it.md](docs/working-on-it.md) | **start here when picking the project up**: the repositories and what each is for, the rules, where each kind of thing is written |
 | [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks (the order of the first deployment is in [the deployment runbook](docs/deployment-runbook.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
-| [lab/](lab/) | the tooling and the test scripts: QEMU/KVM VMs, the restore drill, the encrypted-layout test, the deploy tests, the migration rehearsal |
+| [lab/](lab/README.md) | the tooling and the tests that need a running machine: QEMU/KVM VMs, **`lab/gate.sh`** (run before a push to `main`), the restore drill, the migration rehearsal; the one-off experiments behind the decision records are in `lab/experiments/` |
 | [private-repo-template/](private-repo-template/) ([how it works](docs/private-repository.md)) | the template of the **private** repository that holds one machine's values and secrets and imports this one |
-| `docker/`, `nas-scripts/` | v0's scripts and compose file, kept as reference and as the specification of the data to migrate. They are anonymized and not maintained |
 
 ## What the system is
 
@@ -37,6 +38,7 @@ One decision per row, each with its measurements in the linked record. The rule 
 | Edge | nginx through the NixOS module, certificates from the NixOS ACME module with the challenge delegated by CNAME; [the names](docs/names.md) of the services | [0008](docs/decisions/0008-edge.md) |
 | Remote access | plain WireGuard; a VM service is private unless the flake says otherwise | [0009](docs/decisions/0009-remote-access-vpn.md), [0010](docs/decisions/0010-vm-service-exposure.md) |
 | Services | native Nextcloud, Vaultwarden, Syncthing and Samba; Jellyfin and Immich as pinned containers (Podman) | [0011](docs/decisions/0011-services.md) |
+| Single sign-on, brand | Nextcloud is the identity provider (Immich is its first client, declared in the flake with all of Immich's settings); one name, palette and logo, from one JSON file that another deployment replaces, applied where a program has a setting for it (Nextcloud, Immich, Jellyfin, Prometheus), with a browser check at every update | [0011](docs/decisions/0011-services.md), [0020](docs/decisions/0020-brand-identity.md) |
 | Observability | Prometheus and Alertmanager with declared rules, mail only, a heartbeat to an outside watcher | [0012](docs/decisions/0012-observability.md) |
 | VMs | Incus, with two pools | [0013](docs/decisions/0013-vms-and-containers.md) |
 | Proof | the host is rebuilt from an empty disk and the data restored, on demand: the restore drill | [0014](docs/decisions/0014-automation-and-restore-drill.md), [runbook](docs/restore-drill.md) |
@@ -51,7 +53,7 @@ A change here reaches the server in two merges: a bot opens a pull request in th
 
 The server runs `system.autoUpgrade` every ten minutes from Monday to Saturday, runs the backups before it switches, and reboots by itself, in a one-hour window,
 only after a new kernel. The private repository can add modules of its own, which join the public host without replacing anything
-([how](private-repo-template/README.md), [proof](lab/private-modules-u26.sh)). The details and the decisions are in [ADR 0018](docs/decisions/0018-deploys-by-the-server.md).
+([how](private-repo-template/README.md), [proof](lab/experiments/private-modules-u26.sh)). The details and the decisions are in [ADR 0018](docs/decisions/0018-deploys-by-the-server.md).
 
 ## How it is proved
 
@@ -85,8 +87,8 @@ lab/restore-drill.sh all                                                # seed, 
 
 - **It is not deployed.** The first deployment needs the owner's chores on the real machine ([docs/pending.md](docs/pending.md)): the firmware and Secure Boot setup, the disks, the private repository and its tokens, the first kernel update at the console.
 - **Only the real machine can answer** the open questions listed there: the TPM and firmware, the radio, the GPU containers, real certificates and mail, and the timings on the real data.
-- **The old scripts are an archive.** `docker/` and `nas-scripts/` are anonymized (addresses are documentation addresses) and were not re-tested after that.
+- **The old scripts are an archive**, in the tag `v0` only: anonymized (addresses are documentation addresses) and not re-tested after that.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The scripts in `docker/` and `nas-scripts/` are an unmaintained archive of v0, with its security problems, and come with no warranty.
+MIT, see [LICENSE](LICENSE). The scripts of v0 in the tag `v0` are an unmaintained archive, with its security problems, and come with no warranty.

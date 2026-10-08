@@ -16,7 +16,7 @@ After [ADR 0016](0016-updates-deploys-and-checks.md) the owner answered and aske
 
 ## 1. Modules or containers for Nextcloud, Vaultwarden and WebDAV
 
-**Considered before:** [ADR 0011](0011-services.md) (modules where the module is current), [ADR 0016 section 2](0016-updates-deploys-and-checks.md) (the exit from a module to the official container was **tried**, `lab/updates-u11.sh`: it works on the same data and database).
+**Considered before:** [ADR 0011](0011-services.md) (modules where the module is current), [ADR 0016 section 2](0016-updates-deploys-and-checks.md) (the exit from a module to the official container was **tried**, `lab/experiments/updates-u11.sh`: it works on the same data and database).
 
 | | Module (kept) | Official container |
 |---|---|---|
@@ -104,7 +104,7 @@ Android and iOS run **one VPN at a time** ([Timus support](https://support.timus
 
 Two logins with the least each needs: **`phone` can only read** the `alerts` topic and **`bridge` (Alertmanager's bridge) can only write** it. `auth-default-access = deny-all`, so a topic nobody was granted is closed whatever its name. nginx limits requests per address (10 a second, a burst of 30). Critical alerts go to mail **and** push; the others by mail only.
 
-Measured in the lab host (`lab/push-public-u13.sh`), against the LAN/public address, no VPN:
+Measured in the lab host (`lab/experiments/push-public-u13.sh`), against the LAN/public address, no VPN:
 
 | Test | Result |
 |---|---|
@@ -123,7 +123,7 @@ Measured in the lab host (`lab/push-public-u13.sh`), against the LAN/public addr
 
 ## 4. The NAS, built
 
-`modules/nas.nix` (off by default, `tidepool.nas.enable`): Samba and Avahi, **LAN interface only**, macOS-friendly (`vfs_fruit`); the share on the 2 TB disk (`/mnt/big2tb/nas`); an optional **Time Machine** share on the 16 TB disk's partition (**not backed up**: replaceable, [ADR 0005](0005-storage-layout-and-filesystem.md)), advertised to the Mac by Avahi. Measured (`lab/nas-u14.sh`):
+`modules/nas.nix` (off by default, `tidepool.nas.enable`): Samba and Avahi, **LAN interface only**, macOS-friendly (`vfs_fruit`); the share on the 2 TB disk (`/mnt/big2tb/nas`); an optional **Time Machine** share on the 16 TB disk's partition (**not backed up**: replaceable, [ADR 0005](0005-storage-layout-and-filesystem.md)), advertised to the Mac by Avahi. Measured (`lab/experiments/nas-u14.sh`):
 
 | Test | Result |
 |---|---|
@@ -182,7 +182,7 @@ The ways out, each tried or measured:
 
 **What the watch does when upstream has a major that nixpkgs lacks, or has:** the monthly mail names every application for which a newer line exists upstream, **without saying whether nixpkgs already packages it** (that is a limit; the check is one command: `nix eval nixpkgs#nextcloud35.version`). Three situations: (1) nixpkgs **has** the new major (today: Nextcloud 34 and 35, PostgreSQL 18): the mail is a reminder, and adopting it is a deliberate step; (2) upstream has it and nixpkgs **does not**: the same reminder, and nothing can be done but wait; (3) nixpkgs **drops** the old major before the owner moves: the build **stops loudly** ([ADR 0016](0016-updates-deploys-and-checks.md)), and the end-of-life line of the monthly mail warns earlier. **Decided by the owner: no list of "held" majors**; the monthly reminder stays as it is.
 
-**Tried in the lab host** (`lab/majors-u15-nextcloud.sh`, `lab/majors-u15-postgres.sh`, `lab/majors-u15-postgres-check.sh`; the lab's data is small: Nextcloud 16 MB, Immich 35 MB, Vaultwarden 9 MB; it has no real v0 data, no third-party Nextcloud apps and no registered single-sign-on clients):
+**Tried in the lab host** (`lab/experiments/majors-u15-nextcloud.sh`, `lab/experiments/majors-u15-postgres.sh`, `lab/experiments/majors-u15-postgres-check.sh`; the lab's data is small: Nextcloud 16 MB, Immich 35 MB, Vaultwarden 9 MB; it has no real v0 data, no third-party Nextcloud apps and no registered single-sign-on clients):
 
 | Move | Result |
 |---|---|

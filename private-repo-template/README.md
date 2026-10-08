@@ -46,5 +46,5 @@ Put them in this repository and import them from `host.nix`; **nothing of the pu
 - **To switch a public service off**, set its option in `host.nix` (for example `tidepool.services.jellyfin.enable = false;`).
 - A public module is replaced by your own file only if you stop importing it, and that is never necessary: the options exist to avoid it.
 
-`lab/private-modules/` and `lab/private-modules-u26.sh` are a throwaway example of this shape: the lab host plus a module of its own, built and run in a VM (six checks: the unit, its secret, its virtual host, its backup path, the public paths, the public services).
+`lab/experiments/private-modules/` and `lab/experiments/private-modules-u26.sh` are a throwaway example of this shape: the lab host plus a module of its own, built and run in a VM (six checks: the unit, its secret, its virtual host, its backup path, the public paths, the public services).
 

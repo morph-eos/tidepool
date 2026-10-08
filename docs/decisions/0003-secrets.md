@@ -41,7 +41,7 @@ than in a script.
 
 ## Results
 
-`lab/secrets-bakeoff.sh` runs the same scenario for A-D in a temporary directory with a throwaway GPG home; secrets are random canary strings, so a leak is found by grep.
+`lab/experiments/secrets-bakeoff.sh` runs the same scenario for A-D in a temporary directory with a throwaway GPG home; secrets are random canary strings, so a leak is found by grep.
 It starts with a **negative control**: a repository with the secrets committed in clear text, where T1 and T3 must fail. A first version had every candidate green, and a test
 that cannot fail proves nothing, so the control is now part of every run (exit 99 if it does not fail).
 

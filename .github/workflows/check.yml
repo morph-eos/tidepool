@@ -1,5 +1,8 @@
-# `nix flake check` on every pull request and on main: both hosts must build and the version-watch rules must pass their unit test (ADR 0016, 0017, 0018).
-# The repository is public, so hosted runners cost nothing. Actions are pinned by commit (a tag can be moved); Renovate keeps the pins current.
+# `nix flake check` on every pull request and on main (nixos/checks.nix): both hosts must build; the version-watch rules pass their unit test; the brand and the single sign-on behave as declared
+# (a brand file of another repository overrides the default, the palette keeps its contrasts, Jellyfin's theme is the default, the sign-on client is one Nextcloud accepts); the documents hold together
+# (links, scripts, indexes); the private repository's template works (its tools make the secrets, say what is left, add a VPN device); no secret is in the tree. About six minutes.
+# What needs a running machine (the restore drill, the names, the pages in a browser, the sign-on) is NOT here: it is lab/gate.sh, run by hand before a push to main (lab/README.md).
+# The repository is public, so hosted runners cost nothing. Actions are pinned by commit (a tag can be moved); Renovate keeps them current.
 name: check
 on:
   pull_request:
@@ -11,7 +14,7 @@ permissions:
 jobs:
   flake-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1

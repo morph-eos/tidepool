@@ -62,6 +62,8 @@ Decide the moment **T** (the last good one). The files come from the **first Bor
 
 Lab: **167-169 s** from the first command to the end of the checks.
 
+**Run the drill on a fresh repository.** A restore promotes a new timeline, and the machine then archives its WAL of that timeline into the **same** pgBackRest repository. A second restore to the same target (a drill resumed after an interrupted one, on the same disks) follows the newest timeline and stops with `recovery ended before configured recovery target was reached` (found on 2026-10-08, when a drill was interrupted and resumed). The drill makes its own VM and disks, so a normal run is clean; to restore a second time from a repository that has been restored once, add `--target-timeline=current` to the command above.
+
 ## D. Check it (what the drill checks)
 
 Immich: the number of assets is the number at T, and every original is served. A marker row written before T is in each database, one written after is not. Nextcloud and WebDAV: the files at T, content included, **including what was deleted after T**. Vaultwarden answers and its RSA key (outside the database) is the one that was backed up. An Incus instance on the 2 TB pool is back with its file. `borg check --verify-data` passes on both repositories; `pgbackrest check` passes; no unit has failed.
@@ -74,7 +76,7 @@ TIDEPOOL_HOST=lab TIDEPOOL_LAYOUT=disko lab/nixos-install.sh host-t     # the fi
 lab/restore-drill.sh all                                                 # seed, disaster, rebuild, restore, verify: about 30 minutes
 ```
 
-It ends in `DRILL RESULT: PASS` or `FAIL`, with the times in `/tmp/drill`. The encrypted variant: `lab/vm.sh create host-s --uefi --tpm --blank --disk 30 --data-disk 10 --extra-disk 6 --extra-disk 6 --mem 10240`, the steps of `lab/tpm-u21.sh`, then `DRILL_VM=host-s DRILL_SECURE=1 DRILL_DISK_GB=30 DRILL_DATA_GB=10 lab/restore-drill.sh seed`, `disaster`, `restore`.
+It ends in `DRILL RESULT: PASS` or `FAIL`, with the times in `/tmp/drill`. The encrypted variant: `lab/vm.sh create host-s --uefi --tpm --blank --disk 30 --data-disk 10 --extra-disk 6 --extra-disk 6 --mem 10240`, the steps of `lab/experiments/tpm-u21.sh`, then `DRILL_VM=host-s DRILL_SECURE=1 DRILL_DISK_GB=30 DRILL_DATA_GB=10 lab/restore-drill.sh seed`, `disaster`, `restore`.
 
 ## E2. Between drills: the checks that run by themselves
 

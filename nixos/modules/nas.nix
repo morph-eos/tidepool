@@ -19,7 +19,7 @@ let cfg = config.tidepool.nas; lan = config.tidepool.lanInterface; in
       openFirewall = false;   # opened below on the LAN interface only
       settings = {
         global = {
-          workgroup = "WORKGROUP"; "server string" = "tidepool NAS"; "netbios name" = "tidepool";
+          workgroup = "WORKGROUP"; "server string" = "${config.tidepool.brand.name} NAS"; "netbios name" = lib.substring 0 15 config.tidepool.brand.slug;   # a NetBIOS name is at most 15 characters
           security = "user"; "map to guest" = "never"; "restrict anonymous" = 2;
           "server min protocol" = "SMB2";
           "vfs objects" = "catia fruit streams_xattr"; "fruit:aapl" = "yes"; "fruit:nfs_aces" = "no"; "fruit:model" = "MacSamba";

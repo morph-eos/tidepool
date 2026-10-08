@@ -38,7 +38,7 @@ Versions: what v0 runs, what the channel (nixos-26.05) packages, and the **lates
 
 **Jellyfin: the decisive test.** A Jellyfin **12.1** container (`jellyfin/jellyfin:12.1`, 2.5 GB) started on an empty directory and wrote its database; the **native module's 10.11** was then started on a copy of that data. It **failed to start**: `SQLite Error 1: 'no such column: b.ExtraIds'`, then `Main: Error while starting server`. **A database written by 12.1 cannot be opened by 10.11**: using the module would mean starting from an empty library, losing v0's users, watch history and metadata.
 
-**The other services through their modules**, in the lab VM, behind nginx with certificates from the test CA, with PostgreSQL 17 over its Unix socket (`lab/services-native-bakeoff.sh`):
+**The other services through their modules**, in the lab VM, behind nginx with certificates from the test CA, with PostgreSQL 17 over its Unix socket (`lab/experiments/services-native-bakeoff.sh`):
 
 | Check | Result |
 |---|---|
@@ -68,7 +68,7 @@ What running them showed:
 - **Nextcloud's apps can be declared**: `oidc`, `oidc_login`, `user_oidc` and `user_saml` are available as Nix packages (`services.nextcloud.extraApps`), so installing them is not an imperative step in the app store.
 - **NixOS has modules for several identity providers**: `services.kanidm`, `services.authelia`, `services.keycloak`, `services.pocket-id`, `services.zitadel`, `services.dex`. Which one, if any, replaces v0's "Nextcloud as the provider plus scripts" is a separate design question, below.
 
-**WebDAV for Seedvault, two ways** (`lab/services-extra-bakeoff.sh`): a backup-app-like sequence (MKCOL, PUT of 5 MB, PROPFIND, MOVE, GET, DELETE, a **2 GB PUT**, a wrong password) against **the `webdav` module with its unit hardened** and against **nginx with its WebDAV modules** (`services.nginx.additionalModules`).
+**WebDAV for Seedvault, two ways** (`lab/experiments/services-extra-bakeoff.sh`): a backup-app-like sequence (MKCOL, PUT of 5 MB, PROPFIND, MOVE, GET, DELETE, a **2 GB PUT**, a wrong password) against **the `webdav` module with its unit hardened** and against **nginx with its WebDAV modules** (`services.nginx.additionalModules`).
 
 | | `webdav` module, hardened | nginx with the DAV modules |
 |---|---|---|
@@ -118,3 +118,7 @@ The owner's answers: **WebDAV is for Seedvault** (GrapheneOS); the **GPU is an I
 
 1. ~~WebDAV~~: Seedvault; nginx recommended. 2. ~~GPU~~: Intel. 3. ~~icloudpd~~: dropped. 4. ~~Single sign-on~~: Nextcloud. 5. ~~New services~~: later.
 **Remaining:** the **wording of the first real checks** (a Seedvault backup through nginx, Jellyfin's transcode on the GPU, Immich's machine learning on it, a login through Nextcloud into each service) belongs to the deployment and to the restore drill.
+
+## Update (2026-10-08): the single sign-on is built
+
+Nextcloud's `oidc` app is the identity provider and **Immich is its first client**, declared in `nixos/modules/sso.nix`: `nextcloud-oidc-clients.service` registers the client after Nextcloud's setup and again when its secret or addresses change (`occ oidc:create` with a client id made from the domain and a secret from sops), and Immich's OAuth section is written from the same declaration (all of Immich's settings are in the flake now, [ADR 0020](0020-brand-identity.md)). Two things the lab found: the **client id must be 32 to 64 characters** like the secret, and **Immich's OpenID library does not follow a redirect**, so the discovery document is answered at `/.well-known/openid-configuration` by an nginx rule instead of Nextcloud's own redirect. Proven end to end in a browser (`lab/brand-check.sh`). It is exception 4 of [the register](../exceptions.md). Jellyfin's and Vaultwarden's clients are not declared yet: the module takes more clients as entries of `tidepool.sso.clients`.
