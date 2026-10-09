@@ -26,8 +26,8 @@ The 513 GB on the 2 TB disk are, by what they are:
 
 | Disk | What goes on it | Now | After a year (estimate) |
 |---|---|---|---|
-| **The 1 TB NVMe** (ZFS) | the services' live data: Immich, Nextcloud, WebDAV, Syncthing, Jellyfin's configuration, Vaultwarden, PostgreSQL | **about 125 GB** measured, and a few GB of databases | about 175 GB (the services grow about 4 GB a month, [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
-| **The 1 TB NVMe**, the `fast` Incus pool | VMs that matter | a quota to set ([pending](pending.md)): 200 GB leaves about 600 GB | |
+| **The 1 TB SSD** (ZFS) | the services' live data: Immich, Nextcloud, WebDAV, Syncthing, Jellyfin's configuration, Vaultwarden, PostgreSQL | **about 125 GB** measured, and a few GB of databases | about 175 GB (the services grow about 4 GB a month, [ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
+| **The 1 TB SSD**, the `fast` Incus pool | VMs that matter | a quota to set ([pending](pending.md)): 200 GB leaves about 600 GB | |
 | **The 2 TB disk** (SMR, ext4 on LUKS), the offsite repository | a Borg repository of Immich, Nextcloud and WebDAV (97 GB of source); the photos do not compress, so the repository is about the size of the source | about 110 GB (estimate) | about 160 GB |
 | **The 2 TB disk**, Incus | its state (`incus-state`) and the `smr` directory pool for throwaway VMs | about 15 GB (v0 keeps 15 GB of Incus today), and a pool budget of **200 GB** | |
 | **The 2 TB disk**, the NAS share | whatever of the NAS content comes back, if all of it: about 335 GB | 335 GB | 400 GB |
@@ -37,7 +37,7 @@ The 513 GB on the 2 TB disk are, by what they are:
 
 ## How full each may get
 
-- **The 1 TB NVMe and the 16 TB disk:** under about 80% (ZFS slows down and fragments above it; the `DiskAlmostFull` alert fires below 10% free, [ADR 0012](decisions/0012-observability.md)).
+- **The 1 TB SSD and the 16 TB disk:** under about 80% (ZFS slows down and fragments above it; the `DiskAlmostFull` alert fires below 10% free, [ADR 0012](decisions/0012-observability.md)).
 - **The 2 TB disk is shingled (SMR):** it slows down a lot when it is nearly full and when it is rewritten in small pieces. Keep it **under 75%** (about 1.3 TB), which leaves about **500 GB** over the budget above. The offsite repository and the NAS share are written in large sequential runs; the pool for VMs is what suffers, which is why it holds only throwaway VMs.
 - **The 513 GB of v0 are not a size to carry over:** the iCloud photos (56 GB) are not carried, and the services' data (about 125 GB) goes to the SSD, not to the 2 TB disk.
 
