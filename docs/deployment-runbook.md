@@ -18,7 +18,7 @@ Do not start the day until every line of this section is true.
 - **DNS:** the names are in [the names page](names.md): the six public ones to the house, and the VPN ones (`sync`, `metrics`, `alerts`, `compute`, and `admin` for the admin page) to 10.100.0.1; the two CNAMEs for the challenge exist; the test one is removed; the CAA record bound to the account waits for the first real certificate ([ADR 0008](decisions/0008-edge.md)).
 - **Router:** a reservation of the WiFi card's address, and the forwards **80/tcp, 443/tcp, 22000 tcp+udp (Syncthing) and 51820/udp (WireGuard)**. SSH (port 2222) is open on the VPN only.
 
-**0.4 The machine.** The NVMe SSD fitted. In the firmware: a **password**, the **TPM enabled**, **VT-d on**, UEFI. Note whether the TPM is the CPU's firmware TPM ([ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md)).
+**0.4 The machine.** The 1 TB SSD fitted (a SATA port and a power connector; its path is already in `host.nix`). In the firmware: a **password**, the **TPM enabled**, **VT-d on**, UEFI. Note whether the TPM is the CPU's firmware TPM ([ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md)).
 
 **0.5 The way back.** An **image of the old system disk** (`dd if=<disk> | zstd > /mnt/nas/v0-system-disk.img.zst`, onto the 16 TB disk) so that v0 can be put back as it was, and **v0's last backup** checked. The new SSD is empty and takes nothing from v0; the old system disk is wiped by the installation, and **this image is the only way back to v0's operating system**.
 

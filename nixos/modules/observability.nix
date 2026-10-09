@@ -78,6 +78,41 @@ let
       - alert: CertificateRenewalStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"acme-renew-.*\\.timer"} > 259200) and on() (time() - node_boot_time_seconds > 259200)   # 3 days: the renewal timers are daily with a random delay of up to 24 h and an accuracy of 4 h, so two runs can be almost 48 h apart
         labels: { severity: warning }
+      # the disks (the smartctl exporter, production only: the lab's virtual disks have no SMART data, so these never fire there); smartd mails on its own as well, this is the second path.
+      # They read generic attributes, so they hold for SATA, NVMe and spinning disks alike. A counter that already stood above zero when the disk arrived does not alert forever: the rules look at growth.
+      - alert: SmartFailing
+        expr: smartctl_device_smart_status == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "{{ $labels.device }} reports a failing SMART status: replace it" }
+      - alert: SmartUnreadable
+        expr: (smartctl_device_smartctl_exit_status % 4 >= 2) or on() (up{job="smartctl"} == 0)   # smartctl's exit bit 1 is "the device could not be opened": a disk that fell off the bus, or the exporter itself gone
+        for: 15m
+        labels: { severity: critical }
+        annotations: { summary: "a disk cannot be read for SMART (or the exporter is down)" }
+      - alert: DiskErrorsGrowing
+        expr: increase(smartctl_device_attribute{attribute_value_type="raw", attribute_id=~"5|187|197|198"}[1d]) > 0   # reallocated, reported uncorrectable, pending and offline-uncorrectable sectors
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.device }}: {{ $labels.attribute_name }} grew in the last day" }
+      - alert: DiskLinkErrors
+        expr: increase(smartctl_device_attribute{attribute_value_type="raw", attribute_id="199"}[1d]) > 0   # CRC errors on the SATA link: a cable, a connector or a port, not the flash
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.device }}: link CRC errors in the last day (check the cable)" }
+      - alert: NvmeMediaErrors
+        expr: smartctl_device_critical_warning > 0 or increase(smartctl_device_media_errors[1d]) > 0
+        labels: { severity: critical }
+        annotations: { summary: "{{ $labels.device }}: the NVMe controller reports a critical warning or media errors" }
+      # wear: NVMe reports the percentage used; SATA SSDs from several makers (Samsung among them) report a normalized "wear leveling" value that counts down from 100
+      - alert: SsdWornOut
+        expr: smartctl_device_percentage_used > 80 or smartctl_device_attribute{attribute_value_type="value", attribute_id="177"} < 20
+        for: 1h
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.device }} has used most of its rated endurance: plan its replacement" }
+      - alert: DiskHot
+        expr: smartctl_device_temperature > 55
+        for: 30m
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.device }} has been above 55 C for half an hour" }
   '';
   probe = name: module: targets: {
     job_name = name; metrics_path = "/probe"; params.module = [ module ];
