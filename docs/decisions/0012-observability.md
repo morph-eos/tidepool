@@ -140,3 +140,7 @@ So **we are far under the limit**, even in a bad case. Two things the alerts do 
 
 
 **Correction (2026-10-03):** the rule for a silent certificate-renewal timer waited 2 days. The renewal timers are daily with a random delay of up to 24 hours and an accuracy of 4 hours, so two runs can be almost 48 hours apart and the rule could fire without a fault. It now waits 3 days.
+
+## Update 2026-10-15: the relay login is an option
+
+The module logged in to the relay as `alerts@<domain>`, which the lab never exercised (a sink takes any login). Brevo's SMTP login is an id of its own (`xxxxxx001@smtp-brevo.com`, shown on its SMTP page), so the first real mail of the deployment would have failed with an authentication error. `tidepool.mail.smtpLogin` sets it; `null` (the default) keeps `alerts@<domain>`. Checked by evaluating the Alertmanager configuration of the real host with and without the option; the real mail is still tried at runbook step 1.8, with a deliberately failed backup.
