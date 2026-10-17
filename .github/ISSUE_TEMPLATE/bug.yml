@@ -1,0 +1,32 @@
+name: Bug
+description: Something does not build, boot or behave as the documents say
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste secrets, domains, IP addresses, serial numbers or account names.** Replace them with placeholders (`example.invalid`, `REPLACE-...`). A security problem goes through a private report (the *Security* tab, *Report a vulnerability*), not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce (the command, the module or option, lab or real hardware)
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output
+      description: Trimmed, and with private values removed.
+      render: shell
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Confidentiality
+      options:
+        - label: I removed every secret, domain, IP address, serial number and account name from this report
+          required: true

@@ -98,14 +98,16 @@ The owner's rule (no scheduled snapshots; run the backup methods before an updat
 
 | Rule | Stops |
 |---|---|
-| a pull request is required, **1 approval**, an approval that is **not** the last pusher's, stale approvals dismissed on a new push, threads resolved | a direct push to `main`; a bot or token that opens a pull request and merges it by itself |
+| a pull request is required, **0 approvals** (a sole maintainer cannot approve their own pull request, and a required approval would force a bypass), stale approvals dismissed on a new push, threads resolved; the rule "the last pusher cannot approve" is off, it can never be met by a sole maintainer | a direct push to `main`: every change is a pull request that the CI has seen |
 | **the `flake-check` job must pass**, on a branch up to date with `main` | a change that does not build, or breaks the version-watch rules, reaching the server |
 | **squash merges only** (linear history) | merge commits that hide a change; and, because **GitHub signs the squash commit it creates** (its documented behaviour, not tried here), it satisfies the next rule for every author, bots included |
 | **signed commits** required | an unsigned commit pushed by a stolen token |
 | **no force push, no deletion** of `main` | rewriting or removing what the server may already have deployed |
-| bypass: the **repository admin role, only through a pull request** | the owner can merge their own pull request (GitHub does not let an author approve their own); nobody can push to `main` directly, the owner included |
+| **no bypass actor**, the admin role included | nobody can push to `main` directly or merge around a failing job, the owner included; the owner merges like anyone else, once the CI is green |
 
-**Settings next to it** (a checklist, in the public repository's settings): Actions run with a **read-only token** by default (the workflow also says `permissions: contents: read`); **fork pull requests need approval before their workflows run**; **secret scanning with push protection** (free on a public repository); **private vulnerability reporting**; passkeys or two-factor on the owner's account.
+**Settings next to it** (a checklist, in the public repository's settings): Actions run with a **read-only token** by default (the workflow also says `permissions: contents: read`); **fork pull requests need approval before their workflows run**; **secret scanning with push protection** (free on a public repository); **private vulnerability reporting**; passkeys and two-factor on the owner's account (done, 2026-10-16).
+
+**Revised 2026-10-17: no bypass, no required approval.** The first version let the admin role bypass through a pull request and asked for 1 approval; in practice that meant the owner merged around the rule every time, so the rule protected nothing the owner's own account did not already hold. Now the rule is the same for everyone: a pull request, `flake-check` green on a branch up to date with `main`, squash, signed. What this gives up, plainly: **there is no second pair of eyes** by rule; a token with the write role (the Renovate machine user, section 10) **can merge its own pull request once the CI is green**. It does not here because Renovate has no `automerge` and a major waits for the owner on the dashboard, but that is configuration, not enforcement; if the pull requests of the bot ever become many, put the approval back and keep the admin bypass for the owner only.
 
 **Limits, plainly:** (1) the owner's GitHub account is the root of trust: an attacker who takes it over can change the ruleset, so the account's own security is what matters most; (2) **rulesets are enforced only on public repositories on the free plan**, so this cannot be switched on in the current private repository (its ruleset list answered empty; creating one was not tried) but in the **fresh public one**; (3) the `actor_id` 5 for the admin role and the exact field names are from GitHub's documentation (**checked at the import: accepted**); (4) the ruleset **guards the deploy**: every commit that reaches `main` and changes the host's system is on the server within 10 minutes (section 8).
 
@@ -176,14 +178,14 @@ The two things Renovate does are **different in kind**: the **container pins and
 |---|---|---|
 | **Identity** | its own **`renovate[bot]`**, not an admin | **a token**: a fine-grained token acts **as its owner** |
 | **A secret on the server** | **none** | **yes**, with write access to pull requests and contents of the public repository, kept in sops; it **expires**, so a lapse must be noticed |
-| **Do the protections hold?** | **yes**: the bot cannot merge (it needs an approval it cannot give itself) | **only with a separate machine account**: with the owner's token the bot **inherits the owner's bypass** (section 7) and could merge its own pull request |
+| **Do the protections hold?** | **partly**: the bot opens pull requests and the rule holds, but no approval is required (section 7) | **only with a separate machine account**: with the owner's token the bot **acts as the owner** (section 7: no bypass now, but also no approval required) and could merge its own pull request |
 | **Container pins, Actions** | yes | yes |
 | **`flake.lock`** | **probably not**: the stock Renovate container **has no Nix** (checked in ADR 0016); the hosted app's image was **not checked**: install it and see whether a `lock-file-maintenance` pull request appears | **yes**: the module takes `runtimePackages` where `nix` and `git` go |
 | **Cost on the server** | nothing | **924 MB of memory at the peak, 38 s of CPU in 67 s** for one local lookup run (measured in the lab host); weekly, on this machine |
 | **Who sees the repository** | Mend, **for the public repository only** (do not install it on the private one: it would see the values) | nobody outside |
 | **When it fails** | silently (a dashboard issue) | **a failed unit**: the `UnitFailed` mail |
 
-**Decided by the owner, 2026-10-03: Renovate on the server** (`modules/renovate.nix`, off by default, `tidepool.renovate.enable`; the private template turns it on). The hosted app's doubts (no Nix, the identity) are avoided; the price is a token on the server, so the **token belongs to a machine user** (a second free GitHub account with the **write** role, not admin: the ruleset's bypass is for the admin role, so the bot **cannot** approve or bypass), kept in sops as `renovate-token`, **fine-grained to the public repository only** (contents and pull requests). It **expires**; the day it does the unit fails (below).
+**Decided by the owner, 2026-10-03: Renovate on the server** (`modules/renovate.nix`, off by default, `tidepool.renovate.enable`; the private template turns it on). The hosted app's doubts (no Nix, the identity) are avoided; the price is a token on the server, so the **token belongs to a machine user** (a second free GitHub account with the **write** role, not admin: the ruleset has no bypass for anyone, and the bot has no `automerge` configured; it can merge only what the CI passes, section 7), kept in sops as `renovate-token`, **fine-grained to the public repository only** (contents and pull requests). It **expires**; the day it does the unit fails (below).
 
 **Measured in the lab host** (`lab/experiments/renovate-u19.sh`; the token is a dummy, GitHub refuses it):
 

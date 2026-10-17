@@ -8,13 +8,16 @@ fetched on disk, and serves it. The archives are not changed, so their signature
 Usage:  lab/nix-cache-proxy.py [port] [cache dir]        (defaults: 5001, ~/lab/tidepool/nixcache)
         TIDEPOOL_CACHE=http://10.0.2.2:5001 lab/nixos-install.sh host-t     # the installer then asks the proxy first
 """
-import http.server, os, shutil, socketserver, sys, threading, time, urllib.error, urllib.request
+import http.server, os, re, shutil, socketserver, sys, threading, time, urllib.error, urllib.request
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
 DIR = os.path.expanduser(sys.argv[2] if len(sys.argv) > 2 else "~/lab/tidepool/nixcache")
 UPSTREAM = "https://cache.nixos.org"
 os.makedirs(DIR, exist_ok=True)
 locks, locks_guard = {}, threading.Lock()
+# The only paths Nix asks a binary cache for: anything else is refused before it names a file.
+ALLOWED = re.compile(r"/(nix-cache-info|[0-9a-z]{32}\.narinfo|nar/[0-9a-z]{20,64}\.nar(\.(xz|zst|bz2))?)")
+ROOT = os.path.realpath(DIR)
 
 def fetch(path, dest):
     """Download UPSTREAM+path into dest, resuming and retrying; returns the status (200, or an error for Nix to act on).
@@ -98,8 +101,9 @@ class H(http.server.BaseHTTPRequestHandler):
         return True
     def do_GET(self, head=False):
         path = self.path.split("?")[0]
-        if ".." in path or not path.startswith("/"): self.send_error(400); return
-        dest = os.path.join(DIR, path.lstrip("/").replace("/", "__"))
+        if not ALLOWED.fullmatch(path): self.send_error(400); return
+        dest = os.path.realpath(os.path.join(ROOT, path.lstrip("/").replace("/", "__")))
+        if not dest.startswith(ROOT + os.sep): self.send_error(400); return   # the file is always inside the cache folder
         with locks_guard: lock = locks.setdefault(dest, threading.Lock())
         with lock:
             if not os.path.exists(dest):
