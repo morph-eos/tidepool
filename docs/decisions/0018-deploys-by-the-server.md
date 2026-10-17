@@ -98,7 +98,7 @@ The owner's rule (no scheduled snapshots; run the backup methods before an updat
 
 | Rule | Stops |
 |---|---|
-| a pull request is required, **0 approvals** (a sole maintainer cannot approve their own pull request, and a required approval would force a bypass), stale approvals dismissed on a new push, threads resolved | a direct push to `main`: every change is a pull request that the CI has seen |
+| a pull request is required, **0 approvals** (a sole maintainer cannot approve their own pull request, and a required approval would force a bypass), stale approvals dismissed on a new push, threads resolved; the rule "the last pusher cannot approve" is off, it can never be met by a sole maintainer | a direct push to `main`: every change is a pull request that the CI has seen |
 | **the `flake-check` job must pass**, on a branch up to date with `main` | a change that does not build, or breaks the version-watch rules, reaching the server |
 | **squash merges only** (linear history) | merge commits that hide a change; and, because **GitHub signs the squash commit it creates** (its documented behaviour, not tried here), it satisfies the next rule for every author, bots included |
 | **signed commits** required | an unsigned commit pushed by a stolen token |
