@@ -7,7 +7,7 @@ let
   mailFrom = "${config.tidepool.brand.name} alerts <alerts@${d}>"; mailTo = "admin@${d}";
   smtp = if cfg.lab
     then { smarthost = "127.0.0.1:1025"; require_tls = false; }
-    else { smarthost = "smtp-relay.brevo.com:587"; require_tls = true; auth_username = "alerts@${d}"; auth_password_file = "/run/credentials/alertmanager.service/smtp-password"; };
+    else { smarthost = "smtp-relay.brevo.com:587"; require_tls = true; auth_username = if cfg.mail.smtpLogin != null then cfg.mail.smtpLogin else "alerts@${d}"; auth_password_file = "/run/credentials/alertmanager.service/smtp-password"; };
   heartbeat = if cfg.lab then { url = "http://127.0.0.1:8112/ping"; } else { url_file = "/run/credentials/alertmanager.service/heartbeat-url"; };
   blackboxCfg = pkgs.writeText "blackbox.yml" (builtins.toJSON { modules = {
     https = { prober = "http"; timeout = "10s"; http = { valid_status_codes = [ 200 301 302 401 403 404 ]; tls_config.insecure_skip_verify = cfg.lab; }; };   # production verifies the chain: a placeholder certificate must fail

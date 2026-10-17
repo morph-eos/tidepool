@@ -15,6 +15,7 @@
     };
     # The network. Until the Ethernet cable is connected the machine is on WiFi: the LAN interface is then the WiFi one (set by tidepool.wifi). With the cable: remove `wifi`, set lanInterface to the Ethernet interface's name.
     wifi = { enable = true; interface = "REPLACE-wifi-interface"; ssid = "REPLACE-with-your-network-name"; };   # the secret `wifi-psk` in secrets.yaml holds one line: psk_home=<64 hex digits from `wpa_passphrase 'SSID' 'passphrase'`>
+    # mail.smtpLogin = "<your SMTP login>";   # Brevo's login is an id of its own (of the form xxxxxx001@smtp-brevo.com, on its SMTP page), not an address of your domain: without this line Alertmanager logs in as alerts@<domain>, which Brevo refuses. The password is the secret `smtp-password`.
     wireguard.peers = import ./vpn-peers.nix;   # one entry per device: tools/add-peer.sh (docs/vpn-clients.md); the server's own public key is in vpn-server.pub (written by tools/secrets-init.sh)
     nas.enable = true;
     nas.timeMachine.path = "/mnt/timemachine";   # the Time Machine partition of the 16 TB disk; Linux cannot write a journaled HFS+, so make it ext4 and mount it below. Remove both if you have no Mac
