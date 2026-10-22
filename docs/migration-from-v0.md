@@ -1,6 +1,6 @@
 # Moving v0's data to tidepool
 
-Rehearsed in the lab on **2026-10-05** against a replica of v0 (`lab/v0-replica/`: the same services in Docker, seeded through their own APIs), without touching the real machine. The driver is [lab/v0-migration-u25.sh](../lab/v0-migration-u25.sh); the result of the last run was **15 checks passed, 0 failed**. The replica runs v0's exact versions, read on the real machine on 2026-10-06 (Nextcloud 33.0.2, Immich 3.2.1, Jellyfin 12.1, Vaultwarden 1.37.1, Syncthing 2.0.14), so the rehearsal includes the version steps the real move makes: Nextcloud 33.0.2 to 33.0.9, Immich 3.2.1 to 3.2.4, Syncthing 2.0.14 to 2.1.3.
+Rehearsed in the lab on **2026-10-05** against a replica of v0 (`lab/v0-replica/`: the same services in Docker, seeded through their own APIs), without touching the real machine. The driver is [lab/v0-migration-u25.sh](../lab/v0-migration-u25.sh); the result of the last run was **15 checks passed, 0 failed**. The replica runs v0's exact versions, read on the real machine on 2026-10-06 (Nextcloud 33.0.2, Immich 3.2.1, Jellyfin 12.1, Vaultwarden 1.37.1, Syncthing 2.0.14), so the rehearsal includes the version steps the real move makes: Nextcloud 33.0.2 to 33.0.9, Immich 3.2.1 to 3.2.4, Syncthing 2.0.14 to 2.1.3. *(Update 2026-10-22: the rehearsal ran with Nextcloud 33.0.2. After PHP2Shell (CVE-2026-109618, CVE-2026-109619) the owner updated v0's Nextcloud by hand to 33.0.10 on PHP 8.4.27, read on the real machine; the replica's pin now says so, and the rehearsal was not repeated.)*
 
 ## What the rehearsal proves, and what it does not
 
@@ -36,7 +36,7 @@ Measured on the replica: Immich dump 3 s, Nextcloud conversion 18 s, everything 
 
 ## Differences to check on the real machine
 
-- **Nextcloud's patch step is rehearsed**: v0 is on 33.0.2 and the module on 33.0.9; the first start ran the upgrade (`occ upgrade`) without incident and everything verified. Nothing is left to check here except the real data's size.
+- **Nextcloud's patch step is rehearsed**: v0 was on 33.0.2 and the module on 33.0.9; the first start ran the upgrade (`occ upgrade`) without incident and everything verified. v0 is now on 33.0.10 (hand update, 2026-10-22) and the module also on 33.0.10, so the real move has no version step for Nextcloud and `occ upgrade` finds nothing to do. Nothing is left to check here except the real data's size.
 - **Syncthing 2.0.14 to 2.1.3 is rehearsed** (the replica runs 2.0.14): the device ID and the folder list survive. What the real index database holds, and how long it takes to settle, depends on the real data.
 - **Jellyfin media**: v0 has two media trees, and the libraries point at their container paths (`/media`, `/media2`). Both go on the 16 TB disk, and `services.jellyfin.mediaMounts` maps each container path to its folder there (the private `host.nix`); the tree that was on the 2 TB disk is copied to the 16 TB disk **before the 2 TB disk is formatted** (runbook 1.1 and 1.2).
 - **Time Machine**: v0's partition is HFS+, which Linux cannot write when it is journaled; it is made ext4 and the Mac starts a fresh backup, **after the move has settled** (runbook 1.2), and the host declares neither the share nor its mount until then.
