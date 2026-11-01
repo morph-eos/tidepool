@@ -13,6 +13,7 @@
 | know how big things get | [capacity.md](capacity.md) |
 | set up a private repository for another machine | [private-repository.md](private-repository.md), [../private-repo-template/](../private-repo-template/README.md) |
 | open the machine's private tools from one page | [decisions/0021](decisions/0021-admin-page.md), `admin.<domain>` on the VPN |
+| use the machine as a TV box (a desktop that starts by itself, with no rights) | [decisions/0022](decisions/0022-the-tv-session.md), `tidepool.desktop.enable` |
 | change the look (name, colours, logo) | [decisions/0020](decisions/0020-brand-identity.md), [../nixos/brand/README.md](../nixos/brand/README.md) |
 | test a change before it goes to `main` | [../lab/README.md](../lab/README.md) (`lab/gate.sh`) |
 | understand why a choice was made | the decision records below |
@@ -46,6 +47,7 @@ One record per decision, with what was measured. A later change is an **Update**
 | [0019](decisions/0019-the-real-machine-network-and-hardware.md) | the real machine: hardware, WiFi until the cable, the 1 TB SSD |
 | [0020](decisions/0020-brand-identity.md) | one name, palette and logo for every service; the single sign-on |
 | [0021](decisions/0021-admin-page.md) | one admin page, on the VPN, for the private tools (a trial) |
+| [0022](decisions/0022-the-tv-session.md) | the TV session: GNOME started by itself, for a user with almost no rights |
 
 ## Reference material
 - [gates/](gates/): the questions asked of the real machine before the design (the storage inventory and its results).

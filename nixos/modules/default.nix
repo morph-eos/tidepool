@@ -21,6 +21,7 @@
     ./edge.nix
     ./vpn.nix
     ./vms.nix
+    ./desktop.nix
     ./compute-names.nix
     ./brand.nix
     ./sso.nix

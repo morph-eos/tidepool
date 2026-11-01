@@ -9,7 +9,7 @@ The design is in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) (de
 | A disk taken out, sold, returned, thrown away | **closed**: the key is sealed in this machine's TPM |
 | The disks moved into another machine (another TPM) | **closed** (measured: the console asks for the passphrase) |
 | Another system started on the machine (a USB stick) | **closed** (measured: PCR 7 changes, the TPM answers "policy does not match") |
-| The machine switched on by a casual thief | boots by itself; **no local login exists** (the admin has only an ssh key, ssh is open on the VPN only); only the services' own passwords |
+| The machine switched on by a casual thief | boots by itself; the admin has **no local login** (only an ssh key, ssh is open on the VPN only), but with the TV session on ([ADR 0022](decisions/0022-the-tv-session.md)) it **boots into a logged-in session of a user with no rights** (no sudo, no group, no password): a browser and a shell as that user, then the services' own passwords |
 | The whole machine in the hands of a skilled, targeted thief | **not covered** (a published attack swaps the disk for a fake one and asks the TPM from its own init; the cure is a PIN, which was declined) |
 
 ## Before you start
