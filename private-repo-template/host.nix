@@ -7,6 +7,8 @@
     secretsFile = ./secrets.yaml;        # sops, encrypted to the machine's age key; holds `deploy-key` (the read-only deploy key of THIS repository) among the others
     admin = { name = "admin"; key = "ssh-ed25519 AAAA... admin"; };
     boot.mode = "uefi";
+    # Where the machine is and who uses it (modules/locale.nix): set once, nothing to configure by hand afterwards. The defaults are Europe/Rome, English and a US keyboard.
+    locale = { timeZone = "Europe/Rome"; formats = "it_IT.UTF-8"; keyboard.layout = "it"; };   # `language = "it_IT.UTF-8";` too, if the logs may be in your language
     disks = {
       system = "/dev/disk/by-id/REPLACE-system-ssd";
       tank = "/dev/disk/by-id/REPLACE-tank-ssd";
