@@ -22,6 +22,7 @@
     ./vpn.nix
     ./vms.nix
     ./desktop.nix
+    ./desktop-brand.nix
     ./compute-names.nix
     ./brand.nix
     ./sso.nix

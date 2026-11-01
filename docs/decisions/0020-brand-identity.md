@@ -60,3 +60,14 @@ A program can rename a variable, a class or a setting. The failure is cosmetic, 
 
 The owner asked to keep **only the parts a program supports** and to drop the tricks. Removed: the **patched Vaultwarden web vault** (a copy of the package with replaced images and a stylesheet), and the **stylesheet that nginx added** to Prometheus', Alertmanager's and Syncthing's pages, with the icons and the stylesheet built for them. Why: each depended on a program's internals (a class name, a variable, the layout of `index.html`); one of them (Vaultwarden's colour variables) had already been renamed once in 2026; the patch could fail the whole build on an update (`substituteInPlace` on a file that changed), blocking every deploy until it was mended; and seven programs restyled from outside is a maintenance burden for a cosmetic gain. What remains is what a program lets be set. The module went from 145 to 96 lines and the register lost its fragile entry.
 
+
+## Update (2026-11-01): the TV session
+
+The brand reaches the TV session too ([ADR 0022](0022-the-tv-session.md); `modules/desktop-brand.nix`, on when the session and the brand are both on), by the same rule: only where a program has a setting for it. From the same `brand.json`:
+
+- **The wallpaper:** an SVG made from the colours, the mark and the name (a wordmark with outlined letters takes their place when the brand has one), set through GNOME's settings; it fits any screen.
+- **GNOME's style:** dark, with the accent colour that is nearest to the brand's primary colour among the nine that GNOME names (a deployment cannot choose a tenth); the dash holds the browser only.
+- **Firefox:** a start page (a local file: no server, no network) with a tile for each service that exists on the machine, and the same links as bookmarks, set through the browser's enterprise policies; `tidepool.desktop.startPage.links` adds a private repository's own.
+- **The machine's pretty name** (`/etc/machine-info`), shown in the session's Settings. The host name itself stays what the configuration says.
+
+Not done, on purpose: a boot splash (Plymouth). The disk passphrase is asked on the console, and its errors are printed there ([ADR 0022](0022-the-tv-session.md) and the encryption runbook): a splash screen would hide exactly the messages that tell what is wrong; the login screen is not shown (the session starts by itself).

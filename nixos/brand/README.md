@@ -17,6 +17,10 @@ The brand is **on by default**: a deployment that sets nothing shows this identi
 
 **Another deployment** copies this directory into its private repository, edits it, and says `tidepool.brand.file = ./brand/brand.json;` in `host.nix` (fields it leaves out keep these defaults); or sets single fields (`tidepool.brand.name = "Acme";`).
 
+## The TV session
+
+When the TV session is on ([ADR 0022](../../docs/decisions/0022-the-tv-session.md)), the same brand sets its wallpaper, GNOME's dark style and nearest accent colour, and the start page and bookmarks of its browser (`modules/desktop-brand.nix`, [ADR 0020](../../docs/decisions/0020-brand-identity.md)). Nothing to add: a private repository that changes `brand.json` changes it too; `tidepool.desktop.startPage.links` adds its own tiles.
+
 ## Jellyfin's theme
 
 `jellyfin-web-config.json` is **the pinned Jellyfin image's own `config.json`** (the list of web themes and plugins), which the module serves instead of the image's, with the brand's theme added and made the default. When the image's digest changes, refresh it (`podman run --rm --entrypoint cat <image> /jellyfin/jellyfin-web/config.json > nixos/brand/jellyfin-web-config.json`); `lab/brand-test.sh` compares the two and fails if they differ by anything but the theme.
