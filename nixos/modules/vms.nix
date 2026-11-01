@@ -33,7 +33,9 @@ let cfg = config.tidepool; in
   };
   # Incus's own state (its database: instances, pools, volumes) lives on the 2 TB disk, next to the pools that hold the VM disks. A rebuilt system disk then finds
   # its instances as it left them; the alternative, `incus admin recover`, needs the declared network to exist first and is interactive (found by the restore drill).
-  fileSystems."/var/lib/incus" = { device = "/mnt/big2tb/incus-state"; fsType = "none"; options = [ "bind" ]; depends = [ "/mnt/big2tb" ]; };
+  # nofail like the disk it sits on (storage.nix): with the passphrase boot the initrd does not wait for the 2 TB volume, so it can still be closed when the mounts start,
+  # and a required mount that fails drops the whole boot into emergency mode (found on the first boot of a real machine); Incus itself then stays down (RequiresMountsFor)
+  fileSystems."/var/lib/incus" = { device = "/mnt/big2tb/incus-state"; fsType = "none"; options = [ "bind" "nofail" ]; depends = [ "/mnt/big2tb" ]; };
   systemd.services.incus.unitConfig.RequiresMountsFor = "/var/lib/incus";
   systemd.tmpfiles.rules = [ "d /mnt/big2tb/incus 0711 root root -" ];
   systemd.services.incus-preseed = { unitConfig.RequiresMountsFor = "/mnt/big2tb"; after = [ "systemd-tmpfiles-setup.service" ]; };

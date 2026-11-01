@@ -13,7 +13,9 @@ let cfg = config.tidepool.encryption; in
       security.tpm2.enable = true;
       environment.systemPackages = [ pkgs.tpm2-tools pkgs.sbctl ];   # sbctl is needed BEFORE secureBoot is switched on: it creates the keys that the first lanzaboote switch signs with
       # a thief with the running machine: no DMA from a plugged-in device (the IOMMU on and strict), no Thunderbolt or FireWire
-      boot.kernelParams = [ "intel_iommu=on" "iommu.strict=1" ];
+      boot.kernelParams = [ "intel_iommu=on" "iommu.strict=1" ]
+        # a wrong passphrase is already asked again by systemd, but its "Passphrase incorrect?" only reaches the journal: print the errors of the initrd on the console (rd.: not after the switch to the system)
+        ++ [ "rd.systemd.journald.forward_to_console=1" "rd.systemd.journald.max_level_console=err" ];
       boot.blacklistedKernelModules = [ "thunderbolt" "firewire-core" "firewire-ohci" "firewire-sbp2" ];
       # the 2 TB disk is a plain partition holding a LUKS volume, formatted by hand once (docs/restore-drill.md); nofail: its failure to open must not stop the boot
       boot.initrd.luks.devices = lib.mkIf cfg.big2tb {
