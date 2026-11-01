@@ -28,6 +28,11 @@ in
     desktop = {
       enable = mkEnableOption "the TV session (ADR 0022): GNOME, started by itself for a user that can do almost nothing; the machine is also a media center. Off in the lab (no GPU, no screen)";
       user = mkOption { type = types.str; default = "tv"; description = "The user of the TV session: no sudo, no extra group, no password, no ssh key."; };
+      powerProfile = mkOption {
+        type = types.nullOr (types.enum [ "power-saver" "balanced" "performance" ]);
+        default = null;
+        description = "The power profile (power-profiles-daemon, which comes with GNOME) set at every start, so that it does not depend on a click in the session. null leaves the daemon's own choice (it keeps the last one). Measured on the real machine: power-saver takes about 10% longer on a short heavy job and saves about a tenth of a watt at idle.";
+      };
     };
     arcMaxMiB = mkOption { type = types.int; default = 3072; description = "Cap of the ZFS cache."; };
     mail.smtpLogin = mkOption { type = types.nullOr types.str; default = null; description = "The login Alertmanager presents to the SMTP relay (smtp-relay.brevo.com). Brevo's login is an id of its own (of the form `xxxxxx001@smtp-brevo.com`, on its SMTP page), not an address of your domain; the password is the sops secret `smtp-password`. null keeps `alerts@<domain>`, which only a relay that accepts that login will take."; };
