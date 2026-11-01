@@ -82,6 +82,21 @@ in
       };
     };
   };
+  # The machine reaches its own names through itself. Without this a program on the machine that asks for a public name (Immich logging in at the identity provider
+  # `cloud.<domain>`, the ntfy bridge, a browser on the TV session) goes out to the public address and has to come back through the router, which many home routers do not
+  # allow ("hairpin" or NAT loopback). Every virtual host's name is taken from nginx itself, so a name added later (a private module's too) follows: the public ones to the
+  # loopback (nginx listens on every address there), the VPN-only ones to the WireGuard address they listen on. The names keep their certificates: the wildcard is for the name.
+  # Other machines of the LAN are not helped by this: they ask the router's DNS (docs/names.md, "Names from inside the home network"). The lab has its own DNS that answers 127.0.0.1.
+  networking.hosts =
+    let
+      vhosts = config.services.nginx.virtualHosts;
+      mine = lib.filter (n: n == d || lib.hasSuffix ".${d}" n) (lib.attrNames vhosts);
+      onVpn = n: lib.any (l: (l.addr or "") == "10.100.0.1") (vhosts.${n}.listen or [ ]);
+    in
+    lib.mkIf (!cfg.lab) {
+      "127.0.0.1" = lib.filter (n: !onVpn n) mine;
+      "10.100.0.1" = lib.filter onVpn mine;
+    };
   # the registrations' credentials, one entry per certificate name (docs/names.md, the template's README): a JSON file in lego's format, in the sops file. The module's user reads it; nothing is in the Nix store
   sops.secrets.acme-dns-credentials = lib.mkIf (!cfg.lab) { owner = "acme"; mode = "0400"; };
 }
