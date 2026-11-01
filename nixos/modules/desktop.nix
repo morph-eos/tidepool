@@ -29,6 +29,10 @@ in
     # no suspend or hibernation of any kind: a server that must answer all the time
     systemd.targets = { sleep.enable = false; suspend.enable = false; hibernate.enable = false; hybrid-sleep.enable = false; };
 
+    # GNOME turns NetworkManager on, which cannot live with the declared network (wpa_supplicant and DHCP in wifi.nix: the build stops on this) and would take over the machine's only
+    # connection; the network stays as the configuration declares it, and the TV user may not change it anyway (the polkit rule below)
+    networking.networkmanager.enable = lib.mkForce false;
+
     programs.firefox.enable = true;
     # fewer ways to a shell from the session; this is a convenience, not a lock: a local user can still start one, which is why the rest is what limits it (no rights, polkit below, nix)
     environment.gnome.excludePackages = with pkgs; [ gnome-console gnome-terminal ];
