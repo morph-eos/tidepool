@@ -6,8 +6,23 @@
 let
   cfg = config.tidepool;
   user = cfg.desktop.user;
+  # what the session offers: the bar at the bottom first, then the other applications; every other entry is hidden for this user
+  offered = cfg.desktop.dash ++ cfg.desktop.apps;
 in
 {
+  options.tidepool.desktop = {
+    dash = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "firefox.desktop" "org.gnome.Nautilus.desktop" ];
+      description = "The applications of the bar at the bottom of the screen (GNOME's dash), in order, as the names of their desktop files. The browser first: the brand's start page and bookmarks are its.";
+    };
+    apps = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "org.gnome.Settings.desktop" "org.gnome.Loupe.desktop" "org.gnome.Showtime.desktop" "org.gnome.Papers.desktop" "org.gnome.Calculator.desktop" ];
+      description = "The other applications that the session shows (Show Applications), besides the bar's. Every other desktop entry of the system is hidden for this user only, by an entry of the same name in its own folder: the admin and the system keep theirs. A package added later is hidden until it is named here.";
+    };
+  };
+
   config = lib.mkIf cfg.desktop.enable {
     assertions = [
       { assertion = user != cfg.admin.name && user != "root"; message = "tidepool.desktop.user must not be the admin or root: the TV session is the user with no rights."; }
@@ -46,6 +61,8 @@ in
         # where the machine is is declared (modules/locale.nix), not asked of the network: no location service, no automatic time zone
         "org/gnome/system/location".enabled = false;
         "org/gnome/desktop/datetime".automatic-timezone = false;
+        # the bar at the bottom (the dash) is the declared list; no welcome tour on the first login
+        "org/gnome/shell" = { favorite-apps = cfg.desktop.dash; welcome-dialog-last-shown-version = "99.0"; };
         "org/gnome/desktop/lockdown" = { disable-lock-screen = true; disable-user-switching = true; disable-command-line = true; };
         "org/gnome/settings-daemon/plugins/power" = { sleep-inactive-ac-type = "nothing"; sleep-inactive-battery-type = "nothing"; idle-dim = false; };
       };
@@ -85,6 +102,30 @@ in
       after = [ "power-profiles-daemon.service" ];
       wants = [ "power-profiles-daemon.service" ];
       serviceConfig = { Type = "oneshot"; RemainAfterExit = true; ExecStart = "${pkgs.power-profiles-daemon}/bin/powerprofilesctl set ${cfg.desktop.powerProfile}"; };
+    };
+
+    # The grid of "Show Applications" lists every desktop entry of the system (here 35 of them: disk and log tools, the Syncthing page, a manual...), most of them useless or blocked for this
+    # user. GNOME has no list of the allowed ones; but an entry of the same name in the user's own folder shadows the system's, and NoDisplay hides it. So, before the session starts, every
+    # system entry that is not offered gets such a hiding entry (the ones this module made before are renewed, so a package that is gone leaves nothing behind).
+    systemd.services.tv-apps = {
+      description = "Hide the applications that the TV session does not offer, for its user only";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "display-manager.service" ];
+      restartTriggers = [ (pkgs.writeText "tv-apps" (lib.concatStringsSep " " offered)) ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        dir=/home/${user}/.local/share/applications
+        install -d -m 0755 -o ${user} -g ${user} /home/${user}/.local /home/${user}/.local/share "$dir"
+        for old in "$dir"/*.desktop; do
+          [ -e "$old" ] && grep -q '^X-Tidepool-Hidden=true' "$old" && rm -f "$old"
+        done
+        for f in /run/current-system/sw/share/applications/*.desktop; do
+          n=$(basename "$f")
+          case " ${lib.concatStringsSep " " offered} " in *" $n "*) continue ;; esac
+          printf '[Desktop Entry]\nType=Application\nName=%s\nNoDisplay=true\nX-Tidepool-Hidden=true\n' "''${n%.desktop}" > "$dir/$n"
+          chown ${user}:${user} "$dir/$n"
+        done
+      '';
     };
 
     # the Nix daemon is for the admin (a user that can build with Nix can run what it likes inside the sandbox's limits): root and the wheel group only
