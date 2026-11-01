@@ -25,6 +25,10 @@ in
       backup16 = mkOption { type = types.str; description = "The large disk: the repository of everything, the pgBackRest repository, the media."; };
       big2tb = mkOption { type = types.str; description = "The second disk: the offsite repository and the VM pool."; };
     };
+    desktop = {
+      enable = mkEnableOption "the TV session (ADR 0022): GNOME, started by itself for a user that can do almost nothing; the machine is also a media center. Off in the lab (no GPU, no screen)";
+      user = mkOption { type = types.str; default = "tv"; description = "The user of the TV session: no sudo, no extra group, no password, no ssh key."; };
+    };
     arcMaxMiB = mkOption { type = types.int; default = 3072; description = "Cap of the ZFS cache."; };
     mail.smtpLogin = mkOption { type = types.nullOr types.str; default = null; description = "The login Alertmanager presents to the SMTP relay (smtp-relay.brevo.com). Brevo's login is an id of its own (of the form `xxxxxx001@smtp-brevo.com`, on its SMTP page), not an address of your domain; the password is the sops secret `smtp-password`. null keeps `alerts@<domain>`, which only a relay that accepts that login will take."; };
     acmeDns.apiBase = mkOption { type = types.str; default = "https://auth.acme-dns.io"; description = "The acme-dns server that holds the certificates' challenge records (ADR 0008): the public instance. The registrations' credentials are the sops secret `acme-dns-credentials`."; };
