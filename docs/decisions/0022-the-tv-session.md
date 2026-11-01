@@ -17,6 +17,7 @@ The owner asked for **GNOME, started by itself** (no login screen), with one con
 - **Polkit** refuses that user the actions that a local session gets by default and that matter to a server: switching off, restarting or suspending the machine, managing units, the network, the disks, the hostname, the clock. Sleep and hibernation are off for the machine; the screen never locks (a locked session without a password would be a dead screen) and the lock-screen, user switching and the run dialog are off in a locked dconf profile.
 - **The network, toward the machine itself:** a firewall rule for that user alone lets it use the loopback (and so the machine's own addresses) for the web (ports 80 and 443, that is nginx, which applies the names, the certificates and each service's own login) and the DNS, and nothing else. Measured on the real machine, before the rule, that user opened Syncthing's interface (`127.0.0.1:8384`, protected only by nginx and the VPN) with no login, and Prometheus's; after it, neither answers, while the public names and the web outside do.
 - **The Nix daemon** is for root and the admin's group only.
+- **Look:** the brand's wallpaper, dark style and accent colour, and a start page in the browser, all from `brand.json` ([ADR 0020](0020-brand-identity.md), update of 2026-11-01).
 - **Software:** GNOME, Firefox. The terminal applications are left out of the session's menus.
 
 ## What it changes in what [ADR 0005](0005-storage-layout-and-filesystem.md) and the [encryption runbook](../encryption-runbook.md) say
