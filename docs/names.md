@@ -44,6 +44,14 @@ Nothing else of an instance is published: its other ports and SSH go through the
 
 A name that is nobody's (an unknown host, or `a.b.compute.<domain>`) gets **no answer**, on the public addresses and on the VPN address: over HTTPS the handshake is refused (no certificate is shown), over HTTP the connection is closed. An unknown instance under `compute.` answers 502. Podman containers (Jellyfin, Immich) are not Incus instances and have their own names above.
 
+## Names from inside the home network (the "hairpin" problem)
+
+The public names resolve to the home's public address. A device inside the home that asks for one goes out to that address and has to come back in through the router, which a number of home routers do not allow (NAT loopback, "hairpin"): the page does not open at home but opens on mobile data. Three cases:
+
+- **The machine itself** (a program on it asking for one of its own names: Immich logging in at `cloud.<domain>`, the push bridge, a browser on the TV session): **solved in the configuration.** `modules/edge.nix` makes every virtual host's name resolve on the machine to the machine (the public names to the loopback, the VPN-only ones to `10.100.0.1`), taken from nginx itself so that a name added later follows. The lab has a DNS that answers 127.0.0.1 for the same purpose.
+- **Another device of the home network.** The machine cannot fix it: the device asks the router's DNS. To find out whether it is a problem, from a device on the home Wi-Fi with the VPN off: `curl -I https://photos.<domain>`. If it answers, there is nothing to do. If it hangs, one of these, in this order: (1) the router's own DNS: a local record (many routers call it "local DNS", "host override" or "static DNS") for each public name, pointing at the machine's address in the home network; (2) the device's `hosts` file with the same lines (one line per name, the machine's home address first), device by device; (3) use the names only away from home or through the VPN. A name that is **VPN-only** (`admin.`, `sync.`, `metrics.`, `alerts.`) resolves to `10.100.0.1` for everyone and answers only through the tunnel; that is the design (ADR 0009), not the hairpin.
+- **The VPN itself.** The tunnel's endpoint is the dynamic-DNS name, so a device at home that starts the tunnel meets the same problem (UDP 51820). At home, give the device a profile whose endpoint is the machine's home address (the port is open on every interface), or leave the tunnel off while at home (the public names then need the router's DNS or the `hosts` lines above).
+
 ## What the DNS provider needs
 
 - **Public names:** the address of the house (an A record, or a CNAME to the dynamic-DNS name) for each of the six; a wildcard record covers them.
