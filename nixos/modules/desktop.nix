@@ -75,6 +75,15 @@ in
       '';
     };
 
+    # the profile is declared, not left to the last click (power-profiles-daemon comes with GNOME and remembers the last choice in its state file)
+    systemd.services.power-profile-default = lib.mkIf (cfg.desktop.powerProfile != null) {
+      description = "Set the declared power profile (${cfg.desktop.powerProfile})";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "power-profiles-daemon.service" ];
+      wants = [ "power-profiles-daemon.service" ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; ExecStart = "${pkgs.power-profiles-daemon}/bin/powerprofilesctl set ${cfg.desktop.powerProfile}"; };
+    };
+
     # the Nix daemon is for the admin (a user that can build with Nix can run what it likes inside the sandbox's limits): root and the wheel group only
     nix.settings.allowed-users = [ "root" "@wheel" ];
   };
