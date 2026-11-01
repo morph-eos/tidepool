@@ -104,8 +104,9 @@ in
   systemd.services.podman-immich-server = { after = [ "postgresql.service" ]; requires = [ "postgresql.service" ]; };
 
   systemd.tmpfiles.rules = [
-    "d /srv/data/immich 0755 root root -" "d /srv/data/immich/upload 0755 root root -" "d /srv/data/immich/model-cache 0755 root root -"
-    "d /srv/data/jellyfin 0755 root root -" "d /srv/data/jellyfin/config 0755 root root -" "d /srv/data/jellyfin/cache 0755 root root -"
+    # the photos and the media server's database (password hashes, API keys) are for the containers, which run as root: closed to every other local user, the TV session's included (ADR 0022)
+    "d /srv/data/immich 0700 root root -" "d /srv/data/immich/upload 0700 root root -" "d /srv/data/immich/model-cache 0700 root root -"
+    "d /srv/data/jellyfin 0700 root root -" "d /srv/data/jellyfin/config 0700 root root -" "d /srv/data/jellyfin/cache 0700 root root -"
     "d /srv/data/webdav 0750 nginx nginx -" "d /srv/data/webdav/.tmp 0750 nginx nginx -"
   ];
 }
