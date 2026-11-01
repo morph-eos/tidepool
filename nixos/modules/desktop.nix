@@ -16,6 +16,12 @@ in
       default = [ "firefox.desktop" "org.gnome.Nautilus.desktop" ];
       description = "The applications of the bar at the bottom of the screen (GNOME's dash), in order, as the names of their desktop files. The browser first: the brand's start page and bookmarks are its.";
     };
+    language = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "it_IT.UTF-8";
+      description = "The language of the TV session's interface (GNOME, the browser), for its user only: the machine's own language (tidepool.locale.language) stays what it is, English by default, because its logs are read and searched. null: the machine's language.";
+    };
     apps = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "org.gnome.Settings.desktop" "org.gnome.Loupe.desktop" "org.gnome.Showtime.desktop" "org.gnome.Papers.desktop" "org.gnome.Calculator.desktop" ];
@@ -125,6 +131,25 @@ in
           printf '[Desktop Entry]\nType=Application\nName=%s\nNoDisplay=true\nX-Tidepool-Hidden=true\n' "''${n%.desktop}" > "$dir/$n"
           chown ${user}:${user} "$dir/$n"
         done
+      '';
+    };
+
+    # The language of the session, for its user only. GNOME takes a user's language from AccountsService (the file Settings writes when someone picks one), and the login manager starts the
+    # session in it, the automatic login too; the locale must be generated, and the browser has its language pack. The machine's own language is not touched.
+    i18n.extraLocales = lib.mkIf (cfg.desktop.language != null) [ "${cfg.desktop.language}/UTF-8" ];
+    programs.firefox.languagePacks = lib.mkIf (cfg.desktop.language != null) [ (lib.head (lib.splitString "_" cfg.desktop.language)) ];
+    systemd.services.tv-language = lib.mkIf (cfg.desktop.language != null) {
+      description = "Set the language of the TV session's interface (${cfg.desktop.language})";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "display-manager.service" ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        f=/var/lib/AccountsService/users/${user}
+        install -d -m 0775 /var/lib/AccountsService /var/lib/AccountsService/users
+        if [ -f "$f" ] && grep -q '^Language=' "$f"; then sed -i 's/^Language=.*/Language=${cfg.desktop.language}/' "$f"
+        elif [ -f "$f" ]; then sed -i '/^\[User\]/a Language=${cfg.desktop.language}' "$f"
+        else printf '[User]\nLanguage=${cfg.desktop.language}\n' > "$f"; fi
+        chmod 600 "$f"
       '';
     };
 
