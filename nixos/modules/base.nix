@@ -12,7 +12,7 @@ let cfg = config.tidepool; in
   # the flake commands: the admin at a shell, Renovate's `nix flake update`, nixos-rebuild's own calls
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
-  time.timeZone = "Europe/Rome";
+  # the time zone, the language, the formats and the keyboard: modules/locale.nix (set in the private repository)
   services.timesyncd.enable = true;
 
   services.openssh = {

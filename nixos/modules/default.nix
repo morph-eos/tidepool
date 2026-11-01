@@ -4,6 +4,7 @@
   imports = [
     ./options.nix
     ./base.nix
+    ./locale.nix
     ./storage.nix
     ./encryption.nix
     ./hardware.nix

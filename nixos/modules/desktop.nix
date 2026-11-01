@@ -43,6 +43,9 @@ in
       settings = {
         "org/gnome/desktop/screensaver" = { lock-enabled = false; idle-activation-enabled = false; };
         "org/gnome/desktop/session".idle-delay = lib.gvariant.mkUint32 0;
+        # where the machine is is declared (modules/locale.nix), not asked of the network: no location service, no automatic time zone
+        "org/gnome/system/location".enabled = false;
+        "org/gnome/desktop/datetime".automatic-timezone = false;
         "org/gnome/desktop/lockdown" = { disable-lock-screen = true; disable-user-switching = true; disable-command-line = true; };
         "org/gnome/settings-daemon/plugins/power" = { sleep-inactive-ac-type = "nothing"; sleep-inactive-battery-type = "nothing"; idle-dim = false; };
       };

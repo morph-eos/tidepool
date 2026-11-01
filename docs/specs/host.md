@@ -13,7 +13,7 @@ and [`lab/experiments/check-host.sh`](../../lab/experiments/check-host.sh) verif
 | H05 | The kernel command line has `softlockup_panic=1`, and a crash kernel is **loaded** and reserves exactly 256 MiB | a lockup becomes a panic with a vmcore instead of a hung machine |
 | H06 | A `tidepool-fixperms.timer` exists, is enabled and active (it restores the executable bit on scripts) | Samba and macOS strip `+x` |
 | H07 | The data disk with serial `TPDATA0001` has an ext4 filesystem, mounted on `/mnt/nas` through a stable identifier in `fstab` (`UUID=` or `/dev/disk/by-...`, never `/dev/sdX`) | disks are identified by serial, never by `/dev/sdX` |
-| H08 | Time zone is `Europe/Rome` and the clock is synchronized | logs and cron must agree |
+| H08 | The time zone is the declared one (`tidepool.locale.timeZone`, `Europe/Rome` by default) and the clock is synchronized | logs and cron must agree |
 | H09 | `/etc/tidepool/secrets.env` exists, owned by root, mode 0600, and holds `TIDEPOOL_TEST_SECRET` | a secret is delivered without being world-readable (value never printed) |
 
 Not checked by the script, but measured for every candidate:
