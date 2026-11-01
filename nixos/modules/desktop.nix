@@ -38,6 +38,7 @@ in
     users.groups.${user} = { };
     users.users.${user} = {
       isNormalUser = true;
+      uid = cfg.desktop.uid;
       description = "the TV session";
       group = user;               # its own group: not "users", which the NAS share's user is in
       extraGroups = [ ];          # no wheel, no podman, no incus, no render/video (the session gets the screen and the sound from logind's seat)
@@ -94,9 +95,9 @@ in
       content = ''
         chain output {
           type filter hook output priority filter; policy accept;
-          meta skuid ${user} oifname "lo" tcp dport { 53, 80, 443 } accept
-          meta skuid ${user} oifname "lo" udp dport 53 accept
-          meta skuid ${user} oifname "lo" reject
+          meta skuid ${toString cfg.desktop.uid} oifname "lo" tcp dport { 53, 80, 443 } accept
+          meta skuid ${toString cfg.desktop.uid} oifname "lo" udp dport 53 accept
+          meta skuid ${toString cfg.desktop.uid} oifname "lo" reject
         }
       '';
     };
