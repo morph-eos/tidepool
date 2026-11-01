@@ -59,6 +59,22 @@ in
       });
     '';
 
+    # The services listen on the loopback with no password of their own where nginx and the VPN are the protection (Syncthing's interface, Prometheus, the APIs behind the names).
+    # A local session would reach them directly (measured on the real machine: Syncthing's interface opened for this user with no login). The TV user may use the loopback, which is
+    # also the machine's own addresses, for the web only (80 and 443: nginx, which applies the names, the certificates and each service's own login) and for the DNS; the rest of the
+    # network is not touched. Unix sockets are not covered: they are protected by their own file modes (and polkit above).
+    networking.nftables.tables.tv-session = {
+      family = "inet";
+      content = ''
+        chain output {
+          type filter hook output priority filter; policy accept;
+          meta skuid ${user} oifname "lo" tcp dport { 53, 80, 443 } accept
+          meta skuid ${user} oifname "lo" udp dport 53 accept
+          meta skuid ${user} oifname "lo" reject
+        }
+      '';
+    };
+
     # the Nix daemon is for the admin (a user that can build with Nix can run what it likes inside the sandbox's limits): root and the wheel group only
     nix.settings.allowed-users = [ "root" "@wheel" ];
   };
