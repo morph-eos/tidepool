@@ -28,6 +28,7 @@ in
     desktop = {
       enable = mkEnableOption "the TV session (ADR 0022): GNOME, started by itself for a user that can do almost nothing; the machine is also a media center. Off in the lab (no GPU, no screen)";
       user = mkOption { type = types.str; default = "tv"; description = "The user of the TV session: no sudo, no extra group, no password, no ssh key."; };
+      uid = mkOption { type = types.int; default = 1002; description = "The numeric id of that user. It is fixed because the firewall rule that keeps the session off the services' loopback ports names the user by number: the rule is checked when the system is built, where the user does not exist yet. Another user with the same id is an error at build time."; };
       powerProfile = mkOption {
         type = types.nullOr (types.enum [ "power-saver" "balanced" "performance" ]);
         default = null;
