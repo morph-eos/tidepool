@@ -6,7 +6,8 @@ let
   cfg = config.tidepool;
   enc = cfg.encryption;
   # a LUKS volume around some content: the TPM opens it once enrolled (modules/encryption.nix); until then the passphrase does
-  luks = name: content: { type = "luks"; inherit name content; passwordFile = enc.passphraseFile; settings = { allowDiscards = true; crypttabExtraOpts = [ "tpm2-device=auto" ]; }; };
+  # (tries=0: ask again for ever; with the default 3 a volume gives up after a few wrong answers and the boot ends in emergency mode, where root is locked on purpose)
+  luks = name: content: { type = "luks"; inherit name content; passwordFile = enc.passphraseFile; settings = { allowDiscards = true; crypttabExtraOpts = [ "tpm2-device=auto" "tries=0" ]; }; };
 in
 {
   disko.devices = {

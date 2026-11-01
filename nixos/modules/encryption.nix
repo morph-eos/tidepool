@@ -19,7 +19,7 @@ let cfg = config.tidepool.encryption; in
       boot.blacklistedKernelModules = [ "thunderbolt" "firewire-core" "firewire-ohci" "firewire-sbp2" ];
       # the 2 TB disk is a plain partition holding a LUKS volume, formatted by hand once (docs/restore-drill.md); nofail: its failure to open must not stop the boot
       boot.initrd.luks.devices = lib.mkIf cfg.big2tb {
-        big2tb = { device = config.tidepool.disks.big2tb; allowDiscards = true; crypttabExtraOpts = [ "tpm2-device=auto" "nofail" ]; };
+        big2tb = { device = config.tidepool.disks.big2tb; allowDiscards = true; crypttabExtraOpts = [ "tpm2-device=auto" "nofail" "tries=0" ]; };
       };
     }
     (lib.mkIf cfg.secureBoot {
