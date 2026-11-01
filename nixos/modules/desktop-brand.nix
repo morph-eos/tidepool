@@ -1,4 +1,4 @@
-# The brand on the TV session (ADR 0020 for the brand, ADR 0022 for the session): the wallpaper, GNOME's dark style and accent colour, the dash and Firefox's start page and bookmarks,
+# The brand on the TV session (ADR 0020 for the brand, ADR 0022 for the session): the wallpaper, GNOME's dark style and accent colour, Firefox's start page and bookmarks,
 # all made from the same brand.json (name, tagline, six colours, logo) as every other place, so a private repository that changes the brand changes this too.
 # Only where a program has a setting for it (GNOME's dconf, Firefox's enterprise policies): no program's own files are patched. On when the TV session and the brand are both on.
 { config, lib, pkgs, ... }:
@@ -81,7 +81,6 @@ in
         "org/gnome/desktop/background" = { picture-uri = "file://${wallpaper}"; picture-uri-dark = "file://${wallpaper}"; picture-options = "zoom"; primary-color = c.deep; secondary-color = c.deep; };
         "org/gnome/desktop/screensaver" = { picture-uri = "file://${wallpaper}"; primary-color = c.deep; };
         "org/gnome/desktop/interface" = { color-scheme = "prefer-dark"; accent-color = accent; };
-        "org/gnome/shell" = { favorite-apps = [ "firefox.desktop" ]; welcome-dialog-last-shown-version = "99.0"; };
       };
     }];
 

@@ -66,7 +66,7 @@ The owner asked to keep **only the parts a program supports** and to drop the tr
 The brand reaches the TV session too ([ADR 0022](0022-the-tv-session.md); `modules/desktop-brand.nix`, on when the session and the brand are both on), by the same rule: only where a program has a setting for it. From the same `brand.json`:
 
 - **The wallpaper:** an SVG made from the colours, the mark and the name (a wordmark with outlined letters takes their place when the brand has one), set through GNOME's settings; it fits any screen.
-- **GNOME's style:** dark, with the accent colour that is nearest to the brand's primary colour among the nine that GNOME names (a deployment cannot choose a tenth); the dash holds the browser only.
+- **GNOME's style:** dark, with the accent colour that is nearest to the brand's primary colour among the nine that GNOME names (a deployment cannot choose a tenth).
 - **Firefox:** a start page (a local file: no server, no network) with a tile for each service that exists on the machine, and the same links as bookmarks, set through the browser's enterprise policies; `tidepool.desktop.startPage.links` adds a private repository's own.
 - **The machine's pretty name** (`/etc/machine-info`), shown in the session's Settings. The host name itself stays what the configuration says.
 
