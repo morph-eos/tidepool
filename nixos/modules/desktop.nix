@@ -68,6 +68,9 @@ in
         # where the machine is is declared (modules/locale.nix), not asked of the network: no location service, no automatic time zone
         "org/gnome/system/location".enabled = false;
         "org/gnome/desktop/datetime".automatic-timezone = false;
+        # the keyboard is the one declared (modules/locale.nix): GNOME keeps its own list of input sources in the user's settings, written at the first login with whatever layout the machine had then,
+        # and would keep it after the layout is changed; here it is the declared one, and locked
+        "org/gnome/desktop/input-sources".sources = [ (lib.gvariant.mkTuple [ "xkb" (cfg.locale.keyboard.layout + lib.optionalString (cfg.locale.keyboard.variant != "") "+${cfg.locale.keyboard.variant}") ]) ];
         # the bar at the bottom (the dash) is the declared list; no welcome tour on the first login
         "org/gnome/shell" = { favorite-apps = cfg.desktop.dash; welcome-dialog-last-shown-version = "99.0"; };
         "org/gnome/desktop/lockdown" = { disable-lock-screen = true; disable-user-switching = true; disable-command-line = true; };
@@ -139,6 +142,11 @@ in
     # session in it, the automatic login too; the locale must be generated, and the browser has its language pack. The machine's own language is not touched.
     i18n.extraLocales = lib.mkIf (cfg.desktop.language != null) [ "${cfg.desktop.language}/UTF-8" ];
     programs.firefox.languagePacks = lib.mkIf (cfg.desktop.language != null) [ (lib.head (lib.splitString "_" cfg.desktop.language)) ];
+    # The session starts in that language (the login manager hands it over as GDM_LANG), but gnome-session then loads the machine's environment again, which sets LANG to the machine's
+    # language, and GNOME reads LANG. The environment's own last step puts it back, for this user alone and only in a session that the login manager started.
+    environment.extraInit = lib.mkIf (cfg.desktop.language != null) ''
+      if [ "$(${pkgs.coreutils}/bin/id -u)" = ${toString cfg.desktop.uid} ] && [ -n "$GDM_LANG" ]; then export LANG="$GDM_LANG"; fi
+    '';
     systemd.services.tv-language = lib.mkIf (cfg.desktop.language != null) {
       description = "Set the language of the TV session's interface (${cfg.desktop.language})";
       wantedBy = [ "multi-user.target" ];
