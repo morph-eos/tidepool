@@ -1,13 +1,13 @@
 # The documents
 
-**Picking the project up? Read [working-on-it.md](working-on-it.md) first** (the repositories, the rules, where each kind of thing is written), then [pending.md](pending.md) (everything that is still to be done in this repository: it is the only such list) and [the deployment runbook](deployment-runbook.md) (the order of the day).
+**Picking the project up? Read [working-on-it.md](working-on-it.md) first** (the repositories, the rules, where each kind of thing is written), then [pending.md](pending.md) (everything that is still to be done in this repository: it is the only such list).
 
 ## By what you want to do
 
 | I want to... | Read |
 |---|---|
 | know what is left to do | [pending.md](pending.md) |
-| do the first deployment | [deployment-runbook.md](deployment-runbook.md), with [migration-from-v0.md](migration-from-v0.md), [encryption-runbook.md](encryption-runbook.md), [restore-drill.md](restore-drill.md) |
+| do the first deployment | [encryption-runbook.md](encryption-runbook.md), [restore-drill.md](restore-drill.md), and the template's README |
 | know when something runs, and what an alert means | [schedule.md](schedule.md), [decisions/0012](decisions/0012-observability.md) |
 | see the names of the services and the DNS they need | [names.md](names.md) |
 | know how big things get | [capacity.md](capacity.md) |

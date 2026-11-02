@@ -129,7 +129,7 @@ The phone side, on an Android without Google services: there is no Firebase push
 
 With WiFi the share's address arrives late, and Samba's `bind interfaces only` fixed its addresses at the start: it is off now and the Samba units wait for the network and retry ([ADR 0019](0019-the-real-machine-network-and-hardware.md)); the firewall alone limits 445 to the LAN interface.
 
-The Samba user's password has no declarative path in the module (`smbpasswd` is a command). I chose one manual step at deployment (`smbpasswd -a <user>`, in the runbook), not an exception: the password database lives in `/var/lib/samba`, which is in the Borg job, so a restore brings it back. Declaring it would be a small unit reading a sops secret, exception 3, not built.
+The Samba user's password has no declarative path in the module (`smbpasswd` is a command). I chose one manual step at deployment (`smbpasswd -a <user>`), not an exception: the password database lives in `/var/lib/samba`, which is in the Borg job, so a restore brings it back. Declaring it would be a small unit reading a sops secret, exception 3, not built.
 
 ## 5. Found on the way: listeners
 

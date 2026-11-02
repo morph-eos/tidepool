@@ -17,7 +17,7 @@
 | tag `v0` | **the legacy**: v0's scripts and compose file as 19 snapshots reconstructed from backups, anonymized, with their own README. To look at them: `git show v0:README.md`, `git checkout v0`. They are the specification of what was migrated, unmaintained, with their security problems |
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
 | [docs/working-on-it.md](docs/working-on-it.md) | **start here when picking the project up**: the repositories and what each is for, the rules, where each kind of thing is written |
-| [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks (the order of the first deployment is in [the deployment runbook](docs/deployment-runbook.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
+| [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks ([the encryption stages](docs/encryption-runbook.md), [the restore drill](docs/restore-drill.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
 | [lab/](lab/README.md) | the tooling and the tests that need a running machine: QEMU/KVM VMs, **`lab/gate.sh`** (run before a push to `main`), the restore drill, the migration rehearsal; the one-off experiments behind the decision records are in `lab/experiments/` |
 | [private-repo-template/](private-repo-template/) ([how it works](docs/private-repository.md)) | the template of the **private** repository that holds one machine's values and secrets and imports this one |
 
@@ -64,7 +64,6 @@ record the measurements, decide in a record, freeze. In the lab, with the data o
 - **the restore drill** installs the host on an empty VM, seeds data, destroys the disks, rebuilds from the flake and restores, then checks the data, the databases and the backups;
 - **the encrypted layout** (LUKS, an emulated TPM, signed boot images, a kernel update) is tried on a UEFI VM with Secure Boot;
 - **the deploy chain** (private repository, pin bump, backups before the switch, the reboot window) and **the WiFi** (a virtual radio) have their own scripts;
-- **the move from v0** is rehearsed on a replica running v0's exact versions: [docs/migration-from-v0.md](docs/migration-from-v0.md).
 
 The lab's times are lab times (nested VMs, a slow link): they say what changes, not how long the real machine will take.
 

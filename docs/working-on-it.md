@@ -32,7 +32,7 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 | Why a decision was made, what was measured | `docs/decisions/NNNN-*.md`; a later change is an "Update" section at the end, the history is not rewritten |
 | What the system is, one decision per row | [the README](../README.md) |
 | What is left, and who it waits for | [pending.md](pending.md) |
-| The order of the day of the move from v0 | [deployment-runbook.md](deployment-runbook.md), with [the migration](migration-from-v0.md), [the encryption stages](encryption-runbook.md), [the restore drill](restore-drill.md) |
+| The encryption stages and the restore drill | [the encryption stages](encryption-runbook.md), [the restore drill](restore-drill.md) |
 | Custom glue that breaks "clean over clever" | [exceptions.md](exceptions.md): an entry in the same commit as the glue |
 | Times and cadences of everything automatic | [schedule.md](schedule.md) |
 | Names of the services, and the DNS they need | [names.md](names.md) |
@@ -41,6 +41,6 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 | How to prove a change | `lab/gate.sh` before `main`; the CI on every pull request; `lab/vm.sh` makes the VMs; `lab/experiments/` holds the scripts behind the decision records' numbers |
 
 ## Picking up after losing the thread
-1. Read [pending.md](pending.md) (what is left) and [the runbook](deployment-runbook.md) (the order of the day).
+1. Read [pending.md](pending.md) (what is left).
 2. Check the state: `git log --oneline -20` here; the private repository's `tools/check.sh` lists what is still a placeholder.
 3. Change things the way the rule says: lab first, a record of what was measured, the docs in the same commit.
