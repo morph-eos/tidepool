@@ -50,3 +50,12 @@ An NVMe M.2 drive, on its way. The plan of [ADR 0005](0005-storage-layout-and-fi
 
 - `modules/hardware.nix` and `modules/wifi.nix`; the private template turns the WiFi on and says how to compute the key; `nas.nix` changed as above.
 - [Pending](../pending.md): the SSD's by-id path when it arrives; the router's reservation; the radio on the real card.
+
+## Update (2026-11-02): the machine stays on WiFi, it is not a stopgap
+
+The owner decided to **keep the machine on WiFi**: the Ethernet cable is not planned, and the title's "until the cable" is no longer a plan. What this settles and what it leaves open:
+
+- **Nothing changes in the flake**: the `wifi` block and `lanInterface` stay as they are; the "with the cable" steps of section 2 remain the way to change one's mind (remove `wifi`, name the Ethernet interface, move the router's reservation to that port's address).
+- **Seen on the real card since the cutover:** the firmware loads, the machine reconnects at every boot, the interface counts no receive or transmit error, and a 145 GB upload to the offsite copy ran at 110 to 155 Mbit/s while the services kept working. The first days (the backups, the checks of the Borg repositories, the restore of samples from them) all ran over it. The radio's power saving was not read on the live card (`iw` is not installed there): check it when the tool is at hand.
+- **Rules that depend on the interface by name:** the SSH port is also open on the WiFi interface, from the home network only (a forwarded port arrives on that same interface, so the interface alone would also let the router's forwards in); the NAS and Avahi follow `lanInterface`. A change of interface needs those lines changed together.
+- **Still to try:** the reconnection after a router restart (the machine's address comes from a reservation by the card's address, so it should come back by itself), and Time Machine over the air once it is switched on. The heartbeat to the outside service says so if the machine drops off the network.

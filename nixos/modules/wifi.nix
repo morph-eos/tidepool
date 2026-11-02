@@ -1,5 +1,5 @@
-# The server on WiFi (the Ethernet cable is not connected yet, 2026-10-05): wpa_supplicant through the NixOS module, the passphrase a sops secret, the radio's power saving off.
-# Off by default: tidepool.wifi.enable. With the cable, set tidepool.lanInterface to its name and leave this off.
+# The server on WiFi (the owner keeps it on WiFi, ADR 0019, update 2026-11-02): wpa_supplicant through the NixOS module, the passphrase a sops secret, the radio's power saving off.
+# Off by default: tidepool.wifi.enable. On a machine that is cabled instead, set tidepool.lanInterface to the cable's interface name and leave this off.
 { config, lib, pkgs, ... }:
 let cfg = config.tidepool.wifi; in
 {
