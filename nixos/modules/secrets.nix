@@ -8,7 +8,7 @@ let cfg = config.tidepool; in
     borg-passphrase = { };
     pgbackrest-cipher = { };
     nextcloud-admin-pass = { owner = "nextcloud"; };
-    vaultwarden-env = { owner = "vaultwarden"; };
+    vaultwarden-env = { owner = "vaultwarden"; restartUnits = [ "vaultwarden.service" ]; };   # it is an EnvironmentFile: the service reads it only at start
     webdav-htpasswd = { owner = "nginx"; };
     wg-private-key = { };
     smtp-password = { };
