@@ -18,7 +18,7 @@
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
 | [docs/working-on-it.md](docs/working-on-it.md) | **start here when picking the project up**: the repositories and what each is for, the rules, where each kind of thing is written |
 | [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks ([the encryption stages](docs/encryption-runbook.md), [the restore drill](docs/restore-drill.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
-| [lab/](lab/README.md) | the tooling and the tests that need a running machine: QEMU/KVM VMs, **`lab/gate.sh`** (run before a push to `main`), the restore drill, the migration rehearsal; the one-off experiments behind the decision records are in `lab/experiments/` |
+| [lab/](lab/README.md) | the tooling and the tests that need a running machine: QEMU/KVM VMs, **`lab/gate.sh`** (run before a push to `main`), the restore drill; the one-off experiments behind the decision records are in `lab/experiments/` |
 | [private-repo-template/](private-repo-template/) ([how it works](docs/private-repository.md)) | the template of the **private** repository that holds one machine's values and secrets and imports this one |
 
 ## What the system is
@@ -58,7 +58,7 @@ only after a new kernel. The private repository can add modules of its own, whic
 ## How it is proved
 
 Every phase follows [the same loop](docs/method.md): frame the problem, write the criteria first, try the candidates in throwaway VMs with a time box,
-record the measurements, decide in a record, freeze. In the lab, with the data of a replica of v0:
+record the measurements, decide in a record, freeze. In the lab, with generated data:
 
 - `nix flake check` builds the lab host and the example real host and checks the version-watch rules (it also runs in CI);
 - **the restore drill** installs the host on an empty VM, seeds data, destroys the disks, rebuilds from the flake and restores, then checks the data, the databases and the backups;
