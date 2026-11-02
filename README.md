@@ -14,7 +14,6 @@
 | Where | What |
 |---|---|
 | branch `main` | what is published and what the server deploys: the integrated result of the closed phases. Once the repository is public it is protected by [a ruleset](.github/rulesets/main.json) |
-| branch `reengineering` | where the phases are developed; merged into `main` when a phase closes |
 | tag `v0` | **the legacy**: v0's scripts and compose file as 19 snapshots reconstructed from backups, anonymized, with their own README. To look at them: `git show v0:README.md`, `git checkout v0`. They are the specification of what was migrated, unmaintained, with their security problems |
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
 | [docs/working-on-it.md](docs/working-on-it.md) | **start here when picking the project up**: the repositories and what each is for, the rules, where each kind of thing is written |

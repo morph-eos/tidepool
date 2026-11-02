@@ -15,7 +15,6 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 
 ## Branches and merging
 - `main` is protected by [a ruleset](../.github/rulesets/main.json) (no approval required, no bypass, see [ADR 0018 section 7](decisions/0018-deploys-by-the-server.md)): a pull request, the `flake-check` job passing, squash merges only, signed commits (GitHub signs the squash), no force push. There is no bypass for anyone: I merge a pull request like any author, once `flake-check` is green and the branch is up to date with `main`; never by pushing.
-- `reengineering` is kept equal to `main` (the development branch of the earlier phases).
 - A change: a branch, **`lab/gate.sh` when the change touches what it covers**, a pull request (the description ends with the generation line when an assistant wrote it), CI green, squash merge, then `reengineering` moved to `main`. CI quirk: a push of more than three refs at once creates no workflow run.
 - `git reset --hard` discards staged work: commit or stash first.
 
