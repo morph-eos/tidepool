@@ -19,7 +19,7 @@ in
         partitions = {
           boot = if cfg.boot.mode == "bios"
             then { size = "1M"; type = "EF02"; }
-            else { size = "1G"; type = "EF00"; content = { type = "filesystem"; format = "vfat"; mountpoint = "/boot"; }; };
+            else { size = "1G"; type = "EF00"; content = { type = "filesystem"; format = "vfat"; mountpoint = "/boot"; mountOptions = [ "fmask=0077" "dmask=0077" ]; }; };   # the loader's random seed is on this partition: closed to everyone but root (systemd warns otherwise)
           root = { size = "100%"; content = let fs = { type = "filesystem"; format = "ext4"; mountpoint = "/"; }; in if enc.enable then luks "cryptroot" fs else fs; };
         };
       };

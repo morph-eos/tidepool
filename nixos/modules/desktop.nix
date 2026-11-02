@@ -108,7 +108,7 @@ in
     # the profile is declared, not left to the last click (power-profiles-daemon comes with GNOME and remembers the last choice in its state file)
     systemd.services.power-profile-default = lib.mkIf (cfg.desktop.powerProfile != null) {
       description = "Set the declared power profile (${cfg.desktop.powerProfile})";
-      wantedBy = [ "multi-user.target" ];
+      wantedBy = [ "graphical.target" ];   # not multi-user.target: the daemon starts after it (and is wanted by graphical.target), so that made an ordering cycle and systemd dropped a job at every boot
       after = [ "power-profiles-daemon.service" ];
       wants = [ "power-profiles-daemon.service" ];
       serviceConfig = { Type = "oneshot"; RemainAfterExit = true; ExecStart = "${pkgs.power-profiles-daemon}/bin/powerprofilesctl set ${cfg.desktop.powerProfile}"; };

@@ -98,7 +98,8 @@ in
     jellyfin = {
       image = "docker.io/jellyfin/jellyfin:12.1@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e";
       volumes = [ "/srv/data/jellyfin/config:/config" "/srv/data/jellyfin/cache:/cache" ] ++ lib.mapAttrsToList (inside: outside: "${outside}:${inside}:ro") cfg.services.jellyfin.mediaMounts;
-      extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
+      # the image's own health check is off: podman runs it once the second the container starts, before Jellyfin listens, and that run, a transient unit that exits 1, left the whole system "degraded" after every boot. The site is watched by its probe instead.
+      extraOptions = [ "--network=host" "--no-healthcheck" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };
   };
   systemd.services.podman-immich-server = { after = [ "postgresql.service" ]; requires = [ "postgresql.service" ]; };
