@@ -10,7 +10,7 @@ let
     lock_wait = 43200;   # the other way round: borgmatic waits for a long first backup (same 12 hours as the jobs, backup.nix)
   };
   # the timer below is the only schedule: weekly, Sunday night. Every run does all three checks (`data` implies `archives`): every byte of every archive, once a week
-  # (the owner's choice, 2026-10-02). No `frequency` or `only_run_on` here: a second schedule inside borgmatic drifted by a day a week and could skip a missed Sunday silently.
+  # (a deliberate choice). No `frequency` or `only_run_on` here: a second schedule inside borgmatic drifted by a day a week and could skip a missed Sunday silently.
   checks = [
     { name = "repository"; }
     { name = "extract"; }

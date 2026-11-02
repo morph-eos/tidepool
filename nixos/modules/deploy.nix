@@ -37,7 +37,7 @@ in
     interval = lib.mkOption { type = lib.types.str; default = "*:0/10"; description = "How often the server looks (a systemd calendar expression)."; };
   };
   config = lib.mkIf cfg.enable (lib.mkMerge [ {
-    environment.systemPackages = [ pkgs.git ];   # the flake is fetched from git repositories; the owner will look at them from a shell
+    environment.systemPackages = [ pkgs.git ];   # the flake is fetched from git repositories; the operator looks at them from a shell
     system.autoUpgrade = {
       enable = true;
       operation = "switch";
@@ -45,7 +45,7 @@ in
       flags = [ "--refresh" "--no-write-lock-file" ] ++ lib.concatLists (lib.mapAttrsToList (name: url: [ "--override-input" name url ]) cfg.inputs);
       dates = cfg.interval;
       randomizedDelaySec = "0";
-      allowReboot = cfg.reboot.allow;   # off: a new kernel waits for the owner's reboot (the disk is unlocked by the TPM, not yet tried with a kernel update)
+      allowReboot = cfg.reboot.allow;   # off: a new kernel waits for the operator's reboot
       rebootWindow = cfg.reboot.window;
     };
     # only when the incoming system differs from the running one (the timer runs often; nothing changes most times) and the backup units exist (not at an installation)

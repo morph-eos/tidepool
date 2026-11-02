@@ -31,7 +31,7 @@ groups:
         ((tidepool:upstream_mine unless on (app, version) tidepool_deployed_info) and on (app) last_over_time(tidepool_nixpkgs_latest_latest[3h]))
         unless on (app, version) last_over_time(tidepool_nixpkgs_latest_latest[3h])
       ) or on (app) (0 * max by (app) (tidepool_deployed_info))
-  # a newer release LINE exists upstream than the one running (a major): a reminder, the decision to move is the owner's
+  # a newer release LINE exists upstream than the one running (a major): a reminder, the decision to move is the operator's
   - record: tidepool:behind_major
     expr: max by (app) (last_over_time(tidepool_upstream_cycle_number{eol="false"}[3h])) > bool on (app) max by (app) (tidepool_deployed_cycle)
   # the running line no longer gets fixes at all

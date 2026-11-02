@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     sops-nix = { url = "github:Mic92/sops-nix"; inputs.nixpkgs.follows = "nixpkgs"; };
     disko = { url = "github:nix-community/disko"; inputs.nixpkgs.follows = "nixpkgs"; };
-    lanzaboote = { url = "github:nix-community/lanzaboote/v1.2.0"; inputs.nixpkgs.follows = "nixpkgs"; };   # signed boot images (Secure Boot with the owner's keys), ADR 0005
+    lanzaboote = { url = "github:nix-community/lanzaboote/v1.2.0"; inputs.nixpkgs.follows = "nixpkgs"; };   # signed boot images (Secure Boot with the operator's own keys), ADR 0005
   };
 
   outputs = { self, nixpkgs, sops-nix, disko, lanzaboote, ... }:
