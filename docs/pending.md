@@ -75,7 +75,7 @@ Built into the flake and measured in the lab: the NAS, push through ntfy on the 
 | **The Samba user's password**: `smbpasswd -a <user>` once; the database is in the Borg job. Whether to publish the media tree as a second share | a decision; if the password or an alias (`username map`) is declared it becomes a new entry in the exceptions register |
 | **The NAS on the LAN:** the interface name is the WiFi one ([ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md)); the Time Machine partition is made ext4 after the move has settled, not at the cutover (Linux cannot write a journaled HFS+; the host declares neither the share nor its mount until then); a Mac that sees the share and backs up to it | real hardware and a Mac |
 | **The version watch on real hardware:** the first weekend mail (a deliberately old lock proves it), whether the monthly tier (waiting on nixpkgs, majors, end of life) is the right amount of mail; Incus is not watched (LTS against feature releases: a line-aware source is missing) | a weekend after the deployment |
-| **Nextcloud after the deployment:** start at 33, then 34 and 35 as separate deploys with a ZFS snapshot before each ([ADR 0017 section 9](decisions/0017-version-watch-push-and-nas.md)) | real hardware; 35 when nixpkgs has a settled 35.0.x |
+| **Nextcloud after the deployment:** start at 33, then 34 and 35 as separate deploys with a ZFS snapshot before each ([ADR 0017 section 8](decisions/0017-version-watch-push-and-nas.md)) | real hardware; 35 when nixpkgs has a settled 35.0.x |
 
 ## The deploy chain and real hardware ([ADR 0018](decisions/0018-deploys-by-the-server.md), [ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md))
 
