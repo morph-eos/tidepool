@@ -34,6 +34,14 @@ Those pages said that a casual thief who switches the machine on gets nothing, b
 - It does not make the session a kiosk: a local user can start other programs (a shell too, from Firefox's file dialogs or its other features). The limit is what that user may do, not what it may start.
 - The checks made on the real machine (2026-11-01), as that user: no `sudo`, no group; polkit refuses switching off, restarting, suspending, units and disks (asked with `pkcheck`, never run); the files of the services, the backups, the secrets and the signing keys are not readable (only the names of some folders are visible); the databases refuse it; Syncthing's and Prometheus's interfaces are closed to it by the rule. Not yet checked: that the sound and the hardware video decode work in the browser, and what the screen shows. The lab has no screen. The list of what to look at again after a change: it cannot `sudo`; it cannot list or read the data of the services, the NAS share, the backups or the secrets; it cannot connect to the databases; it cannot power off, restart or suspend from the menu; the sound and the hardware video decode work in the browser.
 
+## Found at the first reboots on the real machine (2026-11-02)
+
+Three small things that the lab did not show, each seen in the journal of the first boots:
+
+- **An ordering cycle at every boot** (`multi-user.target` waiting for `power-profile-default`, which waited for `power-profiles-daemon`, which starts after `multi-user.target`): the unit that sets the declared profile is now wanted by `graphical.target`, where the daemon itself is wanted. systemd had been dropping one job at each boot; the profile was applied anyway.
+- **The system reported "degraded" after every boot**, because podman runs the container image's own health check once, a second after the start, before Jellyfin listens; that run is a transient unit that exits 1 and stays failed. The Jellyfin container now starts with `--no-healthcheck`; the site stays watched by the HTTPS probe of the observability module (`/health`), which is the check that matters. (The lab's gate had a known flake from the same cause, the first switch to the brand host failing with exit 4.)
+- **The loader's random seed was readable by everybody** (systemd's warning): the boot partition is mounted with `fmask=0077,dmask=0077`. Proved by a fresh install of the lab host and by the restore drill (which rebuilds the host from blank with these options).
+
 ## To decide after a few weeks of use
 
 Keep it as it is, or move to a kiosk (one application, no desktop) if the family only ever uses a browser or a media client.
