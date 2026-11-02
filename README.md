@@ -44,7 +44,7 @@ One decision per row, each with its measurements in the linked record. The rule 
 | VMs | Incus, with two pools | [0013](docs/decisions/0013-vms-and-containers.md) |
 | Proof | the host is rebuilt from an empty disk and the data restored, on demand: the restore drill | [0014](docs/decisions/0014-automation-and-restore-drill.md), [runbook](docs/restore-drill.md) |
 | Updates and deploys | a version watch, Renovate on the server, the server pulls what was merged, the backups run first | [0016](docs/decisions/0016-updates-deploys-and-checks.md), [0017](docs/decisions/0017-version-watch-push-and-nas.md), [0018](docs/decisions/0018-deploys-by-the-server.md) |
-| The real machine | its hardware module, WiFi until the cable, the new SSD | [0019](docs/decisions/0019-the-real-machine-network-and-hardware.md) |
+| The real machine | its hardware module, WiFi (kept), the new SSD | [0019](docs/decisions/0019-the-real-machine-network-and-hardware.md) |
 
 ## How a deploy works
 
