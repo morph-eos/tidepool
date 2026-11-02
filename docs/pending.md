@@ -1,8 +1,8 @@
 # Pending items
 
-Things not done yet, so they are not lost. Each waits for an operator's action, for a deployment on real hardware, or for a decision. **This is the only list of what is left to do in this repository**: the other documents point here (a to-do anywhere else is a mistake, and the CI's `docs` check says so).
+Things not done yet, so they are not lost. Each waits for something I have to do, for a deployment on real hardware, or for a decision. **This is the only list of what is left to do in this repository**: the other documents point here (a to-do anywhere else is a mistake, and the CI's `docs` check says so).
 
-## Waiting for the operator
+## Waiting for accounts, DNS and devices
 
 | Item | Why it waits | Blocks |
 |---|---|---|
@@ -72,7 +72,7 @@ Built into the flake and measured in the lab: the NAS, push through ntfy on the 
 |---|---|
 | **DNS name `push.<domain>`** (the wildcard certificate covers it); the two ntfy logins (`phone`, `bridge`: long random passwords in the sops file, the phone's typed once into the app) | the deployment; on an Android without Google services the ntfy app keeps its own connection and no relay is needed |
 | **Try push on a real phone** | real hardware |
-| **The Samba user's password**: `smbpasswd -a <user>` once; the database is in the Borg job. Whether to publish the media tree as a second share | the operator; if the password or an alias (`username map`) is declared it becomes a new entry in the exceptions register |
+| **The Samba user's password**: `smbpasswd -a <user>` once; the database is in the Borg job. Whether to publish the media tree as a second share | a decision; if the password or an alias (`username map`) is declared it becomes a new entry in the exceptions register |
 | **The NAS on the LAN:** the interface name is the WiFi one ([ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md)); the Time Machine partition is made ext4 after the move has settled, not at the cutover (Linux cannot write a journaled HFS+; the host declares neither the share nor its mount until then); a Mac that sees the share and backs up to it | real hardware and a Mac |
 | **The version watch on real hardware:** the first weekend mail (a deliberately old lock proves it), whether the monthly tier (waiting on nixpkgs, majors, end of life) is the right amount of mail; Incus is not watched (LTS against feature releases: a line-aware source is missing) | a weekend after the deployment |
 | **Nextcloud after the deployment:** start at 33, then 34 and 35 as separate deploys with a ZFS snapshot before each ([ADR 0017 section 9](decisions/0017-version-watch-push-and-nas.md)) | real hardware; 35 when nixpkgs has a settled 35.0.x |
@@ -82,7 +82,7 @@ Built into the flake and measured in the lab: the NAS, push through ntfy on the 
 | Item | Why it waits |
 |---|---|
 | **The names of the Incus instances** ([ADR 0010](decisions/0010-vm-service-exposure.md), [names](names.md)): the zone's certificate is ordered (the secret `acme-dns-credentials` needs both registrations' usernames and passwords), the CAA record is checked again after it, an instance answers over the VPN and not without it, `ssh <instance>.incus` works from a device that sends the `.incus` names to the server (not tried on a real client) | real hardware and the accounts |
-| **The brand and the single sign-on on real hardware** ([ADR 0020](decisions/0020-brand-identity.md)): the social preview image (`docs/brand/social-preview.png`) uploaded in the repository's settings (a manual step); the first login through Nextcloud with real accounts (each needs an email address) and what happens to Immich users that already exist with the same email (not tried); the identity itself, which is a placeholder | the operator; real hardware |
+| **The brand and the single sign-on on real hardware** ([ADR 0020](decisions/0020-brand-identity.md)): the social preview image (`docs/brand/social-preview.png`) uploaded in the repository's settings (a manual step); the first login through Nextcloud with real accounts (each needs an email address) and what happens to Immich users that already exist with the same email (not tried); the identity itself, which is a placeholder | a decision; real hardware |
 | **WiFi on a real card** ([ADR 0019](decisions/0019-the-real-machine-network-and-hardware.md)): the reconnection after a router restart, the NAS from real clients over the air, the radio's power saving read on the live card, and Time Machine when it is switched on | real hardware |
 | **A machine user for Renovate:** a second free GitHub account, the Write role on the public repository (not Admin), a fine-grained token (contents and pull requests, that repository only) in the private sops file as `renovate-token`; note its expiry date. Renovate's first run follows: `renovate.json` has not run yet (the `check` workflow already runs on GitHub) | an account |
 | **Backup times with real data**: a deploy waits for Borg of everything, Borg offsite and a pgBackRest differential; a deploy during the Sunday checks waits for them | real hardware |

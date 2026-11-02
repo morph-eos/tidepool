@@ -58,7 +58,7 @@ Nothing in the design depends on the interface. The initrd already loads `ahci` 
 
 ## 5. WiFi is a supported permanent link, not a stopgap
 
-The cable is optional, and the design does not push towards it. The `wifi` block and `lanInterface` are all the flake needs, and the "with a cable" steps of section 2 remain the way to change one's mind.
+The cable is optional and I do not plan to connect one; the design does not push towards it. The `wifi` block and `lanInterface` are all the flake needs, and the "with a cable" steps of section 2 remain the way to change one's mind.
 
 - Rules that depend on the interface by name: the SSH port is also open on the WiFi interface, from the home network only (a forwarded port arrives on that same interface, so the interface alone would also let the router's forwards in); the NAS and Avahi follow `lanInterface`. A change of interface needs those lines changed together.
 - Seen on real hardware: the firmware loads, the machine reconnects at every boot, the interface counts no receive or transmit error, and a large sustained upload ran at 100 Mbit/s or more while the services kept working.

@@ -21,7 +21,7 @@ The media library does not go offsite: the space it would need, and its running 
 
 - Must: a corrupted block is noticed (an error, not wrong data). A periodic check (scrub) finds latent damage before a restore needs the data. It works on NixOS with the pinned kernel.
 - Should: a way to back up to an untrusted remote without giving it the key; a modest memory footprint, since the machine is also a media center; self-repair where a second copy exists.
-- Should not: parity RAID on btrfs (not considered safe), or any setup that needs its operator to learn a storage stack before the data is safe.
+- Should not: parity RAID on btrfs (not considered safe), or any setup that needs someone to learn a storage stack before the data is safe.
 - Cheap local snapshots were a requirement at first. They were dropped later in favour of the Borg repositories, see the decision.
 
 ## Options considered
@@ -109,7 +109,7 @@ What the TPM protects, and what it does not:
 
 - A disk taken out and connected to another computer is protected: the key is sealed in the original machine's TPM.
 - The whole machine booted by a thief is protected only if the boot chain is locked. A password at the login is not what stops the thief, because they do not need to log in: the TPM releases the key to whatever boots on that machine if the measurements it was sealed against still match. With Secure Boot off, the measurement usually used (PCR 7) is a constant, so an attacker's USB stick can get the key released ([systemd-cryptenroll](https://man.archlinux.org/man/systemd-cryptenroll.1)).
-- What makes the stolen-machine case hold is Secure Boot enforced with a signed boot image, the boot loader's command-line editor off, and a firmware password. On NixOS the boot image is signed with the operator's own keys through lanzaboote, with `sbctl` creating them.
+- What makes the stolen-machine case hold is Secure Boot enforced with a signed boot image, the boot loader's command-line editor off, and a firmware password. On NixOS the boot image is signed with its own keys through lanzaboote, with `sbctl` creating them.
 
 The unattended-reboot trade-off is the real decision. A reboot by itself after a kernel update is only safe if the seal survives the update, so the key is sealed to PCR 7 only (the Secure Boot state and the key that signs the image), not to the kernel image, and there is no PIN at boot, since a PIN stops every unattended reboot.
 
@@ -120,13 +120,13 @@ Two designs were compared:
 - A. TPM only, hardened (PCR 7, no console login, emergency shell off, IOMMU on, Thunderbolt off, firmware password). Unattended reboots work. A casual burglar gets nothing; a skilled one with the whole machine might.
 - B. TPM with a PIN. The stolen machine is protected, but every reboot waits for the PIN, so the automatic reboot of [ADR 0018](0018-deploys-by-the-server.md) cannot work.
 
-A was chosen. The realistic threat is an opportunistic burglar, the attack needs the whole machine and some preparation, and a PIN would make every weekly reboot a manual one. The residual risk, a skilled and targeted thief with the whole machine, is accepted. PCR 15 binding was not adopted: it needs a policy that depends on the order in which the volumes open, and the simple form of it is a redesign, left for later if the risk is ever to be lowered.
+I chose A. The realistic threat is an opportunistic burglar, the attack needs the whole machine and some preparation, and a PIN would make every weekly reboot a manual one. I accept the residual risk, a skilled and targeted thief with the whole machine. I did not adopt PCR 15 binding: it needs a policy that depends on the order in which the volumes open, and the simple form of it is a redesign, left for later if the risk is ever to be lowered.
 
 Tried in the lab (`lab/experiments/tpm-u21.sh`, with UEFI, a Secure Boot firmware and an emulated TPM 2.0): LUKS under the root, the ZFS pool and the mid-size disk; lanzaboote with its own keys, enrolled by the firmware; each volume sealed to PCR 7. The machine boots by itself in about 30 s. A kernel change (6.18 to 6.12) and a reboot left PCR 7 unchanged and the disks opened by themselves. The disks behind another TPM asked for the passphrase. Another system started on the machine, such as the installer, changed PCR 7 and the TPM refused. Two findings: a firmware reset did not matter, because lanzaboote's automatic enrollment put the same keys back; and `sbctl` has to be installed before Secure Boot is switched on, since the first lanzaboote switch stops without keys. Not tried in the lab: the swap attack, a PIN. The steps are in [the encryption runbook](../encryption-runbook.md).
 
 ### No dedicated media disk
 
-A separate disk for the media library, so that the large disk could hold its second copy, was considered and not adopted. The library stays on the large disk in one copy.
+I considered a separate disk for the media library, so that the large disk could hold its second copy, and did not buy one. The library stays on the large disk in one copy.
 
 | Option | Verdict |
 |---|---|
@@ -153,10 +153,10 @@ Whether 16 GB is enough was settled with a peak budget, not a purchase. Estimate
 | B. One SSD now, the second added later | the server stops until the SSD is replaced and restored from the large disk (hours); `zpool attach` turns the single disk into a mirror online later |
 | C. No new SSD: the services on the large disk | the large disk dying stops the services until restored; the slowest option |
 
-   B was chosen, with the roles above.
-4. Snapshots were dropped: Borg already holds what a snapshot would undo, and snapshots cost space.
+   I chose B, with the roles above.
+4. I dropped snapshots: Borg already holds what a snapshot would undo, and snapshots cost space.
 5. The large disk was first to be encrypted; with snapshots replaced by Borg it holds encrypted repositories, the media and an encrypted Time Machine partition, so it is not.
-6. Self-healing was deferred to a real second SSD.
+6. I deferred self-healing to a real second SSD.
 
 ## Consequences
 
