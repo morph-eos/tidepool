@@ -32,7 +32,7 @@ One decision per row, each with its measurements in the linked record. The rule 
 |---|---|---|
 | Host | NixOS 26.05 flake; one lab host and one real host built from the same modules | [0002](docs/decisions/0002-host-as-code.md) |
 | Secrets | sops-nix with age; the repository holds only encrypted files | [0003](docs/decisions/0003-secrets.md) |
-| Storage and boot | ZFS for the services, ext4 for the big disks; LUKS on every disk, opened by the TPM (PCR 7 only), signed boot images (Secure Boot with the owner's keys) | [0005](docs/decisions/0005-storage-layout-and-filesystem.md), [runbook](docs/encryption-runbook.md) |
+| Storage and boot | ZFS for the services, ext4 for the big disks; LUKS on every disk, opened by the TPM (PCR 7 only), signed boot images (Secure Boot with its own keys) | [0005](docs/decisions/0005-storage-layout-and-filesystem.md), [runbook](docs/encryption-runbook.md) |
 | Databases and Immich | PostgreSQL 17 as a native service; Immich in containers pinned by digest | [0006](docs/decisions/0006-postgresql-version-and-immich.md) |
 | Backups | pgBackRest for the databases; Borg, two repositories, for the files; an offsite copy; checks that restore | [0004](docs/decisions/0004-backup.md), [0007](docs/decisions/0007-offsite-copy.md), [0015](docs/decisions/0015-backup-verification.md) |
 | Edge | nginx through the NixOS module, certificates from the NixOS ACME module with the challenge delegated by CNAME; [the names](docs/names.md) of the services | [0008](docs/decisions/0008-edge.md) |
@@ -86,7 +86,7 @@ lab/restore-drill.sh all                                                # seed, 
 
 ## What is not done
 
-- **It is not deployed.** The first deployment needs the owner's chores on the real machine ([docs/pending.md](docs/pending.md)): the firmware and Secure Boot setup, the disks, the private repository and its tokens, the first kernel update at the console.
+- **It is not deployed.** The first deployment still needs a few things done on the machine itself ([docs/pending.md](docs/pending.md)): the firmware and Secure Boot setup, the disks, the private repository and its tokens, the first kernel update at the console.
 - **Only the real machine can answer** the open questions listed there: the TPM and firmware, the radio, the GPU containers, real certificates and mail, and the timings on the real data.
 - **The old scripts are an archive**, in the tag `v0` only: anonymized (addresses are documentation addresses) and not re-tested after that.
 

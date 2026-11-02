@@ -11,7 +11,7 @@ In v0 Immich's database runs in a container from `ghcr.io/immich-app/postgres:14
 - **Point-in-time recovery is limited by the version.** [Databasus](0004-backup.md) offers physical incremental and WAL-streaming backups only from PostgreSQL 17, and its agent (deprecated) needs 15 or newer.
 - **Support.** PostgreSQL 14 reaches the end of community support in November 2026.
 
-The owner asked to try PostgreSQL 17 *with Immich* ("so we solve many problems"). What Immich's documentation says ([Pre-existing Postgres](https://docs.immich.app/administration/postgres-standalone/)): it is known to work with PostgreSQL `>= 14, < 20`, with **pgvector** `>= 0.7, < 0.9` and **VectorChord** `>= 0.3, < 2.0`; pgvecto.rs support was **dropped in Immich 3.0**.
+I asked to try PostgreSQL 17 *with Immich* ("so we solve many problems"). What Immich's documentation says ([Pre-existing Postgres](https://docs.immich.app/administration/postgres-standalone/)): it is known to work with PostgreSQL `>= 14, < 20`, with **pgvector** `>= 0.7, < 0.9` and **VectorChord** `>= 0.3, < 2.0`; pgvecto.rs support was **dropped in Immich 3.0**.
 
 ## Requirements
 
@@ -84,7 +84,7 @@ So the native module is clean for a remote repository and **needs about six line
 
 ### The real database, measured read-only on the server (2026-10-01)
 
-The owner gave access to the server; **only aggregate numbers were read** (no dump, no names, nothing written). v0 runs Immich 3.2.1 with PostgreSQL **14.19**, VectorChord **0.4.3** and pgvector 0.8.1 in Immich's image.
+Access to the server was read-only and **only aggregate numbers were read** (no dump, no names, nothing written). v0 runs Immich 3.2.1 with PostgreSQL **14.19**, VectorChord **0.4.3** and pgvector 0.8.1 in Immich's image.
 
 | What | Value |
 |---|---|
@@ -94,7 +94,7 @@ The owner gave access to the server; **only aggregate numbers were read** (no du
 | Extensions | `vchord` 0.4.3 and `vector` 0.8.0, plus the usual `uuid-ossp`, `cube`, `earthdistance`, `pg_trgm`, `unaccent`; **no pgvecto.rs (`vectors`) extension** |
 | `shared_buffers`, `max_connections` | default (128 MB), 100 |
 
-What this settles: **the library is small** (a dump is of the order of the database's size, a few hundred MB at most, so the dump, the restore and the index rebuild are minutes, not hours; an **estimate** from sizes, **not a timed run**), and the **pgvecto.rs question below is closed**: its extension is not installed, so there is nothing to convert. Still to do, **on the server in a second instance** (the owner's rule above): the timed dump and restore, and the search check. Counts from `pg_stat_user_tables` are estimates; the counts in the table above are exact `count(*)` for the first four rows.
+What this settles: **the library is small** (a dump is of the order of the database's size, a few hundred MB at most, so the dump, the restore and the index rebuild are minutes, not hours; an **estimate** from sizes, **not a timed run**), and the **pgvecto.rs question below is closed**: its extension is not installed, so there is nothing to convert. Still to do, **on the server in a second instance** (my rule above): the timed dump and restore, and the search check. Counts from `pg_stat_user_tables` are estimates; the counts in the table above are exact `count(*)` for the first four rows.
 
 ### Not tested
 
@@ -111,9 +111,9 @@ What this settles: **the library is small** (a dump is of the order of the datab
 ## Decision (2026-10-01)
 
 - **PostgreSQL 17**, as **option C: the native NixOS service**, with Immich's containers pinned by digest. It works with Immich 3.2.4, the move from v0 is a documented dump and restore, it lets pgBackRest (the chosen tool, [ADR 0004](0004-backup.md)) reach the database, and needs no password.
-- **Fallback (owner's condition): B**, PostgreSQL 17 from Immich's image, if the native route lacks a tool or breaks on an update; its backups would then rest on tools that connect from outside (Barman streaming, `pg_receivewal`).
+- **Fallback: B**, PostgreSQL 17 from Immich's image, if the native route lacks a tool or breaks on an update; its backups would then rest on tools that connect from outside (Barman streaming, `pg_receivewal`).
 - **Not the native Immich module** (A): marked insecure in this release.
-- **The move from v0's database (14) to 17** is rehearsed **on the server itself, not in the lab**: the owner will not hand over a real dump. The v0 container stays untouched as the way back; a dump of it is restored into a **second** PostgreSQL 17 instance on the same machine, the counts and a search are checked, and only then does Immich point at the new one. The size, time and index rebuild of a real library are **unmeasured**; that risk is accepted and is why the old database is kept running until the new one has been verified.
+- **The move from v0's database (14) to 17** is rehearsed **on the server itself, not in the lab**: I will not hand over a real dump. The v0 container stays untouched as the way back; a dump of it is restored into a **second** PostgreSQL 17 instance on the same machine, the counts and a search are checked, and only then does Immich point at the new one. The size, time and index rebuild of a real library are **unmeasured**; that risk is accepted and is why the old database is kept running until the new one has been verified.
 
 ## Consequences
 

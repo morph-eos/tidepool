@@ -8,11 +8,11 @@
 
 In v0 the virtual machines run on Incus, on a bridge (`incusbr0`). **A hook runs every 30 seconds and publishes every listening port in the range 3000-3099 of every VM** through `socat` proxies, driven by `user.proxy.*` keys, and **the router forwards that whole range to the Internet**; the SSH ports 2201-2299 are published on the host as well, and the Incus API listens on `0.0.0.0` with an SNI passthrough from the Internet. There is no host firewall. In short: **a service that starts inside a VM becomes public by itself**, and nothing in the repository says which ones are meant to be.
 
-The owner's wish: it would be nice to have some VM ports reachable from the Internet, and not only through the VPN, but he suspects that would make the configuration much more complicated and less clean; he asked for a study of the modes. His VMs are, in 90% of the cases, **tests and temporary services**.
+I would like some VM ports to be reachable from the Internet, and not only through the VPN, but I suspect that would make the configuration much more complicated and less clean, so I asked for a study of the modes. My VMs are, in 90% of the cases, **tests and temporary services**.
 
 ## Requirements
 
-- **Must:** nothing in a VM is public **by accident**: a VM service reaches the Internet only because a reviewed line in the flake says so; the VMs are reachable by the owner through the VPN, **any protocol** (SSH, databases, whatever the test needs); a new or temporary VM works **with no change to the flake**; no script that watches the VMs.
+- **Must:** nothing in a VM is public **by accident**: a VM service reaches the Internet only because a reviewed line in the flake says so; the VMs are reachable through the VPN, **any protocol** (SSH, databases, whatever the test needs); a new or temporary VM works **with no change to the flake**; no script that watches the VMs.
 - **Should:** names for the VMs' web services; a public VM service (a web page, a game server) is possible, declared and in code; the host firewall is the gate; the Incus API only on the VPN.
 - **Won't:** an automatic publication of ports; a hand-run command per VM as the way to expose anything.
 
@@ -21,7 +21,7 @@ The owner's wish: it would be nice to have some VM ports reachable from the Inte
 | Mode | What it is |
 |---|---|
 | **M1. v0's** | a range of ports forwarded by the router, a hook with proxies that exposes whatever listens |
-| **M2. The VM subnet through the VPN** | the VPN peers get a route to the bridge's subnet and the host forwards for them: every port and protocol of every VM, to the owner only |
+| **M2. The VM subnet through the VPN** | the VPN peers get a route to the bridge's subnet and the host forwards for them: every port and protocol of every VM, to me only |
 | **M3. A name per VM through nginx, on the VPN address** | one wildcard virtual host: `<name>.vm.<domain>` is proxied to `<name>.incus` (the bridge's DNS), listening only on the VPN address |
 | **M4. A service published on purpose** | HTTP: an explicit nginx virtual host (public), or raw TCP and UDP: a declared DNAT line to the VM's address |
 | **M5. An Incus proxy device** | `incus config device add <vm> ... proxy`: a listener on the host, set by a command and stored in Incus's own database |
@@ -46,23 +46,23 @@ What running it showed:
 - **`virtualisation.incus` does not declare instances**: the preseed covers networks, pools and profiles, but a VM or container is created by a command. So **a published port by address needs the instance's address pinned** with one command per instance (`incus config device override <vm> eth0 ipv4.address=...`), which is imperative state in Incus's database. Mode M2 and M3 need no pinning.
 - **Docker was left out of this lab** (the module that declares it was removed from the host for this experiment): **Incus and Docker both manage the firewall**, and their rules can conflict. The plan runs services as containers on Docker; **the two together are not tested** and are a phase 6 check.
 - **NixOS checks the nftables ruleset when the system is built**: a syntax error in the DNAT rule stopped the build instead of leaving a broken firewall.
-- **A wildcard name needs a wildcard certificate**, which needs the DNS challenge: in the lab a fixed certificate was used. For the owner's domain at the DNS provider this is the open problem of [ADR 0008](0008-edge.md).
+- **A wildcard name needs a wildcard certificate**, which needs the DNS challenge: in the lab a fixed certificate was used. For my domain at the DNS provider this is the open problem of [ADR 0008](0008-edge.md).
 - The first lab download of Incus's images and packages failed several times over the lab's network and succeeded with more attempts: a lab condition, not a finding.
 
 **Not tested:** real virtual machines (the lab has containers); Incus and Docker on one host; the instances' behaviour at host reboot (the address pin survives it in Incus's database, but the order against the VPN interface is not measured); UDP; a game server or any non-HTTP public service; other VM managers.
 
 ## Criteria, in this order
 
-1. **Safe by default (measured):** nothing public unless declared; the owner's access to everything through the VPN.
+1. **Safe by default (measured):** nothing public unless declared; my access to everything through the VPN.
 2. **P1:** declared in the flake, no script, no command per VM for the common case.
 3. **A new or temporary VM needs no change to the flake.**
 4. **Public services are possible and explicit.**
 5. **Lines of our own and moving parts.**
 
-## Decision (2026-10-01, confirmed by the owner)
+## Decision (2026-10-01)
 
 **A VM service is private by default and public only by a line.**
-- **Everything the owner does with a VM goes through the VPN: M2** (the subnet routed over the VPN, with one forwarding rule): SSH, databases, any port, any protocol, **no per-VM configuration**, and it is the answer for the 90% of test and temporary machines.
+- **Everything I do with a VM goes through the VPN: M2** (the subnet routed over the VPN, with one forwarding rule): SSH, databases, any port, any protocol, **no per-VM configuration**, and it is the answer for the 90% of test and temporary machines.
 - **Web names for the VMs' services: M3**, one wildcard virtual host on the VPN address, so `<vm>.vm.<domain>` works as soon as the VM exists; it needs the wildcard certificate (DNS challenge) or a private CA.
 - **A VM service that must be public (the few): M4**, an explicit and reviewed line: **a virtual host for a web service**, or **a DNAT line for raw TCP and UDP**, with the VM's address pinned. It is a few lines per service and **it is visible in the flake and in review, which is the point**; it is "more complicated" only in that a public service has to be written down.
 - **Not M1** (a range plus a hook: public by accident, and glue) and **not M5** (a command per VM, stored outside the flake, and still needs a firewall line).
@@ -76,5 +76,5 @@ Whether the VM manager stays **Incus** is phase 6: the same design works with an
 ## Consequences
 
 - A phone that must reach a VM needs the VPN on; nothing about a VM is visible from the Internet unless a line says so.
-- The Incus VM disks sit on the 2 TB disk ([ADR 0005](0005-storage-layout-and-filesystem.md)); a VM that matters is a service, not a test machine, and is declared as one.
+- The Incus VM disks sit on the mid-size disk ([ADR 0005](0005-storage-layout-and-filesystem.md)); a VM that matters is a service, not a test machine, and is declared as one.
 - Docker and Incus on the same machine had to be tested together: **done in [ADR 0013](0013-vms-and-containers.md)** (both coexist with the same ten declared lines; the NixOS firewall's "allow port forward" rule makes any engine's bare `-p` public, closed by a six-line publication gate; Podman proposed in place of Docker).
