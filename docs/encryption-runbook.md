@@ -15,12 +15,12 @@ The design is in [ADR 0005](decisions/0005-storage-layout-and-filesystem.md) (de
 ## Before you start
 
 - Firmware: **UEFI**, Secure Boot **supported**, the **TPM enabled** (find out whether it is a discrete chip or part of the CPU: the discrete ones can be probed on their bus). **Set a firmware password** (it keeps the thief out of the settings).
-- **Keep the recovery passphrase** (the one typed at the installation) in Proton Pass **and on paper**. It is the only way in when the TPM refuses.
+- **Keep the recovery passphrase** (the one typed at the installation) in a password manager **and on paper**. It is the only way in when the TPM refuses.
 - A video card's option ROM is signed by Microsoft: the keys are enrolled **with the Microsoft ones** (the default of the module), or the card may not initialise.
 
 ## Stage 1: install with LUKS
 
-Put the passphrase in `tidepool.encryption.passphraseFile` (`/tmp/disk-passphrase`) **in the installer's memory** (not on the machine), then install as usual (`nixos-install --flake`; disko formats). The 2 TB disk, formatted by hand once, is made LUKS as well: `cryptsetup luksFormat <disk>`, open it, `mkfs.ext4`, close. The first boot asks for the passphrase on the console.
+Put the passphrase in `tidepool.encryption.passphraseFile` (`/tmp/disk-passphrase`) **in the installer's memory** (not on the machine), then install as usual (`nixos-install --flake`; disko formats). The mid-size disk, formatted by hand once, is made LUKS as well: `cryptsetup luksFormat <disk>`, open it, `mkfs.ext4`, close. The first boot asks for the passphrase on the console.
 
 ## Stage 2: signed boot images
 
@@ -30,7 +30,7 @@ Put the passphrase in `tidepool.encryption.passphraseFile` (`/tmp/disk-passphras
 
 ## Stage 3: the TPM
 
-For each LUKS volume (the system partition, the SSD's, the 2 TB disk), with the passphrase in a temporary file:
+For each LUKS volume (the system partition, the SSD's, the mid-size disk), with the passphrase in a temporary file:
 
 ```
 systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --unlock-key-file=/root/pp <device>

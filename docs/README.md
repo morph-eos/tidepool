@@ -1,13 +1,13 @@
 # The documents
 
-**Picking the project up? Read [working-on-it.md](working-on-it.md) first** (the repositories, the rules, where each kind of thing is written), then [pending.md](pending.md) (everything that is still to be done in this repository: it is the only such list) and [the deployment runbook](deployment-runbook.md) (the order of the day).
+**Picking the project up? Read [working-on-it.md](working-on-it.md) first** (the repositories, the rules, where each kind of thing is written), then [pending.md](pending.md) (everything that is still to be done in this repository: it is the only such list).
 
 ## By what you want to do
 
 | I want to... | Read |
 |---|---|
 | know what is left to do | [pending.md](pending.md) |
-| do the first deployment | [deployment-runbook.md](deployment-runbook.md), with [migration-from-v0.md](migration-from-v0.md), [encryption-runbook.md](encryption-runbook.md), [restore-drill.md](restore-drill.md) |
+| do the first deployment | [encryption-runbook.md](encryption-runbook.md), [restore-drill.md](restore-drill.md), and the template's README |
 | know when something runs, and what an alert means | [schedule.md](schedule.md), [decisions/0012](decisions/0012-observability.md) |
 | see the names of the services and the DNS they need | [names.md](names.md) |
 | know how big things get | [capacity.md](capacity.md) |
@@ -44,7 +44,7 @@ One record per decision, with what was measured. A later change is an **Update**
 | [0016](decisions/0016-updates-deploys-and-checks.md) | updates, deploys, and where the checks run |
 | [0017](decisions/0017-version-watch-push-and-nas.md) | the version watch, push notifications, the NAS |
 | [0018](decisions/0018-deploys-by-the-server.md) | deploys: the server pulls what was merged; the private repository; the protection of `main` |
-| [0019](decisions/0019-the-real-machine-network-and-hardware.md) | the real machine: hardware, WiFi (kept), the 1 TB SSD |
+| [0019](decisions/0019-the-real-machine-network-and-hardware.md) | the hardware module, WiFi as the link, the SSD's interface |
 | [0020](decisions/0020-brand-identity.md) | one name, palette and logo for every service; the single sign-on |
 | [0021](decisions/0021-admin-page.md) | one admin page, on the VPN, for the private tools (a trial) |
 | [0022](decisions/0022-the-tv-session.md) | the TV session: GNOME started by itself, for a user with almost no rights |

@@ -6,20 +6,20 @@ Written from what `lab/restore-drill.sh` did in the lab ([ADR 0014](decisions/00
 
 | Lost | Comes back from |
 |---|---|
-| The system disk and the SSD (the ZFS pool: every service's files, the databases) | **the flake** (the system), **Borg** on the 16 TB disk (the files), **pgBackRest** on the 16 TB disk (the databases) |
-| The 16 TB disk | the data on the SSD is intact; **run a backup at once** to rebuild the repositories; the media is a plain copy that must be restored from where it was copied |
-| The 2 TB disk | the offsite repository is rebuilt by the next Borg run; **the Incus instances on it are lost** (tests, replaceable) |
-| Everything | the offsite copy ([ADR 0007](decisions/0007-offsite-copy.md)): `proton-offsite-cli auth login`, then `proton-offsite-cli filesystem download /my-files/tidepool/borg-offsite <dir>`, then `BORG_RELOCATED_REPO_ACCESS_IS_OK=yes borg check --verify-data <dir>` with the passphrase from its custody (Proton Pass and paper); rehearsed byte for byte in the lab (`lab/proton-offsite/`), **not on the real data** |
+| The system disk and the SSD (the ZFS pool: every service's files, the databases) | **the flake** (the system), **Borg** on the large disk (the files), **pgBackRest** on the large disk (the databases) |
+| The large disk | the data on the SSD is intact; **run a backup at once** to rebuild the repositories; the media is a plain copy that must be restored from where it was copied |
+| The mid-size disk | the offsite repository is rebuilt by the next Borg run; **the Incus instances on it are lost** (tests, replaceable) |
+| Everything | the offsite copy ([ADR 0007](decisions/0007-offsite-copy.md)): `proton-offsite-cli auth login`, then `proton-offsite-cli filesystem download /my-files/tidepool/borg-offsite <dir>`, then `BORG_RELOCATED_REPO_ACCESS_IS_OK=yes borg check --verify-data <dir>` with the passphrase from its custody (off the machine, on paper too); rehearsed byte for byte in the lab (`lab/proton-offsite/`), **not on the real data** |
 
 **You need:** the repository, the **age key** (custody: [ADR 0003](decisions/0003-secrets.md)), the Borg passphrase (it is a secret in the same sops file, so it comes with the age key), and a NixOS installer USB.
 
 ## A. First-time provisioning of the two large disks (once, outside the flake)
 
-The flake **never formats** the 16 TB and the 2 TB disk, so that a reinstall cannot wipe a backup. When a disk is first put into service:
+The flake **never formats** the 16 TB and the mid-size disk, so that a reinstall cannot wipe a backup. When a disk is first put into service:
 
 ```
 mkfs.ext4 <the disk by its stable path>
-mount it, then:  mkdir incus-state          # on the 2 TB disk only: Incus's state lives there (modules/vms.nix)
+mount it, then:  mkdir incus-state          # on the mid-size disk only: Incus's state lives there (modules/vms.nix)
 ```
 
 ## B. Rebuild from scratch
@@ -36,14 +36,14 @@ Lab: **547-559 s** from the disaster to a booted system. The services start **em
 
 The same drill with LUKS, the TPM and signed boot images ([the encryption runbook](encryption-runbook.md)). What differs from B, and what the lab measured:
 
-1. **The Secure Boot signing keys come back first.** The firmware still holds the **old** keys; boot images signed with new ones would not start. `/var/lib/sbctl` is in the Borg job of everything, so **before `nixos-install`** take it from the newest archive of the repository on the surviving 16 TB disk, mounted **read-only** (`borg extract --bypass-lock ::<archive> var/lib/sbctl`, from `/mnt`). The installer's RAM holds the store: **give it about 10 GB** (with 6 GB the installer ran out of memory when it also downloaded Borg).
-2. Make the layout (disko asks for the passphrase through `tidepool.encryption.passphraseFile`, a file in the installer's memory), install the host **with `secureBoot` on** (`lab-secure-sb`). The 2 TB disk is **not** formatted: its LUKS volume and its TPM seal survive.
+1. **The Secure Boot signing keys come back first.** The firmware still holds the **old** keys; boot images signed with new ones would not start. `/var/lib/sbctl` is in the Borg job of everything, so **before `nixos-install`** take it from the newest archive of the repository on the surviving large disk, mounted **read-only** (`borg extract --bypass-lock ::<archive> var/lib/sbctl`, from `/mnt`). The installer's RAM holds the store: **give it about 10 GB** (with 6 GB the installer ran out of memory when it also downloaded Borg).
+2. Make the layout (disko asks for the passphrase through `tidepool.encryption.passphraseFile`, a file in the installer's memory), install the host **with `secureBoot` on** (`lab-secure-sb`). The mid-size disk is **not** formatted: its LUKS volume and its TPM seal survive.
 3. **First boot:** the firmware is in setup mode (on a real machine Secure Boot was switched off for the installer, whose image is not signed with your keys); the new root and pool ask for the **recovery passphrase** (typed once, it opens all three). Secure Boot is still off.
-4. **Second boot (reboot once more):** the firmware enrolls the restored keys by itself: **Secure Boot enabled (user)**, and **PCR 7 is the same value as before the disaster** (`ab98654a...`), so the 2 TB disk's old seal is valid.
+4. **Second boot (reboot once more):** the firmware enrolls the restored keys by itself: **Secure Boot enabled (user)**, and **PCR 7 is the same value as before the disaster** (`ab98654a...`), so the mid-size disk's old seal is valid.
 5. **Seal the two new volumes to the TPM** (`systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 ...`, as in stage 3 of the runbook) and reboot: **no passphrase is asked**; all three volumes open by themselves.
 6. **Restore as in C.**
 
-Lab: the installation **879 s** (the downloads retried now and then), the restore and the checks **299 s**, **`DRILL RESULT: PASS`, 14 checks, 0 failed units**. **If the signing keys were lost** (no archive had them), the machine would have to be put in setup mode with **new** keys; PCR 7 would change and **every** volume, the 2 TB disk included, would need the recovery passphrase and a new seal: the keys are the reason the backup holds `/var/lib/sbctl`. Not tried on a real machine.
+Lab: the installation **879 s** (the downloads retried now and then), the restore and the checks **299 s**, **`DRILL RESULT: PASS`, 14 checks, 0 failed units**. **If the signing keys were lost** (no archive had them), the machine would have to be put in setup mode with **new** keys; PCR 7 would change and **every** volume, the mid-size disk included, would need the recovery passphrase and a new seal: the keys are the reason the backup holds `/var/lib/sbctl`. Not tried on a real machine.
 
 ## C. Restore
 
@@ -56,7 +56,7 @@ Decide the moment **T** (the last good one). The files come from the **first Bor
 3. **Database:** stop PostgreSQL, empty `/var/lib/postgresql/17`, then as `postgres`:
    `pgbackrest --stanza=default --type=time --target="<T as YYYY-MM-DD HH:MM:SS+00>" --target-action=promote restore`
    and start PostgreSQL. (Lab: 20 s for a 190 MB repository.)
-4. **Incus:** nothing to do for instances on the 2 TB disk: the host finds them as they were. Instances on the SSD's `fast` pool are lost.
+4. **Incus:** nothing to do for instances on the mid-size disk: the host finds them as they were. Instances on the SSD's `fast` pool are lost.
 5. **Start** PostgreSQL, nginx, Nextcloud's php-fpm, Vaultwarden, the Immich containers, Syncthing, Prometheus, Alertmanager and the timers.
 6. **End with a backup:** `systemctl start pgbackrest-default-weekly borgbackup-job-everything borgbackup-job-offsite`. It makes the repositories current and clears `PostgresArchiveFailing`.
 
@@ -84,4 +84,4 @@ On the real machine two things run on a timer and need no one ([ADR 0015](decisi
 
 ## F. On the real machine, what this does not tell you yet
 
-The timings on 165 GB, the offsite restore, the real disk layout (UEFI, LUKS with the TPM, lanzaboote), the real certificates, mail and heartbeat, the GPU containers. They are in [the pending list](pending.md).
+The timings on about 150 GB, the offsite restore, the real disk layout (UEFI, LUKS with the TPM, lanzaboote), the real certificates, mail and heartbeat, the GPU containers. They are in [the pending list](pending.md).

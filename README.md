@@ -14,11 +14,10 @@
 | Where | What |
 |---|---|
 | branch `main` | what is published and what the server deploys: the integrated result of the closed phases. Once the repository is public it is protected by [a ruleset](.github/rulesets/main.json) |
-| branch `reengineering` | where the phases are developed; merged into `main` when a phase closes |
 | tag `v0` | **the legacy**: v0's scripts and compose file as 19 snapshots reconstructed from backups, anonymized, with their own README. To look at them: `git show v0:README.md`, `git checkout v0`. They are the specification of what was migrated, unmaintained, with their security problems |
 | [nixos/](nixos/) | the flake: modules, the lab hosts, an example of the real host, the lab's secrets |
 | [docs/working-on-it.md](docs/working-on-it.md) | **start here when picking the project up**: the repositories and what each is for, the rules, where each kind of thing is written |
-| [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks (the order of the first deployment is in [the deployment runbook](docs/deployment-runbook.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
+| [docs/](docs/) | [the method](docs/method.md), [the principles](docs/principles.md), one [decision record](docs/decisions/) per decision, runbooks ([the encryption stages](docs/encryption-runbook.md), [the restore drill](docs/restore-drill.md)), [the capacity of the disks](docs/capacity.md), [what is still open](docs/pending.md) |
 | [lab/](lab/README.md) | the tooling and the tests that need a running machine: QEMU/KVM VMs, **`lab/gate.sh`** (run before a push to `main`), the restore drill, the migration rehearsal; the one-off experiments behind the decision records are in `lab/experiments/` |
 | [private-repo-template/](private-repo-template/) ([how it works](docs/private-repository.md)) | the template of the **private** repository that holds one machine's values and secrets and imports this one |
 
@@ -32,7 +31,7 @@ One decision per row, each with its measurements in the linked record. The rule 
 |---|---|---|
 | Host | NixOS 26.05 flake; one lab host and one real host built from the same modules | [0002](docs/decisions/0002-host-as-code.md) |
 | Secrets | sops-nix with age; the repository holds only encrypted files | [0003](docs/decisions/0003-secrets.md) |
-| Storage and boot | ZFS for the services, ext4 for the big disks; LUKS on every disk, opened by the TPM (PCR 7 only), signed boot images (Secure Boot with the owner's keys) | [0005](docs/decisions/0005-storage-layout-and-filesystem.md), [runbook](docs/encryption-runbook.md) |
+| Storage and boot | ZFS for the services, ext4 for the big disks; LUKS on every disk, opened by the TPM (PCR 7 only), signed boot images (Secure Boot with its own keys) | [0005](docs/decisions/0005-storage-layout-and-filesystem.md), [runbook](docs/encryption-runbook.md) |
 | Databases and Immich | PostgreSQL 17 as a native service; Immich in containers pinned by digest | [0006](docs/decisions/0006-postgresql-version-and-immich.md) |
 | Backups | pgBackRest for the databases; Borg, two repositories, for the files; an offsite copy; checks that restore | [0004](docs/decisions/0004-backup.md), [0007](docs/decisions/0007-offsite-copy.md), [0015](docs/decisions/0015-backup-verification.md) |
 | Edge | nginx through the NixOS module, certificates from the NixOS ACME module with the challenge delegated by CNAME; [the names](docs/names.md) of the services | [0008](docs/decisions/0008-edge.md) |
@@ -44,7 +43,7 @@ One decision per row, each with its measurements in the linked record. The rule 
 | VMs | Incus, with two pools | [0013](docs/decisions/0013-vms-and-containers.md) |
 | Proof | the host is rebuilt from an empty disk and the data restored, on demand: the restore drill | [0014](docs/decisions/0014-automation-and-restore-drill.md), [runbook](docs/restore-drill.md) |
 | Updates and deploys | a version watch, Renovate on the server, the server pulls what was merged, the backups run first | [0016](docs/decisions/0016-updates-deploys-and-checks.md), [0017](docs/decisions/0017-version-watch-push-and-nas.md), [0018](docs/decisions/0018-deploys-by-the-server.md) |
-| The real machine | its hardware module, WiFi (kept), the new SSD | [0019](docs/decisions/0019-the-real-machine-network-and-hardware.md) |
+| Hardware | its hardware module, WiFi as the link, the SSD's interface | [0019](docs/decisions/0019-the-real-machine-network-and-hardware.md) |
 
 ## How a deploy works
 
@@ -65,7 +64,6 @@ record the measurements, decide in a record, freeze. In the lab, with the data o
 - **the restore drill** installs the host on an empty VM, seeds data, destroys the disks, rebuilds from the flake and restores, then checks the data, the databases and the backups;
 - **the encrypted layout** (LUKS, an emulated TPM, signed boot images, a kernel update) is tried on a UEFI VM with Secure Boot;
 - **the deploy chain** (private repository, pin bump, backups before the switch, the reboot window) and **the WiFi** (a virtual radio) have their own scripts;
-- **the move from v0** is rehearsed on a replica running v0's exact versions: [docs/migration-from-v0.md](docs/migration-from-v0.md).
 
 The lab's times are lab times (nested VMs, a slow link): they say what changes, not how long the real machine will take.
 
@@ -86,7 +84,7 @@ lab/restore-drill.sh all                                                # seed, 
 
 ## What is not done
 
-- **It is not deployed.** The first deployment needs the owner's chores on the real machine ([docs/pending.md](docs/pending.md)): the firmware and Secure Boot setup, the disks, the private repository and its tokens, the first kernel update at the console.
+- **It is not deployed.** The first deployment still needs a few things done on the machine itself ([docs/pending.md](docs/pending.md)): the firmware and Secure Boot setup, the disks, the private repository and its tokens, the first kernel update at the console.
 - **Only the real machine can answer** the open questions listed there: the TPM and firmware, the radio, the GPU containers, real certificates and mail, and the timings on the real data.
 - **The old scripts are an archive**, in the tag `v0` only: anonymized (addresses are documentation addresses) and not re-tested after that.
 

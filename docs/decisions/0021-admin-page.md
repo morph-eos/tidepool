@@ -1,12 +1,12 @@
 # 0021. One admin page for the private tools
 
-- **Status:** accepted as a trial (2026-10-08): built and proven in the lab (`nixos/modules/admin.nix`, **on by default** since 2026-10-08 at the owner's request); the owner decides after using it on the real machine
+- **Status:** accepted as a trial (2026-10-08): built and proven in the lab (`nixos/modules/admin.nix`, **on by default**); I will decide after using it on real hardware
 - **Date:** 2026-10-08
 - **Phase:** after the first deployment is prepared
 
 ## The question
 
-The machine's private tools are reachable only through the VPN and each has its own name (`metrics.`, `alerts.`, `sync.`, `compute.`:8443): Prometheus, Alertmanager, Syncthing, Incus. Can they, and the services, be one click from each other, in one place, with a sign of whether each answers? The owner asked about a plugin of Nextcloud, Grafana, or something like Backstage.
+The machine's private tools are reachable only through the VPN and each has its own name (`metrics.`, `alerts.`, `sync.`, `compute.`:8443): Prometheus, Alertmanager, Syncthing, Incus. Can they, and the services, be one click from each other, in one place, with a sign of whether each answers? I asked about a plugin of Nextcloud, Grafana, or something like Backstage.
 
 ## What was considered
 
@@ -40,4 +40,4 @@ Keep it, replace it by one of the other launchers, or drop it (`tidepool.admin.e
 
 ## Update (2026-10-08, later): on by default
 
-The owner asked for the page to be on by default. A deployment that does not want it says `tidepool.admin.enable = false`. Cost: about 250 MB of memory on every host that carries it (the lab's included); without the DNS record the page is simply unreachable, nothing else is affected. The CI's `brand` check holds both states (on by default and left out, loopback only, VPN address only).
+I chose to have the page on by default. A deployment that does not want it says `tidepool.admin.enable = false`. Cost: about 250 MB of memory on every host that carries it (the lab's included); without the DNS record the page is simply unreachable, nothing else is affected. The CI's `brand` check holds both states (on by default and left out, loopback only, VPN address only).

@@ -1,6 +1,6 @@
 # Working on it: the repositories, the rules, where things are written
 
-For whoever picks the project up with no memory of how it was done (the owner, a collaborator, an assistant in a new session). Start here, then follow the links. Nothing private is in this page: the private side is described by what it is for, not by what it holds.
+For whoever picks the project up with no memory of how it was done (me later, a collaborator, an assistant in a new session). Start here, then follow the links. Nothing private is in this page: the private side is described by what it is for, not by what it holds.
 
 ## Four places, four jobs
 
@@ -14,8 +14,7 @@ For whoever picks the project up with no memory of how it was done (the owner, a
 A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, images and test keys in a folder outside them (`~/lab/tidepool`, [lab/README.md](../lab/README.md)).
 
 ## Branches and merging
-- `main` is protected by [a ruleset](../.github/rulesets/main.json) (no approval required, no bypass, see [ADR 0018 section 7](decisions/0018-deploys-by-the-server.md)): a pull request, the `flake-check` job passing, squash merges only, signed commits (GitHub signs the squash), no force push. There is no bypass for anyone: the owner merges a pull request like any author, once `flake-check` is green and the branch is up to date with `main`; never by pushing.
-- `reengineering` is kept equal to `main` (the development branch of the earlier phases).
+- `main` is protected by [a ruleset](../.github/rulesets/main.json) (no approval required, no bypass, see [ADR 0018 section 7](decisions/0018-deploys-by-the-server.md)): a pull request, the `flake-check` job passing, squash merges only, signed commits (GitHub signs the squash), no force push. There is no bypass for anyone: I merge a pull request like any author, once `flake-check` is green and the branch is up to date with `main`; never by pushing.
 - A change: a branch, **`lab/gate.sh` when the change touches what it covers**, a pull request (the description ends with the generation line when an assistant wrote it), CI green, squash merge, then `reengineering` moved to `main`. CI quirk: a push of more than three refs at once creates no workflow run.
 - `git reset --hard` discards staged work: commit or stash first.
 
@@ -25,7 +24,7 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 - A merge that moves a pinned program (a container's digest, nixpkgs) is run through the gate **before** it is merged, not after.
 
 ## The rule that matters most
-**No private information in this repository, in any file, message, branch or pull request.** That means the real domain, addresses, serial numbers, account names, tokens, the names of services that only the owner runs. Placeholders (`example.invalid`, `OWNER`, `REPLACE-...`) stand in for them. It is enforced locally by three git hooks (before a commit, in its message, before a push: the staged changes and the whole history against the private list, and a secret scanner against a baseline); the hooks and how to install them are in the local-only folder. A hook blocking a commit is correct until proven otherwise: reword, do not bypass.
+**No private information in this repository, in any file, message, branch or pull request.** That means the real domain, addresses, serial numbers, account names, tokens, the names of services that only I run. Placeholders (`example.invalid`, `OWNER`, `REPLACE-...`) stand in for them. It is enforced locally by three git hooks (before a commit, in its message, before a push: the staged changes and the whole history against the private list, and a secret scanner against a baseline); the hooks and how to install them are in the local-only folder. A hook blocking a commit is correct until proven otherwise: reword, do not bypass.
 
 ## Where each kind of thing is written
 | What | Where |
@@ -33,7 +32,7 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 | Why a decision was made, what was measured | `docs/decisions/NNNN-*.md`; a later change is an "Update" section at the end, the history is not rewritten |
 | What the system is, one decision per row | [the README](../README.md) |
 | What is left, and who it waits for | [pending.md](pending.md) |
-| The order of the day of the move from v0 | [deployment-runbook.md](deployment-runbook.md), with [the migration](migration-from-v0.md), [the encryption stages](encryption-runbook.md), [the restore drill](restore-drill.md) |
+| The encryption stages and the restore drill | [the encryption stages](encryption-runbook.md), [the restore drill](restore-drill.md) |
 | Custom glue that breaks "clean over clever" | [exceptions.md](exceptions.md): an entry in the same commit as the glue |
 | Times and cadences of everything automatic | [schedule.md](schedule.md) |
 | Names of the services, and the DNS they need | [names.md](names.md) |
@@ -42,6 +41,6 @@ A fifth thing is not in any repository: the lab (`lab/vm.sh`) keeps its disks, i
 | How to prove a change | `lab/gate.sh` before `main`; the CI on every pull request; `lab/vm.sh` makes the VMs; `lab/experiments/` holds the scripts behind the decision records' numbers |
 
 ## Picking up after losing the thread
-1. Read [pending.md](pending.md) (what is left) and [the runbook](deployment-runbook.md) (the order of the day).
+1. Read [pending.md](pending.md) (what is left).
 2. Check the state: `git log --oneline -20` here; the private repository's `tools/check.sh` lists what is still a placeholder.
 3. Change things the way the rule says: lab first, a record of what was measured, the docs in the same commit.

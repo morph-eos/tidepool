@@ -28,7 +28,7 @@ The new host must be reproducible from an empty machine with one command, and te
 
 ## Criteria
 
-Decided before testing, in this order of importance (from the owner: the priorities are a fast, repeatable rebuild and reliability/security; teaching value comes
+Decided before testing, in this order of importance (from me: the priorities are a fast, repeatable rebuild and reliability/security; teaching value comes
 after, and only for things that are best practice):
 
 1. **Rebuild speed and repeatability:** time from the `empty` snapshot to all checks green, manual steps, idempotency (changes reported by a second run), survives a reboot.
@@ -106,7 +106,7 @@ Boot the NixOS live ISO from a USB stick on the real server, without installing 
 
 ## Decision
 
-**B, NixOS with a flake.** The owner's decision (2026-09-29), taken after the measurements above and the field research. The sentence that tips it: NixOS wins the two criteria that were
+**B, NixOS with a flake.** My decision, taken after the measurements above and the field research. The sentence that tips it: NixOS wins the two criteria that were
 ranked first, a rebuild that is repeatable by construction (same input, same system, pinned by `flake.lock`) and reliability and security (rollback by generations, the firewall on by default, a secret
 that never enters the world-readable store). The risk that remains, the GPU and the desktop, can be tested on the real machine before anything is installed on it.
 

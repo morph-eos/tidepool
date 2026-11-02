@@ -6,7 +6,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 
 | What | When | Notes | ADR |
 |---|---|---|---|
-| Borg jobs `everything` (16 TB disk) and `offsite` (2 TB disk) | every hour, on the hour | create, then prune and compact; each waits **up to 12 hours** for the repository lock | [0004](decisions/0004-backup.md), [0015](decisions/0015-backup-verification.md) |
+| Borg jobs `everything` (large disk) and `offsite` (mid-size disk) | every hour, on the hour | create, then prune and compact; each waits **up to 12 hours** for the repository lock | [0004](decisions/0004-backup.md), [0015](decisions/0015-backup-verification.md) |
 | Borg retention | at every job | every archive of the last **3 days**, then one a day until the 14th day, then one a week for 4 weeks (87 archives, the oldest about 40 days) | [0004](decisions/0004-backup.md) |
 | PostgreSQL WAL archiving (pgBackRest) | continuous, at most 30 s behind (`archive_timeout`) | | [0004](decisions/0004-backup.md) |
 | pgBackRest differential backup | Monday to Saturday, 03:00 | | [0004](decisions/0004-backup.md) |
@@ -30,10 +30,10 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 | A Borg job, borgmatic run or restore test **running for 8 hours** | `BackupJobRunningLong` | [0015](decisions/0015-backup-verification.md) |
 | A timer that stopped firing | Borg jobs: 4 hours; pgBackRest: 60 hours; borgmatic (weekly): 8 days; restore test (monthly): 45 days; certificate renewal (daily, random up to 24 h): **3 days** | [0012](decisions/0012-observability.md), [0015](decisions/0015-backup-verification.md) |
 | Alert mails | first mail after 30 seconds; new alerts in an existing group at most every **30 minutes**; a repeat every 12 hours while it keeps firing; no mail when an alert resolves | [0012](decisions/0012-observability.md) |
-| **The version watch** ([ADR 0017](decisions/0017-version-watch-push-and-nas.md)) | upstream versions, and what nixpkgs has, read **hourly**; the rules judge every 5 minutes; alerts only on **Saturday and Sunday from 07:00 UTC**. **Weekly mail:** a newer stable release has been out for **3 days** and nixpkgs has it (or it is a container pin). **Monthly mail (first weekend):** nixpkgs behind upstream for 14 days, a newer major, a line at end of life. One mail per tier, no mail on "resolved"; `VersionWatchBlind` after a day without a source | 3 days: the owner's choice, 2026-10-03; the monthly tier answers "will it be spam every weekend?" |
+| **The version watch** ([ADR 0017](decisions/0017-version-watch-push-and-nas.md)) | upstream versions, and what nixpkgs has, read **hourly**; the rules judge every 5 minutes; alerts only on **Saturday and Sunday from 07:00 UTC**. **Weekly mail:** a newer stable release has been out for **3 days** and nixpkgs has it (or it is a container pin). **Monthly mail (first weekend):** nixpkgs behind upstream for 14 days, a newer major, a line at end of life. One mail per tier, no mail on "resolved"; `VersionWatchBlind` after a day without a source | 3 days: my choice, 2026-10-03; the monthly tier answers "will it be spam every weekend?" |
 | Push (ntfy) | critical alerts go to mail **and** the phone, within about a minute | [0017](decisions/0017-version-watch-push-and-nas.md) |
 | **Deploys** ([ADR 0018](decisions/0018-deploys-by-the-server.md)) | the server looks **every 10 minutes, Monday to Saturday** (`system.autoUpgrade`; **never on Sunday**, so that the Sunday checks are not cut by a reboot); a tick with nothing new costs about 1 s of CPU; a change that differs from the running system is **built, preceded by Borg of everything, Borg offsite and a pgBackRest differential backup**, then activated; **any failure stops it** and fails the unit (`UnitFailed`, 5 minutes) | a merge to the public `main` or a push to the private `main`; no reboot by itself |
-| A new kernel | **the machine reboots by itself between 06:00 and 07:00, Monday to Saturday** (the owner's choice; the module's default is off; no deploy tick on Sunday): a deploy with a new kernel is installed at once and **everything merged until then waits for the reboot** (about 20 s of downtime in the lab); `RebootPending` covers only the mode with the reboot off; a machine that does not come back is noticed by the heartbeat | the TPM case is untried and needs PCR 7 only, no PIN: [0018](decisions/0018-deploys-by-the-server.md) section 9, [0005](decisions/0005-storage-layout-and-filesystem.md) |
+| A new kernel | **the machine reboots by itself between 06:00 and 07:00, Monday to Saturday** (my choice; the module's default is off; no deploy tick on Sunday): a deploy with a new kernel is installed at once and **everything merged until then waits for the reboot** (about 20 s of downtime in the lab); `RebootPending` covers only the mode with the reboot off; a machine that does not come back is noticed by the heartbeat | the TPM case is untried and needs PCR 7 only, no PIN: [0018](decisions/0018-deploys-by-the-server.md) section 9, [0005](decisions/0005-storage-layout-and-filesystem.md) |
 | Renovate (pull requests) | **on the server**, **Monday 04:30** (the pull requests are opened before 06:00): container pins grouped, `flake.lock`, Actions' commits; the token is a machine user's and **expires** (the unit then fails: `UnitFailed`) | [0018](decisions/0018-deploys-by-the-server.md) |
 | The copy to Proton Drive | every night at **04:50** (`proton-offsite-sync`), after the offsite job; fails: `UnitFailed` (a lapsed login included); does not run for 3 days: `ProtonOffsiteStale`; runs more than 8 hours (a hang; the first upload warns once): `BackupJobRunningLong` | [0007](decisions/0007-offsite-copy.md) |
 | Heartbeat by webhook (the machine and Alertmanager are alive) | every 2 minutes | [0012](decisions/0012-observability.md) |
@@ -44,7 +44,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 ## Why the pieces fit (the checks made on 2026-10-03)
 
 - **Files and database restore to the same moment:** hourly files for 3 days, daily files for 14 days, and the database reaches back 7 to 14 days: the file history is never shorter than the database's by more than the hour-to-day step.
-- **The Sunday sequence:** pgBackRest's full backup at 03:00 and the borgmatic checks at 04:30 touch the same 16 TB disk; the hourly Borg jobs queue behind the checks for as long as they last. **Not measured on real data.**
+- **The Sunday sequence:** pgBackRest's full backup at 03:00 and the borgmatic checks at 04:30 touch the same large disk; the hourly Borg jobs queue behind the checks for as long as they last. **Not measured on real data.**
 - **Every "stale" threshold is longer than the longest legitimate gap** of its timer (the certificate rule was 2 days and wrong: two runs can be almost 48 hours apart).
 - **A long wait is not allowed to hide a hang:** the jobs wait 12 hours, and an 8-hour run warns.
 
@@ -52,7 +52,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 
 | What | When | Notes |
 |---|---|---|
-| Renovate: pull requests for container digests (and `flake.lock` if chosen) | weekly | the owner's weekly look at the pull requests and at the exposed services' advisories |
-| Deploys | monthly, or when a serious advisory lands | by the owner, after the checks, with a ZFS snapshot of the two datasets first |
-| The full restore drill | before each release move, after changes to storage, backup, database or Incus modules, and once a quarter | on the owner's workstation |
+| Renovate: pull requests for container digests (and `flake.lock` if chosen) | weekly | my weekly look at the pull requests and at the exposed services' advisories |
+| Deploys | monthly, or when a serious advisory lands | by me, after the checks, with a ZFS snapshot of the two datasets first |
+| The full restore drill | before each release move, after changes to storage, backup, database or Incus modules, and once a quarter | on my workstation |
 | Move to NixOS 26.11 | within weeks of its release (due 2026-11-30), before 26.05 ends on 2026-12-31 | |

@@ -15,7 +15,7 @@ the same loop. The point is not only the result: it is being able to explain, la
    "how long did it take to get working" is itself a result.
 6. **Record the result.** What worked, what did not, what surprised me, measured numbers. Failures are results too.
 7. **Decide, in an ADR.** One file in `docs/decisions/`, from the template: context, options, criteria, outcome, consequences.
-8. **Integrate.** The winner is merged into `reengineering`, and `reengineering` into `main`, which is what is published and deployed. The experiments themselves
+8. **Integrate.** The winner is merged into `main`, which is what is published and deployed. The experiments themselves
    are not published: the decision record keeps what was measured, and the scripts worth keeping are in `lab/`.
 
 ## Rules
@@ -34,7 +34,6 @@ the same loop. The point is not only the result: it is being able to explain, la
 | Place | What |
 |---|---|
 | `main` | what is published and what the server deploys; the archive of v0 is the tag `v0` |
-| `reengineering` | where the phases are integrated, before they are merged into `main` |
 | `docs/decisions/` | one ADR per decision, numbered |
 | `docs/method.md` | this file |
 | `docs/principles.md`, `docs/exceptions.md` | what a good answer looks like, and the register of exceptions |

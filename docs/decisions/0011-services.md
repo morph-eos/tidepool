@@ -3,7 +3,7 @@
 - **Status:** accepted (2026-10-01): native Nextcloud, Vaultwarden, Syncthing, smartd and PostgreSQL; Jellyfin 12.1 and Immich as pinned containers; WebDAV through nginx; Nextcloud as the single sign-on provider; icloudpd and Plex dropped
 - **Date:** 2026-10-01
 - **Phase:** 4, Services
-- **Update 2026-10-03:** the owner considered moving Nextcloud, Vaultwarden and WebDAV to containers and **kept the modules** ([ADR 0017 section 1](0017-version-watch-push-and-nas.md)): the configuration of Nextcloud (OIDC and the rest) is far simpler declared in Nix; staleness is watched by the weekend version watch instead.
+- **Update 2026-10-03:** I considered moving Nextcloud, Vaultwarden and WebDAV to containers and **kept the modules** ([ADR 0017 section 1](0017-version-watch-push-and-nas.md)): the configuration of Nextcloud (OIDC and the rest) is far simpler declared in Nix; staleness is watched by the weekend version watch instead.
 
 ## Context
 
@@ -86,7 +86,7 @@ Seedvault itself talks to a WebDAV server through **DAVx5's WebDAV mount** or **
 - **The discovery document** is at `/.well-known/openid-configuration` after **a 301 redirect**, and also directly at `/index.php/apps/oidc/openid-configuration`; its `issuer` is `https://<cloud name>`. A strict client (Vaultwarden checks the issuer against its authority) may not follow the redirect: **the well-known address should answer directly** (a rewrite in the virtual host), **to be settled when the integration is built**.
 - **Not tested:** a real login through Nextcloud into Vaultwarden, Jellyfin or Immich, and Jellyfin's SSO plugin.
 
-**Not tested:** Jellyfin's **hardware transcoding** (the lab has no GPU; the real-server check G2 is pending), Immich's machine learning on the owner's GPU, a **restore** of any of these (the drill of phase 7), the **icloudpd** service, a real smartd on the disks, the **SSO** integrations, and the owner's phone apps against the WebDAV server.
+**Not tested:** Jellyfin's **hardware transcoding** (the lab has no GPU; the real-server check G2 is pending), Immich's machine learning on my GPU, a **restore** of any of these (the drill of phase 7), the **icloudpd** service, a real smartd on the disks, the **SSO** integrations, and my phone apps against the WebDAV server.
 
 ## Criteria, in this order
 
@@ -98,7 +98,7 @@ Seedvault itself talks to a WebDAV server through **DAVx5's WebDAV mount** or **
 
 ## Decision (2026-10-01)
 
-The owner's answers: **WebDAV is for Seedvault** (GrapheneOS); the **GPU is an Intel one**; **icloudpd is dropped**; **Nextcloud stays the single sign-on provider** for the services; **for now only the services that exist today move over**, the new ones come later.
+My answers: **WebDAV is for Seedvault**; the **GPU is an Intel one**; **icloudpd is dropped**; **Nextcloud stays the single sign-on provider** for the services; **for now only the services that exist today move over**, the new ones come later.
 
 **Through their NixOS modules:** PostgreSQL 17 and its databases ([ADR 0006](0006-postgresql-version-and-immich.md)); **Nextcloud 33** (`database.createLocally`, Redis, the `oidc` app declared); **Vaultwarden** on PostgreSQL (with the ordering after the database written out); **Syncthing** (sync port public, GUI VPN-only); **`smartd` in place of the `smartcheck` container**; nginx.
 

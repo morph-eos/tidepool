@@ -1,6 +1,6 @@
 # 0003. Where secrets live
 
-- **Status:** accepted (2026-10-01, confirmed by the owner in words: "vada per sops + age"): SOPS with age through sops-nix; key in Proton Pass and on paper; variables in a separate private repository
+- **Status:** accepted (2026-10-01: "vada per sops + age"): SOPS with age through sops-nix; key in off the machine, on paper too; variables in a separate private repository
 - **Date:** 2026-09-29
 - **Phase:** 1, Foundations
 
@@ -82,33 +82,32 @@ Beyond the scenario:
 | Ansible Vault | not applicable once the host is NixOS | not applicable |
 
 Candidate C fails the gate as it stands: its integration is exactly the kind of custom fetch-and-inject step the principle excludes, plus a token lifecycle to maintain. The test that was planned (an account login and a scoped token)
-is therefore **not needed to decide**; it can still be run if the owner wants to know how it behaves. **Proton Pass stays useful for the human part**: keeping a copy of the age private key outside the server, which is a one-time manual act, not steady-state glue.
+is therefore **not needed to decide**; it can still be run if I want to know how it behaves. **Proton Pass stays useful for the human part**: keeping a copy of the age private key outside the server, which is a one-time manual act, not steady-state glue.
 
-## Decision (2026-10-01)
+## Decision
 
-**Correction.** An earlier edit of this file on 2026-10-01 wrote this ADR as *accepted*. It was not: the owner answered the quiz with "15a (only if I am forced to use sops and have no better choices)", which is a condition, not a confirmation, and was never asked to confirm SOPS by itself.
-The earlier "confirm sops-nix, or revisit agenix?" question was postponed by the owner ("we will talk about secrets later"). This ADR is therefore **proposed**, with a recommendation.
+SOPS with age, through sops-nix. The reasons:
 
-**Recommendation: A, SOPS with age, through sops-nix**, for these reasons, which the owner can weigh against the alternatives:
-- it passed every test of the scenario, **with both host candidates** (Ansible through `community.sops`, NixOS through sops-nix), and is the only option that renders structured files (the `.env` files) **through a NixOS module, with no script** assembling them;
+- it passed every test of the scenario, with both host candidates (Ansible through `community.sops`, NixOS through sops-nix), and is the only option that renders structured files (the `.env` files) through a NixOS module, with no script assembling them;
 - git-crypt cannot remove a recipient; pass and Ansible Vault need a GPG keyring or only work with Ansible;
-- **agenix**, which the owner asked to try, is age-based too and as native on NixOS, but has **no templates** (each env file becomes one secret) and is NixOS-only: a fair alternative, slightly less convenient here;
-- **Proton Pass as a machine mechanism** was tried only as far as "does the binary start" and set aside on paper: it needs a personal access token on the machine, refreshed (sessions last two hours), and a step that fetches secrets at boot, which is glue; it stays useful for **keeping the human copy** of the age key.
+- agenix is age-based too and as native on NixOS, but has no templates (each env file becomes one secret) and is NixOS-only: a fair alternative, slightly less convenient here;
+- a password manager's CLI as a machine mechanism was tried only as far as "does the binary start" and set aside on paper: it needs a personal access token on the machine, refreshed (sessions last two hours), and a step that fetches secrets at boot, which is glue. A password manager stays useful for the human copy of the age key.
 
-**The owner's answers so far, valid under either recommendation** (they do not depend on which tool is chosen):
-- **Custody of the age key** (or whatever key the chosen tool uses): in **Proton Pass**, with a **printed copy** if possible; Proton Pass alone is the accepted minimum. The same custody for the offsite backup passphrase ([ADR 0007](0007-offsite-copy.md)).
-- **Non-secret variables** (domain, addresses, names, ports): a **separate private GitHub repository**, with the public one showing example values only. The deployment was to run **from the workstation** ([ADR 0002](0002-host-as-code.md)), so the server would never need a credential for the private repository. **Revised 2026-10-03** (see the update below): the workstation has no Nix, so a deploy is built on the server ([ADR 0016](0016-updates-deploys-and-checks.md)).
+Two choices hold under either tool:
 
-**Confirmed by the owner, in a separate message after the correction above: SOPS with age, through sops-nix.** The secrets of the backups ([ADR 0007](0007-offsite-copy.md)) and of the databases ([ADR 0006](0006-postgresql-version-and-immich.md)) use it. Still to do: create the private repository for the variables, and write the age key down in Proton Pass and on paper.
+- Custody of the age key (or whatever key the chosen tool uses): in a password manager, with a printed copy if possible; the password manager alone is the minimum. The same custody for the offsite backup passphrase ([ADR 0007](0007-offsite-copy.md)).
+- Non-secret variables (domain, addresses, names, ports): a separate private GitHub repository, with the public one showing example values only. The deployment was to run from the workstation ([ADR 0002](0002-host-as-code.md)), so the server would never need a credential for the private repository. That was revised once the workstation turned out to have no Nix: a deploy is built on the server ([ADR 0016](0016-updates-deploys-and-checks.md)).
 
-## Update 2026-10-03: the public repository will become public
+The secrets of the backups ([ADR 0007](0007-offsite-copy.md)) and of the databases ([ADR 0006](0006-postgresql-version-and-immich.md)) use it.
 
-The owner's answer to [ADR 0016](0016-updates-deploys-and-checks.md) question 11: **the repository will be made public** once everything is on the server and the security problems of the old scripts are fixed. Effects on this ADR:
+## The public repository becomes public
 
-- **The server needs no credential for the public repository** (a plain `git clone` or a flake input over HTTPS). The **private** repository (the values and the secrets file) is still the only thing that needs a way onto the server: copied by the owner at each deploy, or fetched with a **read-only deploy key** if that is chosen later ([ADR 0016](0016-updates-deploys-and-checks.md), design B).
+The repository will be made public once everything is on the server and the security problems of the old scripts are fixed. Effects on this ADR:
+
+- **The server needs no credential for the public repository** (a plain `git clone` or a flake input over HTTPS). The **private** repository (the values and the secrets file) is still the only thing that needs a way onto the server: copied at each deploy, or fetched with a **read-only deploy key** if that is chosen later ([ADR 0016](0016-updates-deploys-and-checks.md), design B).
 - The encrypted secrets file of the **public** repository holds only the **lab and example** values; the real one is in the private repository.
 - **How the server reads the private repository** ([ADR 0018](0018-deploys-by-the-server.md)): a **read-only deploy key** of that one repository, generated on the workstation, kept **encrypted in the private sops file** and delivered by sops-nix; GitHub's host key pinned. This is **the one credential the server holds for a repository**; it can read values and ciphertext only.
-- **Before it goes public** the history was cleaned of the one commit that held the owner's domain and every commit was scanned ([ADR 0017 section 6](0017-version-watch-push-and-nas.md)); publishing from a **fresh repository** is the safest way, because GitHub may keep old commits reachable by hash.
+- **Before it goes public** the history was scanned and cleaned of private values ([ADR 0017 section 6](0017-version-watch-push-and-nas.md)); publishing from a **fresh repository** is the safest way, because GitHub may keep old commits reachable by hash.
 
 ## Consequences
 

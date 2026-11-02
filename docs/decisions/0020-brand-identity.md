@@ -1,6 +1,6 @@
 # 0020. A shared brand: name, palette, logo
 
-- **Status:** **accepted (2026-10-08)** and built: `nixos/modules/brand.nix`, `nixos/modules/sso.nix`, `nixos/brand/`. The owner's decisions are in the last section. The identity itself (the name's case, the six colours, the mark) is a **placeholder** until the owner replaces it.
+- **Status:** **accepted (2026-10-08)** and built: `nixos/modules/brand.nix`, `nixos/modules/sso.nix`, `nixos/brand/`. The decisions are in the last section. The identity itself (the name's case, the six colours, the mark) is a **placeholder** until it is replaced.
 - **Date:** 2026-10-07 (study), 2026-10-08 (decisions and build)
 - **Phase:** after the first deployment is prepared; independent of it
 
@@ -48,17 +48,17 @@ A program can rename a variable, a class or a setting. The failure is cosmetic, 
 - **A wordmark** (the logo with the name in letters) must be **outlined** by whoever designs it: rendering text to images in the build would need a font. It is optional; the mark is used where there is none.
 - **The lab does not verify the single sign-on's certificates** (its CA changes at every start); on the real machine the certificates are Let's Encrypt's.
 
-## The owner's decisions (2026-10-08)
+## Decisions
 
 1. The data file is **JSON**, with Nix reading it.
 2. Immich: **all its settings are declared in the flake**, and **the link with Nextcloud (the single sign-on) too**.
-3. The identity: **the placeholder stays** (the name `Tidepool`, the deep teal and sea green, the coral, the sand, the wave mark) until the owner chooses.
+3. The identity: **the placeholder stays** (the name `Tidepool`, the deep teal and sea green, the coral, the sand, the wave mark) until I choose.
 4. The programs' own logos are replaced where a program lets it be done, **with the check at every update** above.
 5. **No home page** at the domain's apex: it stays empty.
 
 ## Update (2026-10-08, later): reduced to what the programs support
 
-The owner asked to keep **only the parts a program supports** and to drop the tricks. Removed: the **patched Vaultwarden web vault** (a copy of the package with replaced images and a stylesheet), and the **stylesheet that nginx added** to Prometheus', Alertmanager's and Syncthing's pages, with the icons and the stylesheet built for them. Why: each depended on a program's internals (a class name, a variable, the layout of `index.html`); one of them (Vaultwarden's colour variables) had already been renamed once in 2026; the patch could fail the whole build on an update (`substituteInPlace` on a file that changed), blocking every deploy until it was mended; and seven programs restyled from outside is a maintenance burden for a cosmetic gain. What remains is what a program lets be set. The module went from 145 to 96 lines and the register lost its fragile entry.
+I asked to keep **only the parts a program supports** and to drop the tricks. Removed: the **patched Vaultwarden web vault** (a copy of the package with replaced images and a stylesheet), and the **stylesheet that nginx added** to Prometheus', Alertmanager's and Syncthing's pages, with the icons and the stylesheet built for them. Why: each depended on a program's internals (a class name, a variable, the layout of `index.html`); one of them (Vaultwarden's colour variables) had already been renamed once in 2026; the patch could fail the whole build on an update (`substituteInPlace` on a file that changed), blocking every deploy until it was mended; and seven programs restyled from outside is a maintenance burden for a cosmetic gain. What remains is what a program lets be set. The module went from 145 to 96 lines and the register lost its fragile entry.
 
 
 ## Update (2026-11-01): the TV session

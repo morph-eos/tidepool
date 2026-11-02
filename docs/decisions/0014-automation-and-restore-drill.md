@@ -1,6 +1,6 @@
 # 0014. Automation: proving that the host rebuilds from nothing and that a restore brings everything back
 
-- **Status:** accepted (2026-10-06, at the owner's request that the statuses be brought up to date): the lab proof passed on 2026-10-02 and again on the final tree on 2026-10-06; the two open questions are answered below
+- **Status:** accepted (2026-10-06, at my request that the statuses be brought up to date): the lab proof passed on 2026-10-02 and again on the final tree on 2026-10-06; the two open questions are answered below
 - **Date:** 2026-10-02
 - **Phase:** 7, Automation
 
@@ -14,7 +14,7 @@ To prove it, the experiments' modules had to become **one system**. Until now `r
 
 - **Must:** a blank machine becomes the whole system from the repository and the age key, with **no manual step inside the flake's scope** (the first-time provisioning of the two large backup disks is outside it and written down); the backups **survive the loss of the system disk and of the SSD**; a restore brings back the databases and the files **to the same moment**, and **checks, not eyes, say whether it worked**; the proof runs unattended and ends in PASS or FAIL; times are recorded.
 - **Should:** every change is checked cheaply; the real host and the lab host share the code and differ in values; the steps of the lab proof are the steps of the runbook for the real machine.
-- **Won't:** pretend the lab shows the real hardware (the GPU, the TPM, Secure Boot, the SMR disk, 165 GB of data, the home uplink).
+- **Won't:** pretend the lab shows the real hardware (the GPU, the TPM, Secure Boot, the SMR disk, about 150 GB of data, the home uplink).
 
 ## What was built
 
@@ -25,7 +25,7 @@ To prove it, the experiments' modules had to become **one system**. Until now `r
 | `base` | admin user and key, SSH, fail2ban, crash dump, time, **Podman**, the firewall on with forward filtering | [0002](0002-host-as-code.md), [0013](0013-vms-and-containers.md) |
 | `storage` | **disko**: the system disk and the SSD's ZFS pool with its datasets, declared; the two large disks only mounted | [0005](0005-storage-layout-and-filesystem.md) |
 | `secrets` | sops-nix: every secret by name, none in the Nix store | [0003](0003-secrets.md) |
-| `database` | PostgreSQL 17 and pgBackRest (the repository on the 16 TB disk) | [0004](0004-backup.md), [0006](0006-postgresql-version-and-immich.md) |
+| `database` | PostgreSQL 17 and pgBackRest (the repository on the large disk) | [0004](0004-backup.md), [0006](0006-postgresql-version-and-immich.md) |
 | `backup` | Borg, two repositories, every hour | [0004](0004-backup.md), [0007](0007-offsite-copy.md) |
 | `services` | Nextcloud, Vaultwarden, Syncthing, WebDAV through nginx, smartd; Immich and Jellyfin as Podman containers pinned by digest | [0011](0011-services.md) |
 | `edge`, `vpn` | nginx and ACME (DNS challenge on the real host), WireGuard | [0008](0008-edge.md), [0009](0009-remote-access-vpn.md) |
@@ -69,7 +69,7 @@ Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](00
 | Defect | How it showed | Fix |
 |---|---|---|
 | **`zfs-mount.service` failed on every boot**: the datasets were mounted by fstab **and** by ZFS | a failed unit, which the alerts would report forever | the datasets are `legacy` mountpoints, mounted by systemd only (`storage.nix`) |
-| **The surviving 2 TB disk broke the declared Incus pool**: a rebuilt Incus (empty database) refused to create the pool over a non-empty folder, and its preseed unit stayed failed; **`incus admin recover` needs the declared network to exist first** and is interactive | the second full run | **Incus's state lives on the 2 TB disk** (`/var/lib/incus` is a bind mount of a folder there): a rebuilt host finds its instances as they were; no manual recovery. The folder is made at first-time provisioning |
+| **The surviving mid-size disk broke the declared Incus pool**: a rebuilt Incus (empty database) refused to create the pool over a non-empty folder, and its preseed unit stayed failed; **`incus admin recover` needs the declared network to exist first** and is interactive | the second full run | **Incus's state lives on the mid-size disk** (`/var/lib/incus` is a bind mount of a folder there): a rebuilt host finds its instances as they were; no manual recovery. The folder is made at first-time provisioning |
 | The database was fine, but **`PostgresArchiveFailing` fires after a rebuild** until the first backup runs (archiving fails while the stanza does not exist) | the alerts on the rebuilt host | expected: it is a true signal. The runbook ends with a backup. The rule stays |
 | Nextcloud's admin is **`root`** by default in the module | the checks got 401 | the drill uses that name; the option `adminuser` is the way to change it |
 | sops-nix **checks the secrets file of the example host** at build | `nix flake check` failed | the example host's file is a stand-in with the right keys |
@@ -80,7 +80,7 @@ Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](00
 
 ## What the lab stood in for, and what it does not show
 
-- **Small data:** a few tens of MB of photos, a 190 MB database repository. The **timings scale with the real 165 GB**: the restore of the files and the first Borg run are not measured at that size, nor the 200 GB offsite upload.
+- **Small data:** a few tens of MB of photos, a 190 MB database repository. The **timings scale with the real about 150 GB**: the restore of the files and the first Borg run are not measured at that size, nor the 200 GB offsite upload.
 - **Not in the integrated lab host:** Immich's **machine learning** and **Jellyfin** (a 2.5 GB image) are declared and evaluate, but did not run; **no GPU**.
 - **Boot and disks:** BIOS boot with grub and an ext4 root. The real layout (**UEFI, lanzaboote, LUKS with the TPM**, [ADR 0005](0005-storage-layout-and-filesystem.md)) is **not tried**; the mechanism (disko from the flake) is.
 - **Certificates, mail and the heartbeat:** Pebble, a mail sink and a heartbeat sink. The real **DNS challenge**, **Brevo** and **Healthchecks.io** are untested on the integrated host.
@@ -99,7 +99,7 @@ Lab host: 4 vCPUs, 8 GB, nested virtualization (the same limits as [ADR 0013](00
 ## Proposed decision
 
 **Three layers of proof, all from the repository.**
-1. **On every change:** `nix flake check` (both hosts evaluate and build): seconds with a warm store. To run on a change by a git hook or a CI job: the owner chooses (below).
+1. **On every change:** `nix flake check` (both hosts evaluate and build): seconds with a warm store. To run on a change by a git hook or a CI job: I choose (below).
 2. **The full drill (`lab/restore-drill.sh all`, about 30 minutes on the lab VM):** **before the first deployment, and after any change to the storage, backup, database or Incus modules.** It is the proof that "rebuild from scratch" and "restore" still work.
 3. **The same steps on the real machine** from [the runbook](../restore-drill.md), after the installation and before it carries anything the household cannot lose.
 
@@ -107,7 +107,7 @@ The integrated flake is **merged into `reengineering`**, so that the real host i
 
 ## Open questions: answered
 
-1. **Where do the checks run on their own?** In **GitHub Actions**: `nix flake check` on every pull request and push (`.github/workflows/check.yml`, [ADR 0016](0016-updates-deploys-and-checks.md) and [ADR 0018](0018-deploys-by-the-server.md) section 6). The full drill (an 8 GB VM with four disks, about 30 minutes) is not for a hosted runner: it stays on the owner's workstation.
+1. **Where do the checks run on their own?** In **GitHub Actions**: `nix flake check` on every pull request and push (`.github/workflows/check.yml`, [ADR 0016](0016-updates-deploys-and-checks.md) and [ADR 0018](0018-deploys-by-the-server.md) section 6). The full drill (an 8 GB VM with four disks, about 30 minutes) is not for a hosted runner: it stays on my workstation.
 2. **How often is the full drill repeated?** Before each deployment, after any change to the storage, backup, database or Incus modules, and **once a quarter**, as a reminder that the backups still restore ([the schedule](../schedule.md)).
 
 **Repeated on 2026-10-06, on the tree that is published:** `DRILL RESULT: PASS`, 14 checks, no failed unit (lab times: installation 1034 s, rebuild from the flake 1131 s, restore and checks 372 s; the lab's link is slow).

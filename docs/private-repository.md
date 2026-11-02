@@ -39,7 +39,7 @@ The server holds **one credential** for GitHub: the read-only deploy key of the 
 
 ## Setting it up
 
-The numbered steps are in [the template's README](../private-repo-template/README.md); the order of the day is in [the deployment runbook](deployment-runbook.md) (section 0). In short: copy the template to a new private repository; replace every `REPLACE-…` and `OWNER`; make the age key and write `.sops.yaml`; fill `secrets.yaml` and `deploy-key`; `nix flake lock`; check that `nix build .#nixosConfigurations.tidepool.config.system.build.toplevel` works; turn on the Actions setting for `bump-public.yml`.
+The numbered steps are in [the template's README](../private-repo-template/README.md). In short: copy the template to a new private repository; replace every `REPLACE-…` and `OWNER`; make the age key and write `.sops.yaml`; fill `secrets.yaml` and `deploy-key`; `nix flake lock`; check that `nix build .#nixosConfigurations.tidepool.config.system.build.toplevel` works; turn on the Actions setting for `bump-public.yml`.
 
 ## Working with it afterwards
 
@@ -51,4 +51,4 @@ The numbered steps are in [the template's README](../private-repo-template/READM
 
 ## Keep safe
 
-The **age key** (machine) and the Borg and pgBackRest keys: written down in Proton Pass **and on paper** ([the runbook](deployment-runbook.md) 0.2). Without the age key `secrets.yaml` cannot be read, and the repository is not enough to rebuild the machine.
+The **age key** (machine) and the Borg and pgBackRest keys: written down off the machine, **on paper too**. Without the age key `secrets.yaml` cannot be read, and the repository is not enough to rebuild the machine.
