@@ -27,6 +27,12 @@ let cfg = config.tidepool; in
     jails.sshd.settings = { enabled = true; port = "2222"; backend = "systemd"; findtime = 600; bantime = 3600; };
   };
 
+  # SSH from the home network too (tidepool.admin.sshFromLan): the interface AND the source network, since the router hands a forwarded port's traffic to this same interface
+  assertions = [ { assertion = cfg.admin.sshFromLan == null || cfg.lanInterface != null; message = "tidepool.admin.sshFromLan needs tidepool.lanInterface"; } ];
+  networking.firewall.extraInputRules = lib.mkIf (cfg.admin.sshFromLan != null) ''
+    iifname "${toString cfg.lanInterface}" ip saddr ${cfg.admin.sshFromLan} tcp dport 2222 accept
+  '';
+
   boot.crashDump = { enable = true; reservedMemory = if cfg.lab then "128M" else "256M"; };
   boot.kernelParams = [ "softlockup_panic=1" "nmi_watchdog=1" "panic=10" ];
 

@@ -11,6 +11,7 @@ in
     admin = {
       name = mkOption { type = types.str; default = "admin"; };
       key = mkOption { type = types.str; description = "The admin's public SSH key."; };
+      sshFromLan = mkOption { type = types.nullOr types.str; default = null; description = "A network (e.g. 192.168.1.0/24) from which SSH is also open on the LAN interface (`tidepool.lanInterface`), so that the admin gets in from the home network without the VPN. Key-only login and fail2ban stay on. The network is the LAN's own, not whatever the router forwards: the rule names the source address as well as the interface. Off by default (a private value)."; };
     };
     boot.mode = mkOption { type = types.enum [ "bios" "uefi" ]; default = "uefi"; };
     encryption = {
@@ -48,6 +49,14 @@ in
         description = "Media folders read by Jellyfin: the path INSIDE the container = the path on the machine. The libraries of an existing Jellyfin database point at container paths, so a move from another setup keeps its paths here (a private value).";
       };
       syncthing.restoreIdentity = mkEnableOption "the device identity of an existing Syncthing (its certificate and key, the sops secrets `syncthing-cert` and `syncthing-key`), so the device keeps its ID on a move";
+      immich.externalLibraries = mkOption {
+        type = types.attrsOf types.str; default = { };
+        description = "Folders Immich reads as external libraries, mounted read-only: the path INSIDE the container = the path on the machine (created if missing). The records of an existing Immich database keep the path they were read from, so a move from another setup keeps its paths here, and without this such assets show as offline (a private value).";
+      };
+      vaultwarden.webVault.enable = mkOption {
+        type = types.bool; default = true;
+        description = "Serve Vaultwarden's web vault (the pages in a browser) at its name. Off: only the API answers, for the apps and extensions; nothing opens in a browser. On by default. Single sign-on in the Bitwarden apps opens the web vault, so with it off only the master password logs in.";
+      };
       immich.settings = mkOption {
         type = (pkgs.formats.json { }).type; default = { };
         description = "Immich's settings, declared here: with a configuration file, Immich's admin page shows its settings read-only. What is not named keeps Immich's default. Modules add to it (the brand, the single sign-on); a private repository adds its own.";

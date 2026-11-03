@@ -29,6 +29,7 @@ in
       ROCKET_ADDRESS = "127.0.0.1"; ROCKET_PORT = 8222;
       DATABASE_URL = "postgresql:///vaultwarden?host=/run/postgresql";
       SIGNUPS_ALLOWED = false;
+      WEB_VAULT_ENABLED = cfg.services.vaultwarden.webVault.enable;
       SSO_AUTH_ONLY_NOT_SESSION = true;   # when single sign-on is on, it only authenticates: Vaultwarden's own session is not tied to the provider's refresh token, so a refused token (`Invalid refresh token`) does not end a session
     };
     environmentFile = config.sops.secrets.vaultwarden-env.path;
@@ -84,7 +85,7 @@ in
     immich-server = {
       image = "ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2";
       environment = dbEnv // { IMMICH_MACHINE_LEARNING_URL = "http://127.0.0.1:3003"; IMMICH_HOST = "127.0.0.1"; IMMICH_CONFIG_FILE = "/etc/immich/config.json"; };
-      volumes = [ "/srv/data/immich/upload:/data" "/run/postgresql:/run/postgresql" "${config.sops.templates."immich-config.json".path}:/etc/immich/config.json:ro" ];
+      volumes = [ "/srv/data/immich/upload:/data" "/run/postgresql:/run/postgresql" "${config.sops.templates."immich-config.json".path}:/etc/immich/config.json:ro" ] ++ lib.mapAttrsToList (inside: outside: "${outside}:${inside}:ro") cfg.services.immich.externalLibraries;
       dependsOn = [ "immich-redis" ];
       extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };
@@ -105,7 +106,7 @@ in
   };
   systemd.services.podman-immich-server = { after = [ "postgresql.service" "tidepool-db-setup.service" ]; requires = [ "postgresql.service" "tidepool-db-setup.service" ]; };   # the setup: the extensions and the ownership Immich's role needs
 
-  systemd.tmpfiles.rules = [
+  systemd.tmpfiles.rules = lib.mapAttrsToList (_: outside: "d ${outside} 0755 root root -") cfg.services.immich.externalLibraries ++ [
     # the photos and the media server's database (password hashes, API keys) are for the containers, which run as root: closed to every other local user, the TV session's included (ADR 0022)
     "d /srv/data/immich 0700 root root -" "d /srv/data/immich/upload 0700 root root -" "d /srv/data/immich/model-cache 0700 root root -"
     "d /srv/data/jellyfin 0700 root root -" "d /srv/data/jellyfin/config 0700 root root -" "d /srv/data/jellyfin/cache 0700 root root -"
