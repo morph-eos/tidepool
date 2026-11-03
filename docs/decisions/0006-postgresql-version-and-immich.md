@@ -78,7 +78,7 @@ So the native module is clean for a remote repository and **needs about six line
 | Move from v0 | the same image family, one tag | a logical dump and restore (the same as B, from 14) |
 | Extensions | shipped in the image (pinned) | from nixpkgs (VectorChord 1.1.1 is newer than the 0.4.3 of the image; accepted by Immich) |
 | Backup tools | `archive_command` would run **inside** the container, where pgBackRest is not installed: only tools that connect from outside work (Barman streaming, Databasus, `pg_receivewal`) | **all of them**, including the pgBackRest module and its timers |
-| Secrets | a password in the container environment | none: Unix socket and a peer rule (`identMap`), no password anywhere |
+| Secrets | a password in the container environment | none: Unix socket and a peer rule (`identMap`, to a role of Immich's own: see the update at the end), no password anywhere |
 | Updates | a new digest to review | the channel, and a rebuild; a major version needs a dump and restore either way |
 | Lines of our configuration | 5 for the container, plus a password it needs | 8 for the service, plus the six above if pgBackRest is added |
 
@@ -119,3 +119,7 @@ What this settles: **the library is small** (a dump is of the order of the datab
 
 - If C: the database belongs to the host flake, and its backups to the pgBackRest module; the restore drill of phase 7 includes the dump and restore for any **major** change.
 - Whatever is chosen: a database restore is paired with a **restore of the files to the same moment** (from the Borg archives, [ADR 0004](0004-backup.md)), and this has to be part of the restore drill: a restore that brings back rows without the files is a silent failure.
+
+## Update: Immich has a role of its own
+
+Immich first connected as `postgres`, the superuser, through the peer rule that maps the container's root to it; a compromised Immich would have read every database on the instance, Vaultwarden's and Nextcloud's included. It now connects as the role `immich`, which owns its database and is not a superuser, through a rule that maps the container's root to that role only (`local immich immich peer map=immich`); root can no longer become `postgres` or another role through the map. Each of the three databases is closed to every role but its owner's (`revoke connect ... from public`). What a role that is not a superuser cannot do, `tidepool-db-setup` does before Immich starts, at every start: the extensions Immich needs (including the update of VectorChord and pgvector after a version change in nixpkgs) and the ownership of the objects an earlier run as `postgres` had created. I chose this over a password and a TCP connection because the peer rule keeps "no password anywhere".
