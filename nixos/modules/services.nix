@@ -29,6 +29,7 @@ in
       ROCKET_ADDRESS = "127.0.0.1"; ROCKET_PORT = 8222;
       DATABASE_URL = "postgresql:///vaultwarden?host=/run/postgresql";
       SIGNUPS_ALLOWED = false;
+      SSO_AUTH_ONLY_NOT_SESSION = true;   # when single sign-on is on, it only authenticates: Vaultwarden's own session is not tied to the provider's refresh token, so a refused token (`Invalid refresh token`) does not end a session
     };
     environmentFile = config.sops.secrets.vaultwarden-env.path;
   };
