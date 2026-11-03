@@ -58,6 +58,6 @@ let cfg = config.tidepool; in
   # images that no container uses any more (the old digest after an update) are removed weekly
   virtualisation.podman.autoPrune = { enable = true; dates = "weekly"; };
 
-  environment.systemPackages = with pkgs; [ curl jq htop ];
+  environment.systemPackages = with pkgs; [ curl jq htop smartmontools ];   # smartmontools: `sudo smartctl -a /dev/...` from a shell, the disks' own report (the daemon and the exporter carry their own copy)
   system.stateVersion = "26.05";
 }
