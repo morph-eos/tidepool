@@ -8,6 +8,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 |---|---|---|---|
 | Borg jobs `everything` (large disk) and `offsite` (mid-size disk) | every hour, on the hour | create, then prune and compact; each waits **up to 12 hours** for the repository lock | [0004](decisions/0004-backup.md), [0015](decisions/0015-backup-verification.md) |
 | Borg retention | at every job | every archive of the last **3 days**, then one a day until the 14th day, then one a week for 4 weeks (87 archives, the oldest about 40 days) | [0004](decisions/0004-backup.md) |
+| Dump of the databases in `tidepool.backup.databaseDumps` (`tidepool-db-dump`) | before each Borg job (started by it) | `pg_dump` custom format into a directory that both Borg repositories carry; a failed dump is reported and does not stop the files' backup | [0004](decisions/0004-backup.md) |
 | PostgreSQL WAL archiving (pgBackRest) | continuous, at most 30 s behind (`archive_timeout`) | | [0004](decisions/0004-backup.md) |
 | pgBackRest differential backup | Monday to Saturday, 03:00 | | [0004](decisions/0004-backup.md) |
 | pgBackRest full backup | Sunday, 03:00 | two full backups kept, so a point-in-time restore reaches back **7 to 14 days** | [0004](decisions/0004-backup.md) |
@@ -27,7 +28,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 | What | Behaviour | ADR |
 |---|---|---|
 | A failed systemd unit (any backup, check, restore test, certificate order) | `UnitFailed`: mail after **5 minutes**; measured on a real failed backup: the mail arrived 6 minutes 13 seconds after the failure | [0012](decisions/0012-observability.md), [0015](decisions/0015-backup-verification.md) |
-| Any service that fails | the service tells Alertmanager itself the moment it fails (`OnFailure=` on every service): a mail after about **30 seconds** that does not depend on a scrape, `ServiceFailed` (a warning); for a Borg job, pgBackRest backup, borgmatic run, restore test or the Proton Drive copy it is `BackupJobFailed` (critical: mail and push); at most one mail every 12 hours while it keeps failing | [0012](decisions/0012-observability.md) |
+| Any service that fails | the service tells Alertmanager itself the moment it fails (`OnFailure=` on every service): a mail after about **30 seconds** that does not depend on a scrape, `ServiceFailed` (a warning); for a Borg job, a database dump, pgBackRest backup, borgmatic run, restore test or the Proton Drive copy it is `BackupJobFailed` (critical: mail and push); at most one mail every 12 hours while it keeps failing | [0012](decisions/0012-observability.md) |
 | A Borg job, borgmatic run or restore test **running for 8 hours** | `BackupJobRunningLong` | [0015](decisions/0015-backup-verification.md) |
 | A timer that stopped firing | Borg jobs: 4 hours; pgBackRest: 60 hours; borgmatic (weekly): 8 days; restore test (monthly): 45 days; certificate renewal (daily, random up to 24 h): **3 days** | [0012](decisions/0012-observability.md), [0015](decisions/0015-backup-verification.md) |
 | Alert mails | first mail after 30 seconds; new alerts in an existing group at most every **30 minutes**; a repeat every 12 hours while it keeps firing; no mail when an alert resolves | [0012](decisions/0012-observability.md) |
