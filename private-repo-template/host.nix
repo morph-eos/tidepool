@@ -43,6 +43,9 @@
     };
     # Jellyfin: the paths INSIDE the container are what existing libraries point at; the right-hand side is where the folder is on the machine
     # services.jellyfin.mediaMounts = { "/media" = "/mnt/backup16/media"; };
+    # services.immich.externalLibraries = { "/import" = "/srv/data/immich/import"; };   # folders Immich reads as external libraries, read-only: the path inside the container = the path on the machine (an existing database keeps the paths it was read from)
+    # services.vaultwarden.webVault.enable = false;   # no web vault in a browser, only the API for the apps and extensions (single sign-on in the apps opens the web vault: with it off only the master password logs in)
+    # admin.sshFromLan = "192.168.1.0/24";   # SSH also from the home network, on the LAN interface (needs lanInterface or wifi); key-only login and fail2ban stay on
     # services.syncthing.restoreIdentity = true;   # the device keeps its ID: secrets `syncthing-cert` and `syncthing-key`
     renovate = { enable = false; repositories = [ "OWNER/tidepool" ]; };   # Renovate on this server, for the PUBLIC repository, with a machine user's token (sops secret `renovate-token`)
   };
