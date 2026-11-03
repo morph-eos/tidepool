@@ -114,6 +114,24 @@ let
         labels: { severity: warning }
         annotations: { summary: "{{ $labels.device }} has been above 55 C for half an hour" }
   '';
+  # A failed service tells Alertmanager itself, at the moment it fails (`OnFailure=`, put on every service by one drop-in below): the alert does not wait for a scrape and a 5-minute rule.
+  # `UnitFailed` alone saw only the failures that lasted five minutes, and a switch of the deploy removes a unit's failed state (measured: a unit that failed and was seen failed
+  # for a minute was gone after the next switch), so a failure in the last five minutes before a tick was never seen. The alert ends after two hours: a job that keeps failing posts
+  # it again at its next run, and the repeat interval below keeps that to one mail every 12 hours. A backup unit is critical (mail and push), any other service a warning (mail).
+  alertFailedUnit = pkgs.writeShellApplication {
+    name = "tidepool-alert-failed-unit";
+    runtimeInputs = [ pkgs.coreutils pkgs.curl pkgs.jq ];
+    text = ''
+      unit=$1
+      case $unit in
+        borgbackup-job-*|borgmatic.service|pgbackrest-*|proton-offsite-sync.service) name=BackupJobFailed severity=critical ;;
+        *) name=ServiceFailed severity=warning ;;
+      esac
+      jq -n --arg name "$name" --arg severity "$severity" --arg unit "$unit" --arg ends "$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" \
+        '[{ labels: { alertname: $name, severity: $severity, unit: $unit }, annotations: { summary: ($unit + " has failed") }, endsAt: $ends }]' \
+        | curl -fsS --retry 5 --retry-connrefused --retry-delay 5 -H 'Content-Type: application/json' -d @- http://127.0.0.1:9093/api/v2/alerts
+    '';
+  };
   probe = name: module: targets: {
     job_name = name; metrics_path = "/probe"; params.module = [ module ];
     static_configs = [ { inherit targets; } ];
@@ -175,8 +193,17 @@ in
     };
   };
   # Alertmanager runs as a dynamic user: systemd hands it the two secrets as credentials (they never enter the Nix store and are readable by that unit only)
-  systemd.services.alertmanager.serviceConfig.LoadCredential = [
-    "smtp-password:${config.sops.secrets.smtp-password.path}"
-    "heartbeat-url:${config.sops.secrets.heartbeat-url.path}"
-  ];
+  systemd.services = {
+    alertmanager.serviceConfig.LoadCredential = [
+      "smtp-password:${config.sops.secrets.smtp-password.path}"
+      "heartbeat-url:${config.sops.secrets.heartbeat-url.path}"
+    ];
+    "tidepool-alert@" = {
+      description = "Tell Alertmanager that %i has failed";
+      serviceConfig = { Type = "oneshot"; DynamicUser = true; ExecStart = "${alertFailedUnit}/bin/tidepool-alert-failed-unit %i"; };
+    };
+  };
+  # one drop-in for every service (the type-level `service.d`): the alert needs no list of units to keep up to date. The alert's own unit opts out, or a failed alert would start another.
+  systemd.units."service.d/10-tidepool-alert.conf".text = "[Unit]\nOnFailure=tidepool-alert@%n.service\n";
+  systemd.units."tidepool-alert@.service.d/10-no-alert.conf".text = "[Unit]\nOnFailure=\n";
 }

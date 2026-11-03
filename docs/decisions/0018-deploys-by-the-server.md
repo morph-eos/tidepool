@@ -170,7 +170,7 @@ With the encrypted layout and the TPM (`lab/experiments/deploy-u22-encrypted.sh`
 
 The rebuild from blank with the same layout also passes ([restore-drill.md B2](../restore-drill.md): 14 checks, 0 failed units; the signing keys come back from Borg, so the firmware's old keys still accept the new boot images and the old TPM seal of the mid-size disk still opens it). Still untried at the time: real firmware and a real TPM.
 
-The window and the Sunday checks. The borgmatic checks start on Sunday at 04:30 and verify every byte of every archive of a large repository, which on real data may last hours. A reboot at 06:00 would cut them, cleanly but without an alert. So the deploy timer runs Monday to Saturday (`interval = "Mon..Sat *:0/10"`, in the private template): no tick on Sunday, so no reboot on Sunday. A change merged on a Saturday evening or a Sunday is installed on Monday at 00:00 and the reboot comes at 06:00 that day. If the Sunday check turns out to be short, the exclusion can go.
+The window and the Sunday checks. The borgmatic checks start on Sunday at 04:30 and verify every byte of every archive of a large repository, which on real data may last hours. A reboot at 06:00 would cut them, cleanly but without an alert. So the deploy timer runs Monday to Saturday (`interval = "Mon..Sat *:3/10"`, in the private template; minute 3 and not 0, so that a tick does not start in the same second as the hourly backup jobs): no tick on Sunday, so no reboot on Sunday. A change merged on a Saturday evening or a Sunday is installed on Monday at 00:03 and the reboot comes at 06:00 that day. If the Sunday check turns out to be short, the exclusion can go.
 
 ## 10. Renovate: GitHub's app or the server
 
