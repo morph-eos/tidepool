@@ -32,6 +32,12 @@ r "the operating system carries the brand's name"    "NAME=Tidepool" grep -E '^N
 r "the database answers"                             "1" bash -c "sudo -u postgres psql -tAc 'select 1'"
 # the dump that both Borg repositories carry: made by its unit, and readable as a PostgreSQL archive
 sudo systemctl start tidepool-db-dump.service
+# Immich's own database role: not a superuser, owns what it uses, and root reaches nothing else through the peer map
+r "Immich's database role is not a superuser"      f bash -c "sudo -u postgres psql -tAc \"select rolsuper from pg_roles where rolname = 'immich'\""
+r "nothing of Immich's own is left to postgres" 0 bash -c "sudo -u postgres psql -d immich -tAc \"select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and pg_get_userbyid(c.relowner) = 'postgres' and c.relkind in ('r','S','v','m') and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')\" | tr -d ' '"
+r "Immich's role reads its own database"            1 sudo psql -h /run/postgresql -U immich -d immich -tAc 'select 1'
+r "Immich's role is refused the other databases"   refused bash -c "sudo psql -h /run/postgresql -U immich -d vaultwarden -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
+r "root cannot become postgres through the map"    refused bash -c "sudo psql -h /run/postgresql -U postgres -d immich -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
 r "the vault database is dumped for the Borg repositories" PGDMP sudo head -c 5 /var/lib/tidepool-db-dumps/vaultwarden.dump
 # a service that fails tells Alertmanager at once (the drop-in for every service posts the alert), with the time it failed, and the alert's own unit does not start another.
 # The unit's name is new at every run: an alert of the same name from an earlier run stays firing for two hours and keeps its first start, and Alertmanager groups by alert name, so a second mail would wait for the group interval

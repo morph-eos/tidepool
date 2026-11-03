@@ -4,7 +4,7 @@
 let
   cfg = config.tidepool;
   d = cfg.domain;
-  dbEnv = { DB_HOSTNAME = "/run/postgresql"; DB_USERNAME = "postgres"; DB_PASSWORD = "unused-peer-auth"; DB_DATABASE_NAME = "immich"; REDIS_HOSTNAME = "127.0.0.1"; };
+  dbEnv = { DB_HOSTNAME = "/run/postgresql"; DB_USERNAME = "immich"; DB_PASSWORD = "unused-peer-auth"; DB_DATABASE_NAME = "immich"; REDIS_HOSTNAME = "127.0.0.1"; };
 in
 {
   services.nextcloud = {
@@ -103,7 +103,7 @@ in
       extraOptions = [ "--network=host" "--no-healthcheck" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };
   };
-  systemd.services.podman-immich-server = { after = [ "postgresql.service" ]; requires = [ "postgresql.service" ]; };
+  systemd.services.podman-immich-server = { after = [ "postgresql.service" "tidepool-db-setup.service" ]; requires = [ "postgresql.service" "tidepool-db-setup.service" ]; };   # the setup: the extensions and the ownership Immich's role needs
 
   systemd.tmpfiles.rules = [
     # the photos and the media server's database (password hashes, API keys) are for the containers, which run as root: closed to every other local user, the TV session's included (ADR 0022)
