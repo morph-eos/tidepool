@@ -34,7 +34,7 @@ in
       allow = lib.mkOption { type = lib.types.bool; default = false; description = "Reboot by itself after a deploy that changed the kernel, the initrd or the kernel modules (the check NixOS makes by comparing /run/booted-system with the new system)."; };
       window = lib.mkOption { type = lib.types.nullOr (lib.types.submodule { options = { lower = lib.mkOption { type = lib.types.str; }; upper = lib.mkOption { type = lib.types.str; }; }; }); default = null; description = "Only reboot between these times (HH:MM); outside it the reboot waits for the window."; };
     };
-    interval = lib.mkOption { type = lib.types.str; default = "*:0/10"; description = "How often the server looks (a systemd calendar expression)."; };
+    interval = lib.mkOption { type = lib.types.str; default = "*:3/10"; description = "How often the server looks (a systemd calendar expression). It starts at minute 3, not 0: the hourly backup jobs start on the hour, and a switch that begins in the same second can clear a failed job before anything has seen it."; };
   };
   config = lib.mkIf cfg.enable (lib.mkMerge [ {
     environment.systemPackages = [ pkgs.git ];   # the flake is fetched from git repositories; git is there to look at them from a shell

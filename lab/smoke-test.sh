@@ -29,6 +29,11 @@ r "Prometheus is ready"                              "Prometheus Server is Ready
 r "the admin page answers on the VPN address"       200 curl -sk -o /dev/null -w '%{http_code}' --max-time 10 --resolve admin.$D:443:10.100.0.1 https://admin.$D/
 r "the operating system carries the brand's name"    "NAME=Tidepool" grep -E '^NAME=' /etc/os-release
 r "the database answers"                             "1" bash -c "sudo -u postgres psql -tAc 'select 1'"
+# a service that fails is mailed at once (the drop-in for every service posts to Alertmanager; the sink gets it after the group wait of 30 seconds), and the alert's own unit does not start another
+sudo rm -f /tmp/lab-mail.log; sudo systemd-run --quiet --unit=smoke-fail /bin/sh -c 'exit 3'; sleep 45
+r "a service that fails is mailed without waiting for a rule" yes bash -c "grep -q ServiceFailed /tmp/lab-mail.log && echo yes"
+r "the alert's own unit has no alert of its own" "OnFailure=" bash -c "systemctl show tidepool-alert@x.service -p OnFailure | tr -d '\n'"
+sudo systemctl reset-failed smoke-fail.service 2>/dev/null
 # the lab's test CA can refuse an order that comes in the same second as its start: an ACME order that failed is tried once more, any other unit is reported as it is
 for u in $(systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d' ' -f1 | grep '^acme-order-renew-'); do sudo systemctl reset-failed "$u"; sudo systemctl restart "$u"; done; sleep 5
 systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d" " -f1 | sed 's/^/failed unit: /'

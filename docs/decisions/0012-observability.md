@@ -133,7 +133,7 @@ So **we are far under the limit**, even in a bad case. Two things the alerts do 
 
 ## Consequences
 
-- The **Borg and pgBackRest jobs** must each expose a systemd timer that `TimerStale` watches, and **a failed backup unit is a `UnitFailed`**: that closes the "notification when a backup job fails" item without touching the Borg module. `borg check` and the verification restore remain phase 7.
+- The **Borg and pgBackRest jobs** must each expose a systemd timer that `TimerStale` watches, and **a failed backup unit is a `UnitFailed`** (and, because that rule can miss a failure that a switch removes, a `BackupJobFailed` or `ServiceFailed` at once: see the last update): that closes the "notification when a backup job fails" item without touching the Borg module. `borg check` and the verification restore remain phase 7.
 - The **certificate-order failure** of phase 3 is caught by the probe of the served certificate and by `UnitFailed` on the order's unit.
 - The CAA rule needs an update when the record gets its `accounturi` (the regular expression only checks the CA name today).
 - About **110 MiB** of memory, which fits the budget of [ADR 0005](0005-storage-layout-and-filesystem.md).
@@ -144,3 +144,11 @@ So **we are far under the limit**, even in a bad case. Two things the alerts do 
 ## Update 2026-10-15: the relay login is an option
 
 The module logged in to the relay as `alerts@<domain>`, which the lab never exercised (a sink takes any login). Brevo's SMTP login is an id of its own (`xxxxxx001@smtp-brevo.com`, shown on its SMTP page), so the first real mail of the deployment would have failed with an authentication error. `tidepool.mail.smtpLogin` sets it; `null` (the default) keeps `alerts@<domain>`. Checked by evaluating the Alertmanager configuration of the real host with and without the option; the real mail is still tried at runbook step 1.8, with a deliberately failed backup.
+
+## Update: a failed backup unit tells Alertmanager itself
+
+`UnitFailed` reads the unit's failed state from a scrape and waits 5 minutes. That state does not always last: a switch of the deploy (`system.autoUpgrade`) clears the failed state of a unit, and the hourly Borg jobs and the deploy's ticks started in the same second, so a job that failed just before a switch was never seen at all (Prometheus held no sample of it), and the rule had nothing to judge. This holds for every service, not only the backups: a failure was seen only if it came in the first five minutes after a tick, about half of the cases (a failed unit was measured gone after the next switch). `BorgBackupStale` and `PgBackrestStale` do not cover it either: they look at when the timer last fired, not at whether the job succeeded, so a job that fails every hour raised nothing. `max_over_time(...)` over a window does not help when the failure is shorter than the scrape interval.
+
+Two changes, neither needing Prometheus. Every service carries `OnFailure=tidepool-alert@%n.service`, set once by a drop-in for all services (so no list of units has to be kept up to date): a template unit that posts an alert to Alertmanager's API the moment the unit fails (a few lines of shell, entry 7 of [the exceptions register](../exceptions.md)). A backup unit (Borg, pgBackRest, borgmatic, the restore test, the Proton Drive copy) raises a critical `BackupJobFailed`, mail and push; any other service a `ServiceFailed` warning, mail. The alert is given a two-hour life, so a job that keeps failing posts it again at its next run, and the route's 12-hour repeat keeps that to one mail. The alert's own unit opts out, or a failed alert would start another. And the deploy's ticks start at minute 3 (`*:3/10`) instead of minute 0, so they no longer collide with the jobs that start on the hour. `UnitFailed` stays, as the second path.
+
+What this does not cover: a job that does not run at all is still `BorgBackupStale`'s and `PgBackrestStale`'s, and an Alertmanager that is down is the heartbeat's. A "time since the last success" metric (a textfile of the node exporter) would be a third path; it is not built.
