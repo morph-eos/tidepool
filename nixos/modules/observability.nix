@@ -127,8 +127,9 @@ let
         borgbackup-job-*|borgmatic.service|pgbackrest-*|proton-offsite-sync.service) name=BackupJobFailed severity=critical ;;
         *) name=ServiceFailed severity=warning ;;
       esac
-      jq -n --arg name "$name" --arg severity "$severity" --arg unit "$unit" --arg ends "$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" \
-        '[{ labels: { alertname: $name, severity: $severity, unit: $unit }, annotations: { summary: ($unit + " has failed") }, endsAt: $ends }]' \
+      # startsAt is set: with only endsAt, Alertmanager takes the end as the start too (two hours ahead), and the mail would say so
+      jq -n --arg name "$name" --arg severity "$severity" --arg unit "$unit" --arg starts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg ends "$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" \
+        '[{ labels: { alertname: $name, severity: $severity, unit: $unit }, annotations: { summary: ($unit + " has failed") }, startsAt: $starts, endsAt: $ends }]' \
         | curl -fsS --retry 5 --retry-connrefused --retry-delay 5 -H 'Content-Type: application/json' -d @- http://127.0.0.1:9093/api/v2/alerts
     '';
   };
