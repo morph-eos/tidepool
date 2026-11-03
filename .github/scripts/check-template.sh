@@ -3,6 +3,7 @@
 # wireguard-tools, openssl, openssh, jq and a Python with bcrypt on the PATH.
 # Usage: check-template.sh <the repository's private-repo-template directory>
 set -euo pipefail
+# no `printf | grep -q` here: grep leaves at the first match, printf gets a SIGPIPE and `pipefail` fails the line (or lets a `&& fail` check pass unseen); a here-string has no pipe
 src="${1:?usage: check-template.sh <private-repo-template>}"
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 cp -r "$src/." "$work/"; chmod -R u+w "$work"; cd "$work"
@@ -15,15 +16,15 @@ bash tools/secrets-init.sh > /dev/null
 [ -s deploy.pub ] || fail "no deploy.pub"
 plain=$(sops -d secrets.yaml)
 for k in borg-passphrase pgbackrest-cipher nextcloud-admin-pass immich-oauth-secret proton-keyring-password wg-private-key ntfy-env ntfy-bridge-env deploy-key acme-dns-credentials smtp-password heartbeat-url alertmanager-env renovate-token wifi-psk; do
-  printf '%s\n' "$plain" | grep -q "^$k:" || fail "secrets.yaml has no $k"
+  grep -q "^$k:" <<< "$plain" || fail "secrets.yaml has no $k"
 done
 n=$(sops -d --extract '["immich-oauth-secret"]' secrets.yaml | tr -d '\n' | wc -c); [ "$n" -ge 32 ] && [ "$n" -le 64 ] || fail "immich-oauth-secret is $n characters (Nextcloud takes 32 to 64)"
 sops -d --extract '["acme-dns-credentials"]' secrets.yaml | jq -e 'length >= 2' > /dev/null || fail "acme-dns-credentials is not a JSON object with an entry for the domain and one for compute"
 # what is left is said, and only the things somebody else issues
 out=$(bash tools/check.sh || true)
-printf '%s\n' "$out" | grep -q "to do" || fail "check.sh does not say what is left: $out"
-for k in smtp-password heartbeat-url renovate-token wifi-psk; do printf '%s\n' "$out" | grep -q "$k" || fail "check.sh does not list $k"; done
-printf '%s\n' "$out" | grep -q "borg-passphrase" && fail "check.sh lists a secret that was generated"
+grep -q "to do" <<< "$out" || fail "check.sh does not say what is left: $out"
+for k in smtp-password heartbeat-url renovate-token wifi-psk; do grep -q "$k" <<< "$out" || fail "check.sh does not list $k"; done
+grep -q "borg-passphrase" <<< "$out" && fail "check.sh lists a secret that was generated"
 # a VPN device
 bash tools/add-peer.sh phone 2 > peer.txt
 grep -q '^PrivateKey = ' peer.txt && grep -q "$(cat vpn-server.pub)" peer.txt || fail "add-peer.sh did not print a client configuration"
