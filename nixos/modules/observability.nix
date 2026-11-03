@@ -124,7 +124,7 @@ let
     text = ''
       unit=$1
       case $unit in
-        borgbackup-job-*|borgmatic.service|pgbackrest-*|proton-offsite-sync.service) name=BackupJobFailed severity=critical ;;
+        borgbackup-job-*|borgmatic.service|pgbackrest-*|proton-offsite-sync.service|tidepool-db-dump.service) name=BackupJobFailed severity=critical ;;
         *) name=ServiceFailed severity=warning ;;
       esac
       # startsAt is set: with only endsAt, Alertmanager takes the end as the start too (two hours ahead), and the mail would say so

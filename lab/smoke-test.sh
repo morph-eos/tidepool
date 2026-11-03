@@ -24,11 +24,15 @@ r "photos answers"                                   200 code photos.$D api/serv
 r "push answers"                                     200 code push.$D
 r "backup asks for a password"                       401 code backup.$D
 r "a name that is nobody's gets no answer"           000 code nobody.$D
+r "the vault's admin panel is not served"                404 code vault.$D admin
 r "Immich runs on its declared settings"             "https://photos.$D" bash -c "curl -s localhost:2283/api/server/config | jq -r .externalDomain"
 r "Prometheus is ready"                              "Prometheus Server is Ready." bash -c "curl -s localhost:9090/-/ready | tr -d '\n'"
 r "the admin page answers on the VPN address"       200 curl -sk -o /dev/null -w '%{http_code}' --max-time 10 --resolve admin.$D:443:10.100.0.1 https://admin.$D/
 r "the operating system carries the brand's name"    "NAME=Tidepool" grep -E '^NAME=' /etc/os-release
 r "the database answers"                             "1" bash -c "sudo -u postgres psql -tAc 'select 1'"
+# the dump that both Borg repositories carry: made by its unit, and readable as a PostgreSQL archive
+sudo systemctl start tidepool-db-dump.service
+r "the vault database is dumped for the Borg repositories" PGDMP sudo head -c 5 /var/lib/tidepool-db-dumps/vaultwarden.dump
 # a service that fails tells Alertmanager at once (the drop-in for every service posts the alert), with the time it failed, and the alert's own unit does not start another.
 # The unit's name is new at every run: an alert of the same name from an earlier run stays firing for two hours and keeps its first start, and Alertmanager groups by alert name, so a second mail would wait for the group interval
 u=smoke-fail-$(date +%s); sudo systemd-run --quiet --unit=$u /bin/sh -c 'exit 3'; sleep 15

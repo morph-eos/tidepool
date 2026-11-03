@@ -32,7 +32,8 @@ in
       proxy_request_buffering off;
     '';
     virtualHosts = {
-      "vault.${d}" = public 8222;
+      # the admin panel (/admin) is not served at all: with a token in the settings file it would be a login page on the internet, and nothing needs it (the settings are in the declared configuration and the secret environment file)
+      "vault.${d}" = lib.recursiveUpdate (public 8222) { locations."~ ^/admin(/|$)".return = "404"; };
       "photos.${d}" = public 2283;
       "media.${d}" = public 8096;
       # Nextcloud's own module defines its virtual host (php-fpm, headers, limits); only the certificate and TLS are added
