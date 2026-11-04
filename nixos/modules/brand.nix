@@ -52,7 +52,7 @@ let
 
   # Jellyfin reads its branding from config/branding.xml: written whole (tmpfiles' f+ replaces the file; the escapes give the line breaks)
   jellyfinBranding = lib.replaceStrings [ "\n" "%" ] [ "\\n" "%%" ] ''<?xml version="1.0" encoding="utf-8"?>
-<BrandingOptions><LoginDisclaimer>${lib.escapeXML cfg.name} - ${lib.escapeXML cfg.tagline}</LoginDisclaimer><CustomCss>${lib.escapeXML jellyfinCss}</CustomCss><SplashscreenEnabled>false</SplashscreenEnabled></BrandingOptions>
+<BrandingOptions><LoginDisclaimer>${lib.escapeXML cfg.name} - ${lib.escapeXML cfg.tagline}${lib.optionalString (cfg.jellyfinLoginHtml != "") (lib.escapeXML "<br>${cfg.jellyfinLoginHtml}")}</LoginDisclaimer><CustomCss>${lib.escapeXML jellyfinCss}</CustomCss><SplashscreenEnabled>false</SplashscreenEnabled></BrandingOptions>
 '';
   nextcloudBrand = pkgs.writeShellScript "nextcloud-brand" ''
     occ=${config.services.nextcloud.occ}/bin/nextcloud-occ
@@ -75,6 +75,7 @@ in
     colors = lib.genAttrs [ "deep" "primary" "primaryOnDark" "accent" "sand" "text" ] (n: lib.mkOption { type = lib.types.strMatching "#[0-9a-fA-F]{6}"; default = data.colors.${n}; defaultText = "from the file"; description = "The ${n} colour, #rrggbb."; });
     logo = lib.mkOption { type = lib.types.path; default = fileOf "logo"; defaultText = "from the file"; description = "A square mark, SVG (Nextcloud's logo and favicon, the stylesheets of Immich and Jellyfin)."; };
     wordmark = lib.mkOption { type = lib.types.nullOr lib.types.path; default = fileOf "wordmark"; defaultText = "from the file"; description = "Optional: the mark with the name in outlined letters, for the wide places."; };
+    jellyfinLoginHtml = lib.mkOption { type = lib.types.str; default = ""; example = ''<form action="/sso/OID/start/provider"><button class="raised block emby-button button-submit">Sign in with the provider</button></form>''; description = "HTML added under the brand's line in Jellyfin's login message, which is where its single sign-on plugin has the button for its login page. The file is written whole at each change of the system, so what is wanted there is declared here and not typed into Jellyfin's settings, where the next write would remove it."; };
     out = lib.mkOption { type = lib.types.attrsOf lib.types.path; readOnly = true; default = { inherit jellyfinWebConfig jellyfinThemeDir; }; description = "What the module builds, for the checks."; };
     css = lib.mkOption { type = lib.types.attrsOf lib.types.str; readOnly = true; default = { immich = immichCss; }; description = "The stylesheet that a program takes in its own settings (other modules put it where the program reads it)."; };
   };
