@@ -59,9 +59,15 @@ let
         expr: (time() - node_systemd_timer_last_trigger_seconds{name="proton-offsite-sync.timer"} > 259200) and on() (time() - node_boot_time_seconds > 259200)
         labels: { severity: warning }
         annotations: { summary: "the copy of the offsite repository to Proton Drive has not run for three days" }
+      # each timer by its own period: the daily one fires every day (60 hours), the weekly full backup on a Sunday (8 days); the monthly restore test is RestoreTestStale's
       - alert: PgBackrestStale
-        expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"pgbackrest-.*\\.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name="pgbackrest-default-daily.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
         labels: { severity: critical }
+        annotations: { summary: "the daily pgBackRest backup has not run for 60 hours" }
+      - alert: PgBackrestFullStale
+        expr: (time() - node_systemd_timer_last_trigger_seconds{name="pgbackrest-default-weekly.timer"} > 691200) and on() (time() - node_boot_time_seconds > 691200)
+        labels: { severity: critical }
+        annotations: { summary: "the weekly full pgBackRest backup has not run for 8 days" }
       # a backup unit whose last SUCCESS is older than it may be (the stale rules above see that a timer fired, BackupJobFailed that a run failed; this one sees that nothing ended well, however it came about).
       # A unit appears after its first success; the file stays, so a unit taken out of the configuration is cleared by deleting its file in ${metricsDir}
       - alert: BackupNoRecentSuccess
