@@ -100,7 +100,7 @@ Seedvault itself talks to a WebDAV server through **DAVx5's WebDAV mount** or **
 
 My answers: **WebDAV is for Seedvault**; the **GPU is an Intel one**; **icloudpd is dropped**; **Nextcloud stays the single sign-on provider** for the services; **for now only the services that exist today move over**, the new ones come later.
 
-**Through their NixOS modules:** PostgreSQL 17 and its databases ([ADR 0006](0006-postgresql-version-and-immich.md)); **Nextcloud 33** (`database.createLocally`, Redis, the `oidc` app declared); **Vaultwarden** on PostgreSQL (with the ordering after the database written out); **Syncthing** (sync port public, GUI VPN-only); **`smartd` in place of the `smartcheck` container**; nginx.
+**Through their NixOS modules:** PostgreSQL 17 and its databases ([ADR 0006](0006-postgresql-version-and-immich.md)); **Nextcloud 34** (`database.createLocally`, Redis, the `oidc` app declared); **Vaultwarden** on PostgreSQL (with the ordering after the database written out); **Syncthing** (sync port public, GUI VPN-only); **`smartd` in place of the `smartcheck` container**; nginx.
 
 **As containers, declared and pinned by digest** (the module cannot serve v0's data or is flagged insecure):
 - **Jellyfin 12.1**: the module's 10.11 cannot open a 12.1 database (tested). With the **Intel GPU**, transcoding goes through the render device (`/dev/dri`) with VA-API; the check **G2** on the real server confirms it.
