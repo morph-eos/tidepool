@@ -123,7 +123,7 @@ The lab has proved the host layer. It has **not** proved the machine, so nothing
 
 ## Consequences
 
-- **Easier:** the host is code in Git, so v0's open problem, "`/etc` is not backed up anywhere", disappears: `/etc` is generated from the flake. Versions are pinned; a bad change is undone by booting the previous generation.
+- **Easier:** the host is code in Git, so v0's open problem, "`/etc` is not backed up anywhere", disappears: `/etc` is generated from the flake. A change made by hand on the machine is the one thing the flake does not know, so the Borg repository of everything carries `/etc` as a net ([ADR 0004](0004-backup.md)). Versions are pinned; a bad change is undone by booting the previous generation.
 - **Harder:** a new language and model to learn, errors that are long and hard to read, a smaller community, and software that assumes a traditional filesystem needs packaging or nix-ld.
 - **A new way to lock myself out:** a broken SSH or network change can only be undone at the machine (proved in the lab). The server is next to the TV, so a keyboard and a screen are at hand. Risky changes are applied with `nixos-rebuild test`, which does not survive a reboot, before `switch`.
 - **The Ansible experiment is kept privately**, as the reference and as the fallback; it is not published. The v0 scripts stay in the archive (the tag `v0`).

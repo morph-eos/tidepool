@@ -19,6 +19,7 @@ in
     config = { dbtype = "pgsql"; adminpassFile = config.sops.secrets.nextcloud-admin-pass.path; };
     extraApps = { inherit (pkgs.nextcloud35Packages.apps) oidc; };   # Nextcloud as the single sign-on provider: the app is declared, the clients are created by `occ oidc:create` (exceptions.md, planned entry)
     extraAppsEnable = true;
+    settings.maintenance_window_start = 22;   # the heavy background jobs run in 4 hours from 22:00 UTC (23:00 to 03:00 in winter), before the nightly backups and the reboot window, not while the family uses the cloud
   };
 
   services.vaultwarden = {
