@@ -9,7 +9,7 @@ in
 {
   services.nextcloud = {
     enable = true;
-    package = pkgs.nextcloud34;
+    package = pkgs.nextcloud35;
     hostName = "cloud.${d}";
     https = true;
     home = "/srv/data/nextcloud";
@@ -17,7 +17,7 @@ in
     configureRedis = true;
     database.createLocally = true;   # the module creates the role and database and orders itself after them
     config = { dbtype = "pgsql"; adminpassFile = config.sops.secrets.nextcloud-admin-pass.path; };
-    extraApps = { inherit (pkgs.nextcloud34Packages.apps) oidc; };   # Nextcloud as the single sign-on provider: the app is declared, the clients are created by `occ oidc:create` (exceptions.md, planned entry)
+    extraApps = { inherit (pkgs.nextcloud35Packages.apps) oidc; };   # Nextcloud as the single sign-on provider: the app is declared, the clients are created by `occ oidc:create` (exceptions.md, planned entry)
     extraAppsEnable = true;
   };
 
