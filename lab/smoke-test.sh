@@ -53,6 +53,8 @@ sudo -u postgres dropdb --if-exists smoke_restore
 job_paths() { local start; start=$(systemctl show "borgbackup-job-$1.service" -p ExecStart --value | grep -o -E 'path=[^ ;]*' | head -1 | cut -d= -f2); sudo grep -c -E '(^|[[:space:]])/etc([[:space:]\\]|$)' "$(grep -o -E '/nix/store/[^ ]*borgbackup-job-[a-z]*-script' "$start" | head -1)"; }
 r "the Borg job of everything reads /etc" 1 job_paths everything
 r "and the offsite one does not" 0 job_paths offsite
+# Nextcloud's heavy background jobs have a window of their own
+r "Nextcloud's maintenance window is declared" 22 bash -c "sudo nextcloud-occ config:system:get maintenance_window_start"
 # a backup unit that ended well leaves the time of it (BackupNoRecentSuccess), and says how old that may get
 last_success_age() { curl -s localhost:9100/metrics | awk -v now="$(date +%s)" '/^tidepool_backup_last_success_timestamp_seconds\{unit="tidepool-db-dump"\}/ { print (now - $2 < 300 ? "recent" : "old") }'; }
 r "the dump unit leaves the time of its last success" recent last_success_age
