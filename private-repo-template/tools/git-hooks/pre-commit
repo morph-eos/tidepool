@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Install: install -m 755 tools/git-hooks/pre-commit .git/hooks/pre-commit
+# Nothing in clear may enter this repository: no key or plain secret file, secrets.yaml must be sops-encrypted, and gitleaks (on the PATH) finds nothing in the staged changes.
+set -u
+git diff --cached --name-only | grep -E '(^|/)(age\.key|.*\.plain|\.env)$' && { echo "pre-commit: a key or plain secret file is staged" >&2; exit 1; }
+if git diff --cached --name-only | grep -qx secrets.yaml; then
+  git show :secrets.yaml | grep -q '^sops:' || { echo "pre-commit: secrets.yaml is not encrypted" >&2; exit 1; }
+fi
+command -v gitleaks >/dev/null || { echo "pre-commit: gitleaks is not installed (nix shell nixpkgs#gitleaks)" >&2; exit 1; }
+gitleaks protect --staged --no-banner >/dev/null 2>&1 || { echo "pre-commit: gitleaks found a secret in the staged changes" >&2; exit 1; }

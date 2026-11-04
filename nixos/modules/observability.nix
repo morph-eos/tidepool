@@ -62,6 +62,12 @@ let
       - alert: PgBackrestStale
         expr: (time() - node_systemd_timer_last_trigger_seconds{name=~"pgbackrest-.*\\.timer"} > 216000) and on() (time() - node_boot_time_seconds > 216000)
         labels: { severity: critical }
+      # a backup unit whose last SUCCESS is older than it may be (the stale rules above see that a timer fired, BackupJobFailed that a run failed; this one sees that nothing ended well, however it came about).
+      # A unit appears after its first success; the file stays, so a unit taken out of the configuration is cleared by deleting its file in ${metricsDir}
+      - alert: BackupNoRecentSuccess
+        expr: (time() - tidepool_backup_last_success_timestamp_seconds) > on(unit) tidepool_backup_max_age_seconds
+        labels: { severity: critical }
+        annotations: { summary: "{{ $labels.unit }} has not ended well for longer than it may" }
       # a backup unit that has been running for hours: a first backup of a very large library (the first Proton upload, about 30 hours, warns too: expected), or a check that hangs while the backups wait for it (they wait up to 12 hours)
       - alert: BackupJobRunningLong
         expr: node_systemd_unit_state{name=~"borgbackup-job-.*\\.service|borgmatic\\.service|pgbackrest-restore-test\\.service|proton-offsite-sync\\.service", state="active"} == 1
@@ -133,6 +139,27 @@ let
         | curl -fsS --retry 5 --retry-connrefused --retry-delay 5 -H 'Content-Type: application/json' -d @- http://127.0.0.1:9093/api/v2/alerts
     '';
   };
+  # The last SUCCESSFUL run of a backup unit (BackupNoRecentSuccess): the unit writes it itself when it ends well, as a file the node exporter's textfile collector reads. Each unit
+  # says how old that may get: the hourly Borg jobs wait up to 12 hours for the weekly check's lock (backup.nix), the others run daily, weekly, monthly and nightly.
+  metricsDir = "/var/lib/tidepool-metrics";
+  stamped = {
+    borgbackup-job-everything = 46800; borgbackup-job-offsite = 46800;   # 13 hours
+    pgbackrest-default-daily = 172800; pgbackrest-default-weekly = 777600;   # 2 days, 9 days
+    borgmatic = 777600;   # weekly, 9 days
+    pgbackrest-restore-test = 3456000;   # monthly, 40 days
+  } // lib.optionalAttrs (cfg.backup.databaseDumps != [ ]) { tidepool-db-dump = 46800; }
+    // lib.optionalAttrs cfg.offsite.proton.enable { proton-offsite-sync = 259200; };   # nightly, 3 days
+  stampSuccess = pkgs.writeShellApplication {
+    name = "tidepool-stamp-success";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = ''
+      # $1: the unit, $2: how old its last success may get, in seconds. systemd sets SERVICE_RESULT for ExecStopPost=: `success` only if the unit ended well
+      [ "''${SERVICE_RESULT:-}" = success ] || exit 0
+      f=${metricsDir}/$1.prom
+      printf '%s\n' "tidepool_backup_last_success_timestamp_seconds{unit=\"$1\"} $(date +%s)" "tidepool_backup_max_age_seconds{unit=\"$1\"} $2" > "$f.tmp"
+      mv "$f.tmp" "$f"
+    '';
+  };
   probe = name: module: targets: {
     job_name = name; metrics_path = "/probe"; params.module = [ module ];
     static_configs = [ { inherit targets; } ];
@@ -147,7 +174,7 @@ in
     retentionTime = "30d";
     globalConfig = { scrape_interval = "30s"; evaluation_interval = "30s"; };
     exporters = {
-      node = { enable = true; listenAddress = "127.0.0.1"; enabledCollectors = [ "systemd" ]; };
+      node = { enable = true; listenAddress = "127.0.0.1"; enabledCollectors = [ "systemd" ]; extraFlags = [ "--collector.textfile.directory=${metricsDir}" ]; };
       postgres = { enable = true; listenAddress = "127.0.0.1"; runAsLocalSuperUser = true; };
       blackbox = { enable = true; listenAddress = "127.0.0.1"; configFile = "${blackboxCfg}"; };
       smartctl = lib.mkIf (!cfg.lab) { enable = true; listenAddress = "127.0.0.1"; devices = [ cfg.disks.system cfg.disks.tank cfg.disks.backup16 cfg.disks.big2tb ]; };
@@ -203,7 +230,9 @@ in
       description = "Tell Alertmanager that %i has failed";
       serviceConfig = { Type = "oneshot"; DynamicUser = true; ExecStart = "${alertFailedUnit}/bin/tidepool-alert-failed-unit %i"; };
     };
-  };
+  } // lib.mapAttrs (unit: maxAge: { serviceConfig.ExecStopPost = [ "+${stampSuccess}/bin/tidepool-stamp-success ${unit} ${toString maxAge}" ]; }) stamped;   # `+`: with full rights, the dump unit runs as postgres
+  # every backup unit leaves its last success when it ends well (above, in the services); the metrics directory is also versions.nix's: its file is linked in
+  systemd.tmpfiles.settings."10-tidepool-metrics".${metricsDir}.d = { mode = "0755"; user = "root"; group = "root"; };
   # one drop-in for every service (the type-level `service.d`): the alert needs no list of units to keep up to date. The alert's own unit opts out, or a failed alert would start another.
   systemd.units."service.d/10-tidepool-alert.conf".text = "[Unit]\nOnFailure=tidepool-alert@%n.service\n";
   systemd.units."tidepool-alert@.service.d/10-no-alert.conf".text = "[Unit]\nOnFailure=\n";

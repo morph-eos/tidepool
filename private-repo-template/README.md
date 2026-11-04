@@ -27,6 +27,7 @@ Copy this directory to a **new private repository**. It holds the values of one 
 | `tools/check.sh [--build]` | the placeholders still in `host.nix` and `secrets.yaml`; with `--build` the whole host is evaluated; exit status = the number of problems |
 | `tools/set-wifi.sh` | asks the Wi-Fi passphrase and writes the 64 hex digits for the network in `host.nix` |
 | `tools/add-peer.sh NAME N` | a VPN device: its key pair, its line in `vpn-peers.nix`, and the client's configuration shown once ([docs/vpn-clients.md](docs/vpn-clients.md)) |
+| `tools/git-hooks/pre-commit` | refuses a commit that stages a key or plain secret file, an unencrypted `secrets.yaml`, or anything gitleaks finds; install it with `install -m 755 tools/git-hooks/pre-commit .git/hooks/pre-commit` |
 
 A move from an existing server adds its own script next to these (a private repository can have one that copies the old WebDAV login, Syncthing identity and application tokens into `secrets.yaml` without printing them).
 

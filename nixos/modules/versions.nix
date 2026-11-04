@@ -63,8 +63,8 @@ let
 in
 {
   environment.etc."tidepool/metrics/versions.prom".text = textfile;
+  systemd.tmpfiles.settings."10-tidepool-metrics"."/var/lib/tidepool-metrics/versions.prom"."L+".argument = "/etc/tidepool/metrics/versions.prom";   # the node exporter reads one textfile directory (observability.nix); this file is linked into it
   services.prometheus = {
-    exporters.node.extraFlags = [ "--collector.textfile.directory=/etc/tidepool/metrics" ];
     exporters.json = { enable = true; listenAddress = "127.0.0.1"; port = 7979; configFile = jsonConfig; };
     ruleFiles = [ ./versions/rules.yml ];
     scrapeConfigs = [
