@@ -51,7 +51,8 @@ Decide the moment **T** (the last good one). The files come from the **first Bor
 
 1. **Stop the services and the timers:** the Borg and pgBackRest timers, nginx, Nextcloud's php-fpm, Vaultwarden, the Immich containers, Syncthing, Prometheus, Alertmanager.
 2. **Files:** empty `/srv/data` and `/var/lib/vaultwarden`, then from `/`:
-   `BORG_PASSCOMMAND="cat /run/secrets/borg-passphrase" BORG_REPO=/mnt/backup16/borg-everything borg extract ::<archive>`
+   `BORG_PASSCOMMAND="cat /run/secrets/borg-passphrase" BORG_REPO=/mnt/backup16/borg-everything borg extract ::<archive> --exclude etc`
+   (`/etc` stays out: on a rebuilt host it is the new system's, and the old one would put links to files that are no longer there over it. What was changed there by hand and is wanted back is taken one file at a time: `borg extract ::<archive> etc/<file>`, then declared in the flake.)
    (list the archives with `borg list --short`; their names carry the local start time and sort).
 3. **Database:** stop PostgreSQL, empty `/var/lib/postgresql/17`, then as `postgres`:
    `pgbackrest --stanza=default --type=time --target="<T as YYYY-MM-DD HH:MM:SS+00>" --target-action=promote restore`

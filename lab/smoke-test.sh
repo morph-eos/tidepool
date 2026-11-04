@@ -3,7 +3,7 @@
 # lab/smoke-test.sh — the lab host, switched to the flake as it is in this working tree, comes up whole
 #
 # Usage: lab/smoke-test.sh <vm-name>     (a NixOS lab VM; it is switched to the host `lab`)
-# Checks: nothing failed, the database dump restores and its unit leaves its last success, every name answers as it should (and an unknown one does not answer at all), Immich runs on its declared settings, Prometheus is ready, the operating system carries the brand's name.
+# Checks: nothing failed, the Borg jobs carry what they should, the database dump restores and its unit leaves its last success, every name answers as it should (and an unknown one does not answer at all), Immich runs on its declared settings, Prometheus is ready, the operating system carries the brand's name.
 # =============================================================================
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -49,6 +49,10 @@ restore_matches() {
 }
 r "the vault dump restores into an empty database, tables and rows as in the original" same restore_matches
 sudo -u postgres dropdb --if-exists smoke_restore
+# /etc is a net for changes made by hand: the Borg job of everything reads it, the offsite one does not (the jobs' scripts are read, not run: the lab has no backup disks)
+job_paths() { local start; start=$(systemctl show "borgbackup-job-$1.service" -p ExecStart --value | grep -o -E 'path=[^ ;]*' | head -1 | cut -d= -f2); sudo grep -c -E '(^|[[:space:]])/etc([[:space:]\\]|$)' "$(grep -o -E '/nix/store/[^ ]*borgbackup-job-[a-z]*-script' "$start" | head -1)"; }
+r "the Borg job of everything reads /etc" 1 job_paths everything
+r "and the offsite one does not" 0 job_paths offsite
 # a backup unit that ended well leaves the time of it (BackupNoRecentSuccess), and says how old that may get
 last_success_age() { curl -s localhost:9100/metrics | awk -v now="$(date +%s)" '/^tidepool_backup_last_success_timestamp_seconds\{unit="tidepool-db-dump"\}/ { print (now - $2 < 300 ? "recent" : "old") }'; }
 r "the dump unit leaves the time of its last success" recent last_success_age

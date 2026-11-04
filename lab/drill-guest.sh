@@ -80,7 +80,7 @@ stop-services)
 restore-files)
   ARCHIVE=$(first_archive_after_good)
   find /srv/data -mindepth 1 -delete; rm -rf /var/lib/vaultwarden
-  s=$(date +%s); (cd / && BORG_REPO=/mnt/backup16/borg-everything borg extract --list ::"$ARCHIVE" 2>&1 | tail -n 0)
+  s=$(date +%s); (cd / && BORG_REPO=/mnt/backup16/borg-everything borg extract --list ::"$ARCHIVE" --exclude etc 2>&1 | tail -n 0)
   say "files restored from $ARCHIVE in $(( $(date +%s) - s )) s: $(find /srv/data -type f | wc -l) files under /srv/data"
   ;;
 restore-db)
