@@ -3,7 +3,7 @@
 # lab/smoke-test.sh — the lab host, switched to the flake as it is in this working tree, comes up whole
 #
 # Usage: lab/smoke-test.sh <vm-name>     (a NixOS lab VM; it is switched to the host `lab`)
-# Checks: nothing failed, every name answers as it should (and an unknown one does not answer at all), Immich runs on its declared settings, Prometheus is ready, the operating system carries the brand's name.
+# Checks: nothing failed, the database dump restores and its unit leaves its last success, every name answers as it should (and an unknown one does not answer at all), Immich runs on its declared settings, Prometheus is ready, the operating system carries the brand's name.
 # =============================================================================
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -39,6 +39,21 @@ r "Immich's role reads its own database"            1 sudo psql -h /run/postgres
 r "Immich's role is refused the other databases"   refused bash -c "sudo psql -h /run/postgresql -U immich -d vaultwarden -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
 r "root cannot become postgres through the map"    refused bash -c "sudo psql -h /run/postgresql -U postgres -d immich -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
 r "the vault database is dumped for the Borg repositories" PGDMP sudo head -c 5 /var/lib/tidepool-db-dumps/vaultwarden.dump
+# a dump that cannot be restored is no backup: it is restored into an empty database, and the tables and their rows must be those of the database it came from
+rows_sql='select table_schema||$$.$$||table_name||$$ $$||(xpath($$/row/c/text()$$, query_to_xml(format($$select count(*) as c from %I.%I$$, table_schema, table_name), false, true, $$$$)))[1]::text from information_schema.tables where table_type=$$BASE TABLE$$ and table_schema not in ($$pg_catalog$$,$$information_schema$$) order by 1'
+rows() { sudo -u postgres psql -Atq -d "$1" -c "$rows_sql"; }
+restore_matches() {
+  sudo -u postgres dropdb --if-exists smoke_restore && sudo -u postgres createdb smoke_restore || return
+  sudo -u postgres pg_restore --exit-on-error --dbname=smoke_restore /var/lib/tidepool-db-dumps/vaultwarden.dump || { echo "pg_restore failed"; return; }
+  if [ "$(rows smoke_restore | wc -l)" -gt 0 ] && [ "$(rows smoke_restore)" = "$(rows vaultwarden)" ]; then echo same; else echo different; fi
+}
+r "the vault dump restores into an empty database, tables and rows as in the original" same restore_matches
+sudo -u postgres dropdb --if-exists smoke_restore
+# a backup unit that ended well leaves the time of it (BackupNoRecentSuccess), and says how old that may get
+last_success_age() { curl -s localhost:9100/metrics | awk -v now="$(date +%s)" '/^tidepool_backup_last_success_timestamp_seconds\{unit="tidepool-db-dump"\}/ { print (now - $2 < 300 ? "recent" : "old") }'; }
+r "the dump unit leaves the time of its last success" recent last_success_age
+r "and the age it may reach" 1 bash -c "curl -s localhost:9100/metrics | grep -c '^tidepool_backup_max_age_seconds{unit=\"tidepool-db-dump\"}'"
+r "the versions' metrics are still read from the same directory" 1 bash -c "curl -s localhost:9100/metrics | grep -c '^tidepool_deployed_info{app=\"nextcloud\"'"
 # a service that fails tells Alertmanager at once (the drop-in for every service posts the alert), with the time it failed, and the alert's own unit does not start another.
 # The unit's name is new at every run: an alert of the same name from an earlier run stays firing for two hours and keeps its first start, and Alertmanager groups by alert name, so a second mail would wait for the group interval
 u=smoke-fail-$(date +%s); sudo systemd-run --quiet --unit=$u /bin/sh -c 'exit 3'; sleep 15
