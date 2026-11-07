@@ -84,7 +84,7 @@ in
       extraOptions = [ "--network=host" ];
     };
     immich-server = {
-      image = "ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2";
+      image = "ghcr.io/immich-app/immich-server:v3.3.6@sha256:e1981983b1c13f6024b57d72e7ecae3342eed1581201ab09fb248932d86c593a";
       environment = dbEnv // { IMMICH_MACHINE_LEARNING_URL = "http://127.0.0.1:3003"; IMMICH_HOST = "127.0.0.1"; IMMICH_CONFIG_FILE = "/etc/immich/config.json"; };
       volumes = [ "/srv/data/immich/upload:/data" "/run/postgresql:/run/postgresql" "${config.sops.templates."immich-config.json".path}:/etc/immich/config.json:ro" ] ++ lib.mapAttrsToList (inside: outside: "${outside}:${inside}:ro") cfg.services.immich.externalLibraries;
       dependsOn = [ "immich-redis" ];
@@ -92,14 +92,14 @@ in
     };
   } // lib.optionalAttrs cfg.services.immichMachineLearning.enable {
     immich-machine-learning = {
-      image = "ghcr.io/immich-app/immich-machine-learning:v3.2.4@sha256:e16c2f166a8174901959fdf85e2e4c7bd1ebc4b37e0b6655de97c41408a260c4";
+      image = "ghcr.io/immich-app/immich-machine-learning:v3.3.6@sha256:14367bfb374b8576ddf49abd67c5ca0190a4c7fcf6303cdad65d7f7bf1a50bc2";
       environment.MACHINE_LEARNING_HOST = "127.0.0.1";
       volumes = [ "/srv/data/immich/model-cache:/cache" ];
       extraOptions = [ "--network=host" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
     };
   } // lib.optionalAttrs cfg.services.jellyfin.enable {
     jellyfin = {
-      image = "docker.io/jellyfin/jellyfin:12.1@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e";
+      image = "docker.io/jellyfin/jellyfin:12.4@sha256:fea863d0cd9ec445985d9c75fc6ed64e38a1d2766cf0c250a33d553f4fc1b771";
       volumes = [ "/srv/data/jellyfin/config:/config" "/srv/data/jellyfin/cache:/cache" ] ++ lib.mapAttrsToList (inside: outside: "${outside}:${inside}:ro") cfg.services.jellyfin.mediaMounts;
       # the image's own health check is off: podman runs it once the second the container starts, before Jellyfin listens, and that run, a transient unit that exits 1, left the whole system "degraded" after every boot. The site is watched by its probe instead.
       extraOptions = [ "--network=host" "--no-healthcheck" ] ++ lib.optional (!cfg.lab) "--device=/dev/dri";
