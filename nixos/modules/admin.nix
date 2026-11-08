@@ -19,7 +19,7 @@ in
       listenPort = port;
       allowedHosts = "admin.${d}";
       settings = {
-        title = "${b.name} admin";
+        title = b.product.admin;
         theme = "dark"; color = "teal"; headerStyle = "boxed"; statusStyle = "dot"; hideVersion = true; target = "_self";
         layout = { Monitoring = { style = "row"; columns = 2; }; Machine = { style = "row"; columns = 3; }; Services = { style = "row"; columns = 4; }; };
       };
@@ -53,6 +53,8 @@ in
     };
     # Next.js listens on every address unless told: the page is for the VPN, behind nginx
     systemd.services.homepage-dashboard.environment.HOSTNAME = "127.0.0.1";
+    # Homepage reads its settings once, when it starts: a changed title, tile or style needs a restart (the module does not ask for it)
+    systemd.services.homepage-dashboard.restartTriggers = map (n: config.environment.etc."homepage-dashboard/${n}".source) [ "settings.yaml" "custom.css" "services.yaml" "widgets.yaml" ];
     services.nginx.virtualHosts."admin.${d}" = acme // {
       forceSSL = true;
       listen = [ { addr = "10.100.0.1"; port = 443; ssl = true; } { addr = "10.100.0.1"; port = 80; ssl = false; } ];

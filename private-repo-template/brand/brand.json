@@ -1,0 +1,16 @@
+{
+  "name": "Example",
+  "tagline": "your own cloud",
+  "labels": { "cloud": "Cloud", "photos": "Photos", "media": "Media", "track": "Track", "admin": "Admin", "metrics": "Metrics" },
+  "signInLabel": "Sign in with SSO",
+  "colors": {
+    "deep": "#0b3c49",
+    "primary": "#0f7a8c",
+    "primaryOnDark": "#4fc3d4",
+    "accent": "#e8765a",
+    "sand": "#f4f1ea",
+    "text": "#12303a"
+  },
+  "logo": "logo.svg",
+  "wordmark": null
+}

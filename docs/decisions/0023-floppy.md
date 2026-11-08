@@ -41,7 +41,7 @@ Jellyfin's plugins keep their settings in Jellyfin's own configuration, which is
 - **Films and episodes:** the official Webhook plugin posts to Floppy's webhook address with the template that Floppy's documentation gives; a film watched again inside its own running time is a duplicate and is ignored, after it a second entry.
 - **Music:** a ListenBrainz scrobbler plugin for Jellyfin pointed at Floppy's ListenBrainz-compatible address with the user's token. The plugin is third-party and built for an older Jellyfin: if an upgrade breaks it, Jellyfin's Playback Reporting plugin keeps the same events and Floppy imports them.
 - **A script writes those settings** (`nixos/floppy/jellyfin-link/`): `apply.sh --host SSH-NAME --url https://track.EXAMPLE.ORG --floppy-user NAME --jellyfin-user NAME` reads the person's token from Floppy's database on the server, writes the two plugins' files (the Webhook template is Floppy's own; ListenBrainz gets Floppy's address without the `/1/` the API adds itself) and restarts Jellyfin. Only the chosen Jellyfin user is sent, because a media server has other people on it. It refuses to overwrite settings someone made by hand (`--check` says what it would do). The person must have an account first, which the accounts timer takes care of.
-- **Timed lyrics** are not part of this service: the media server reads a `.lrc` file beside a track; a script that fetches synced lyrics writes them (the media mounts stay read-only for Jellyfin, so its own lyrics plugin cannot).
+- **Timed lyrics** are not part of this service: the media server reads a `.lrc` file beside a track; [two small scripts](../../nixos/jellyfin/lyrics/README.md) fetch synced lyrics from LRCLIB and make a transliterated TTML from one (the media mounts stay read-only for Jellyfin, so its own lyrics plugin cannot write them; the scripts run as a user who can write to the library).
 
 ## What the lab proved
 
@@ -58,3 +58,9 @@ The host `lab` runs Floppy: its migrations over the socket as root and the web p
 - If Floppy stops being maintained, Yamtrack takes its place through the CSV.
 - A newer image may let the listener bind the loopback; then this service has the second lock too.
 - Whether the ListenBrainz plugin survives the next Jellyfin release (see above).
+
+## Update (2026-11-08, names): title, button, and the lyrics' scripts
+
+- **The title and the app's name are the brand's.** The edge's filter that carries the palette also rewrites the page's title and the installed app's name to the name of the service ("Tidepool Track", from the brand's name and its `track` label), in place of "Floppy" ([ADR 0020](0020-brand-identity.md), exception 9). The logo image is the brand's on every page.
+- **The sign-in button is the brand's generic text** ("Sign in with SSO", the `signInLabel` field): it is the name of the OpenID Connect provider that Floppy shows as the button, and it is set from the same declaration as the client.
+- **The scripts for timed lyrics are in the repository** ([nixos/jellyfin/lyrics/](../../nixos/jellyfin/lyrics/README.md)), as prototypes: they fill the sidecar `.lrc` files from LRCLIB and make a TTML file with a Latin transliteration track. They were run on a small made-up library; how a client shows the TTML was not tried.

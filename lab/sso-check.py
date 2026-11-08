@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# The single sign-on, end to end in a browser: Immich's "Login with <brand>" button, Nextcloud's login, and back into Immich as a user created by the first login; then the same for Floppy
+# The single sign-on, end to end in a browser: Immich's sign-in button, Nextcloud's login, and back into Immich as a user created by the first login; then the same for Floppy
 # (track.<domain>), in a browser that has no session: its login page offers only the sign-on, and the first login makes the account.
 # Usage: sso-check.py <chromium> <screenshot dir> <nextcloud user> <password>     (through the tunnel of lab/brand-check.sh)
 import asyncio, sys
@@ -16,8 +16,8 @@ async def main():
         b = await p.chromium.launch(executable_path=CHROME, args=["--host-resolver-rules=" + MAP])
         ctx = await b.new_context(locale="en-US", ignore_https_errors=True, viewport={"width": 1100, "height": 700}); pg = await ctx.new_page()
         await pg.goto("https://photos.lab.test/auth/login", wait_until="networkidle"); await pg.wait_for_timeout(1500)
-        btn = pg.get_by_role("button", name="Login with Tidepool")
-        ok(await btn.count() == 1, "Immich offers 'Login with Tidepool'")
+        btn = pg.get_by_role("button", name="Sign in with SSO")
+        ok(await btn.count() == 1, "Immich offers 'Sign in with SSO'")
         await btn.click()
         try:
             await pg.wait_for_url("**cloud.lab.test/login**", timeout=20000)
@@ -41,7 +41,8 @@ async def main():
         await fp.screenshot(path=f"{SHOTS}/sso-floppy-login.png")
         ok("/accounts/login" in fp.url, "Floppy sends a visitor to its login page (" + fp.url[:60] + ")")
         page_text = await fp.inner_text("body")
-        ok("Tidepool" in page_text, "Floppy's login page offers the sign-on under the brand's name")
+        ok("Sign in with SSO" in page_text, "Floppy's login page offers the sign-on under the generic text")
+        ok("Tidepool Track" in await fp.title() and "Floppy" not in await fp.title(), "Floppy's tab carries the name of the service (" + " ".join((await fp.title()).split()) + ")")
         ok(await fp.locator("input[type=password]").count() == 0, "Floppy's login page has no password form")
         accent = (await fp.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--color-accent')")).strip()
         ok(accent.lower() == "#4fc3d4", "Floppy's sign-in page carries the brand's accent (" + accent + ")")
@@ -50,7 +51,7 @@ async def main():
         ok(button == "rgb(15, 122, 140)", "Floppy's sign-on button is the brand's primary (" + button + ")")
         logo = await fp.evaluate("(() => { const i = document.querySelector('img[src*=\"/floppy-logo\"]'); return i ? [i.naturalWidth, i.currentSrc.slice(0, 40)] : null })()")
         ok(logo is not None and "data:image/svg+xml" in str(await fp.evaluate("getComputedStyle(document.querySelector('img[src*=\"/floppy-logo\"]')).content")), "Floppy's logo is the brand's (" + str(logo)[:60] + ")")
-        link = fp.get_by_text("Tidepool", exact=False).first
+        link = fp.get_by_text("Sign in with SSO", exact=False).first
         await link.click()
         await fp.wait_for_timeout(2500)
         await fp.screenshot(path=f"{SHOTS}/sso-floppy-step.png")

@@ -21,9 +21,15 @@
     wireguard.peers = import ./vpn-peers.nix;   # one entry per device: tools/add-peer.sh (docs/vpn-clients.md); the server's own public key is in vpn-server.pub (written by tools/secrets-init.sh)
     nas.enable = true;
     nas.timeMachine.path = "/mnt/timemachine";   # the Time Machine partition of the large disk; Linux cannot write a journaled HFS+, so make it ext4 and mount it below. Remove both if you have no Mac
-    # The name, palette and logo are ON by default (nixos/brand/ of the public repository). For your own: copy that directory here and say `brand.file = ./brand/brand.json;`; `brand.enable = false;` turns it off (docs/decisions/0020-brand-identity.md)
-    # sso.enable = true;                 # Nextcloud as the single sign-on of Immich (and of Floppy); needs the secret `immich-oauth-secret` (tools/secrets-init.sh makes it)
+    # The brand is ON by default (nixos/brand/ of the public repository). For your own, ONE file does it all: edit brand/brand.json and brand/logo.svg next to this file and say `brand.file = ./brand/brand.json;`.
+    # It holds the name ("Example"), the tagline, the label of each service ("Example Cloud", "Example Photos", ... are the names of the pages, the tabs and the apps), the text of the single sign-on button, six colours and the logo;
+    # every program that takes a brand (Nextcloud, Immich, Jellyfin, Floppy, the admin page, the TV session) follows it. `brand.enable = false;` turns it off (nixos/brand/README.md, docs/decisions/0020-brand-identity.md)
+    # brand.file = ./brand/brand.json;
+    # sso.enable = true;                 # Nextcloud as the single sign-on of Immich (and of Floppy, and of Jellyfin below); needs the secret `immich-oauth-secret` (tools/secrets-init.sh makes it)
+    # sso.jellyfin.enable = true;        # Jellyfin's sign-in through Nextcloud: the client, the plugin and its settings, the button (nixos/jellyfin/sso/README.md); needs the secret `jellyfin-oauth-secret`
     # services.floppy.enable = true;     # the tracker at track.<domain> (ADR 0023): needs sso.enable, the secrets `floppy-secret` and `floppy-oauth-secret` (tools/secrets-init.sh makes them) and a DNS record for the name (the wildcard covers it)
+    # services.floppy.accounts = true;   # (default) an account in Floppy for every enabled Nextcloud user, linked to their sign-in; needs sso.enable
+    # services.floppy.recap.enable = true;   # the yearly recap by mail, one per person, to the address in their Nextcloud account (the mail relay is the alerts' one); `recap.calendar` sets the date
     # The admin page, admin.<domain> on the VPN (the private tools and the services on one page, with a status for each), is ON by default; it needs the DNS record `admin` (docs/names.md, ADR 0021). `admin.enable = false;` leaves it out
     # compute.names.enable = true;        # <instance>.compute.<domain> for the Incus instances' port 80, VPN only: needs the DNS of docs/names.md first
     # compute.public = [ "alpha" ];      # the instances that are also reachable from the Internet (each needs its own DNS record)
