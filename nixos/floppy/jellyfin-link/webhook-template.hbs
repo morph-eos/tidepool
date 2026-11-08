@@ -1,0 +1,25 @@
+{
+  "Event": "{{#if_equals NotificationType 'PlaybackStart'}}Play{{/if_equals}}{{#if_equals NotificationType 'PlaybackStop'}}Stop{{/if_equals}}{{#if_equals NotificationType 'PlaybackProgress'}}{{#if IsPaused}}Pause{{else}}Play{{/if}}{{/if_equals}}{{#if_equals NotificationType 'UserDataSaved'}}UserDataSaved{{/if_equals}}{{#if_equals NotificationType 'ItemAdded'}}ItemAdded{{/if_equals}}{{#if_equals NotificationType 'ItemDeleted'}}ItemDeleted{{/if_equals}}",
+  "PlaybackPositionTicks": "{{PlaybackPositionTicks}}",{{#if_equals NotificationType 'UserDataSaved'}}
+  "SaveReason": "{{SaveReason}}",{{/if_equals}}
+  "Item": {
+    "Id": "{{ItemId}}",
+    "Type": "{{ItemType}}",
+    "Name": "{{Name}}",
+    "ProductionYear": "{{Year}}",
+    "ProviderIds": {
+      "Tmdb": "{{Provider_tmdb}}",
+      "Imdb": "{{Provider_imdb}}",
+      "Tvdb": "{{Provider_tvdb}}"
+    },
+    "UserData": {
+      "Played": {{#if_equals NotificationType 'UserDataSaved'}}{{#if_equals Played 'True'}}true{{else}}false{{/if_equals}}{{else}}{{#if_equals PlayedToCompletion 'True'}}true{{else}}false{{/if_equals}}{{/if_equals}},
+      "LastPlayedDate": "{{LastPlayedDate}}"{{#if_equals NotificationType 'UserDataSaved'}}{{#if Rating}},
+      "Rating": {{Rating}}{{/if}}{{/if_equals}}
+    }{{#if_equals ItemType 'Episode'}},
+    "SeriesName": "{{SeriesName}}",
+    "ParentIndexNumber": {{SeasonNumber}},
+    "IndexNumber": {{EpisodeNumber}}
+    {{/if_equals}}
+  }
+}

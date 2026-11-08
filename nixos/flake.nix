@@ -31,6 +31,7 @@
         # the lab host with the brand on (lab/brand-test.sh)
         lab-brand = (mk ./hosts/lab).extendModules { modules = [ ({ lib, ... }: {
           tidepool.sso.enable = true;
+          tidepool.services.floppy.recap.enable = true;   # the recap's unit is built here (it sends nothing until its date)
           # Jellyfin is off in the lab host; here it runs, on an empty library, so that its branding can be looked at
           tidepool.services.jellyfin = { enable = lib.mkForce true; mediaMounts = lib.mkForce { "/media" = "/srv/data/media"; }; };
           systemd.tmpfiles.rules = [ "d /srv/data/media 0755 root root -" ];

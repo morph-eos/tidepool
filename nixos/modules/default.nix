@@ -15,6 +15,7 @@
     ./offsite.nix
     ./services.nix
     ./floppy.nix
+    ./floppy-companions.nix
     ./versions.nix
     ./push.nix
     ./nas.nix

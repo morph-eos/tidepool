@@ -49,6 +49,12 @@ has "Immich serves the brand's stylesheet"                     "immich-primary: 
 r "Nextcloud knows the Floppy client"                          "Floppy" bash -c "sudo nextcloud-occ oidc:list | jq -r '.[] | select(.name == \"Floppy\") | .name'"
 r "Floppy's sign-up form is not served (the sign-on is the way in)" "404" curl -sk -o /dev/null -w '%{http_code}' --resolve track.lab.test:443:127.0.0.1 https://track.lab.test/accounts/signup/
 r "Floppy's pages link the brand's stylesheet, and it is served" "1 1" bash -c "a=\$(curl -sk --resolve track.lab.test:443:127.0.0.1 https://track.lab.test/accounts/login/ | grep -c '/_brand/theme.css'); b=\$(curl -sk --resolve track.lab.test:443:127.0.0.1 https://track.lab.test/_brand/theme.css | grep -c -- '--color-accent: #4fc3d4 !important'); echo \$a \$b"
+# the accounts follow Nextcloud's list of people: two users without an address (the case that could clash), none has signed in to Floppy
+for u in acctest1 acctest2; do sudo nextcloud-occ user:delete $u >/dev/null 2>&1; sudo env OC_PASS=Acc-test-pass-12345 nextcloud-occ user:add --password-from-env $u >/dev/null 2>&1; done
+r "floppy-accounts runs and ends well"                          "0" bash -c "sudo systemctl start floppy-accounts.service >/dev/null 2>&1; echo \$?"
+r "Floppy has an account and a sign-on link for each user"      "2 2" bash -c "a=\$(sudo psql -h /run/postgresql -U floppy -d floppy -tAc \"select count(*) from users_user where username in ('acctest1','acctest2')\"); b=\$(sudo psql -h /run/postgresql -U floppy -d floppy -tAc \"select count(*) from socialaccount_socialaccount where provider = 'sso' and uid in ('acctest1','acctest2')\"); echo \$a \$b"
+r "a second run makes nothing new"                              "made 0, linked 0" bash -c "sudo systemctl start floppy-accounts.service >/dev/null 2>&1; sudo journalctl -u floppy-accounts.service -n 5 --no-pager | grep -o 'made 0, linked 0' | tail -1"
+for u in acctest1 acctest2; do sudo nextcloud-occ user:delete $u >/dev/null 2>&1; done
 r "Floppy's client secret is not in the Nix store"             "0" bash -c "grep -rl \$(sudo cat /run/secrets/floppy-oauth-secret) /nix/store 2>/dev/null | wc -l"
 r "the client secret is not in the Nix store"                  "0" bash -c "grep -rl \$(sudo cat /run/secrets/immich-oauth-secret) /nix/store --include=*.json 2>/dev/null | wc -l"
 r "Jellyfin's branding file is written"                        "Tidepool - your own cloud" bash -c "curl -s localhost:8096/Branding/Configuration | jq -r .LoginDisclaimer"
