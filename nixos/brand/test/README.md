@@ -1,1 +1,1 @@
-Fixtures of the CI's `brand` check (nixos/flake.nix): a whole brand of another repository, and a file with a single field.
+Fixtures of the CI's `brand` check (nixos/flake.nix): a whole brand of another repository (`other-brand.json`), a file with a single field (`partial-brand.json`), and a brand that names everything in its own words, labels and sign-in text included (`pippo-brand.json`).

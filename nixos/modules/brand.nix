@@ -1,9 +1,11 @@
 # The brand (docs/decisions/0020-brand-identity.md): one name, one palette, one logo (nixos/brand/brand.json and logo.svg), applied where a program has a setting for it:
 # Nextcloud's theming, Jellyfin's themes and branding, Immich's configuration, Prometheus' title, the operating system's name, the mail's sender, Samba's name. No program's own files are patched or restyled from outside.
+# The name of a service is the brand's name and a label ("Tidepool Cloud"): titles and tabs carry it, taglines and footers carry the brand's name alone; the labels and the text of the sign-in button are fields too.
 # The data is JSON, so that tools that are not Nix can read it too. Another repository says `tidepool.brand.file = ./brand/brand.json;` (fields it leaves out keep the defaults), or sets single options.
 { config, lib, pkgs, ... }:
 let
   cfg = config.tidepool.brand;
+  labelNames = [ "cloud" "photos" "media" "track" "admin" "metrics" ];
   d = config.tidepool.domain;
   c = cfg.colors;
   defaults = lib.importJSON ../brand/brand.json;
@@ -73,7 +75,7 @@ let
 '';
   nextcloudBrand = pkgs.writeShellScript "nextcloud-brand" ''
     occ=${config.services.nextcloud.occ}/bin/nextcloud-occ
-    $occ theming:config name ${lib.escapeShellArg cfg.name}
+    $occ theming:config name ${lib.escapeShellArg cfg.product.cloud}
     $occ theming:config slogan ${lib.escapeShellArg cfg.tagline}
     $occ theming:config primary_color ${lib.escapeShellArg c.primary}
     $occ theming:config background_color ${lib.escapeShellArg c.deep}
@@ -88,18 +90,21 @@ in
     file = lib.mkOption { type = lib.types.path; default = ../brand/brand.json; description = "The brand as JSON (see nixos/brand/README.md). Fields it leaves out keep the defaults; `logo` and `wordmark` name files next to it."; };
     name = lib.mkOption { type = lib.types.str; default = data.name; defaultText = "from the file"; description = "The name of the service, shown where the programs let a name be set."; };
     slug = lib.mkOption { type = lib.types.strMatching "[a-z0-9-]+"; default = lib.replaceStrings [ " " ] [ "-" ] (lib.toLower cfg.name); defaultText = "the name in lower case, spaces as hyphens"; description = "The name where a host name or an identifier is needed."; };
+    labels = lib.genAttrs labelNames (n: lib.mkOption { type = lib.types.str; default = data.labels.${n}; defaultText = "from the file"; description = "The word after the brand's name in the name of the ${n} service (`<name> <label>`); empty leaves the name alone."; });
+    product = lib.mkOption { type = lib.types.attrsOf lib.types.str; readOnly = true; default = lib.genAttrs labelNames (n: lib.concatStringsSep " " (lib.filter (x: x != "") [ cfg.name cfg.labels.${n} ])); defaultText = "<name> <label>"; description = "The name of each service, `<name> <label>` (Tidepool Cloud): the title of a page and the tab, the name of the server or of the app where the program has one."; };
+    signInLabel = lib.mkOption { type = lib.types.str; default = data.signInLabel; defaultText = "from the file"; description = "The text of the single sign-on button where a program shows one (Immich, Floppy, Jellyfin): generic, so that a page that is already the brand's does not say its name twice."; };
     tagline = lib.mkOption { type = lib.types.str; default = data.tagline; defaultText = "from the file"; description = "A few words under the name."; };
     colors = lib.genAttrs [ "deep" "primary" "primaryOnDark" "accent" "sand" "text" ] (n: lib.mkOption { type = lib.types.strMatching "#[0-9a-fA-F]{6}"; default = data.colors.${n}; defaultText = "from the file"; description = "The ${n} colour, #rrggbb."; });
     logo = lib.mkOption { type = lib.types.path; default = fileOf "logo"; defaultText = "from the file"; description = "A square mark, SVG (Nextcloud's logo and favicon, the stylesheets of Immich and Jellyfin)."; };
     wordmark = lib.mkOption { type = lib.types.nullOr lib.types.path; default = fileOf "wordmark"; defaultText = "from the file"; description = "Optional: the mark with the name in outlined letters, for the wide places."; };
-    jellyfinLoginHtml = lib.mkOption { type = lib.types.str; default = ""; example = ''<form action="/sso/OID/start/provider"><button class="raised block emby-button button-submit">Sign in with the provider</button></form>''; description = "HTML added under the brand's line in Jellyfin's login message, which is where its single sign-on plugin has the button for its login page. The file is written whole at each change of the system, so what is wanted there is declared here and not typed into Jellyfin's settings, where the next write would remove it."; };
-    out = lib.mkOption { type = lib.types.attrsOf lib.types.path; readOnly = true; default = { inherit jellyfinWebConfig jellyfinThemeDir; }; description = "What the module builds, for the checks."; };
+    jellyfinLoginHtml = lib.mkOption { type = lib.types.str; default = lib.optionalString (config.tidepool.sso.enable && config.tidepool.sso.jellyfin.enable) ''<form action="/sso/OID/start/${config.tidepool.sso.jellyfin.provider}"><button class="raised block emby-button button-submit" type="submit">${lib.escapeXML cfg.signInLabel}</button></form>''; defaultText = "the button of the single sign-on when it is on for Jellyfin, nothing otherwise"; example = ''<form action="/sso/OID/start/provider"><button class="raised block emby-button button-submit">Sign in with the provider</button></form>''; description = "HTML added under the brand's line in Jellyfin's login message, which is where its single sign-on plugin has the button for its login page. With `tidepool.sso.jellyfin.enable` it is that button, with the text of `signInLabel`; set it to have something else. The file is written whole at each change of the system, so what is wanted there is declared here and not typed into Jellyfin's settings, where the next write would remove it."; };
+    out = lib.mkOption { type = lib.types.attrsOf lib.types.path; readOnly = true; default = { inherit jellyfinWebConfig jellyfinThemeDir nextcloudBrand; }; description = "What the module builds, for the checks."; };
     css = lib.mkOption { type = lib.types.attrsOf lib.types.str; readOnly = true; default = { immich = immichCss; floppy = floppyCss; }; description = "The stylesheet that a program takes in its own settings (other modules put it where the program reads it); Floppy's is served by the edge, which adds it to the pages."; };
   };
   config = lib.mkIf cfg.enable {
     system.nixos.distroName = cfg.name;
     users.motd = "${cfg.name}, ${cfg.tagline}";
-    services.prometheus.extraFlags = [ (lib.escapeShellArg "--web.page-title=${cfg.name} metrics") ];   # the module joins the flags with spaces, unquoted
+    services.prometheus.extraFlags = [ (lib.escapeShellArg "--web.page-title=${cfg.product.metrics}") ];   # the module joins the flags with spaces, unquoted
     systemd.services.nextcloud-brand = lib.mkIf config.services.nextcloud.enable {
       description = "Apply the brand to Nextcloud (its theming app keeps it in the database)";
       wantedBy = [ "multi-user.target" ]; after = [ "nextcloud-setup.service" ]; requires = [ "nextcloud-setup.service" ];
@@ -109,6 +114,26 @@ in
     virtualisation.oci-containers.containers.jellyfin = lib.mkIf config.tidepool.services.jellyfin.enable {
       extraOptions = [ "--hostname=${cfg.slug}" ];   # Jellyfin names itself after its host
       volumes = [ "${jellyfinWebConfig}:/jellyfin/jellyfin-web/config.json:ro" "${jellyfinThemeDir}:/jellyfin/jellyfin-web/themes/${cfg.slug}:ro" ];
+    };
+    # Jellyfin's tab and its apps show the server's name, which is its host name until a name is set in its settings file (config/system.xml). That file is the server's whole configuration and Jellyfin rewrites it itself, so it is not written whole: the one
+    # element is set before each start, in the file as it is (the first start makes the file, the next one sets the name).
+    systemd.services.podman-jellyfin = lib.mkIf config.tidepool.services.jellyfin.enable { preStart = ''
+      f=/srv/data/jellyfin/config/config/system.xml
+      want=${lib.escapeShellArg cfg.product.media}
+      if [ -f "$f" ] && [ "$(${pkgs.xmlstarlet}/bin/xmlstarlet sel -T -t -v /ServerConfiguration/ServerName "$f")" != "$want" ]; then
+        ${pkgs.xmlstarlet}/bin/xmlstarlet ed -L -d /ServerConfiguration/ServerName -s /ServerConfiguration -t elem -n ServerName -v "$want" "$f" || echo "Jellyfin's server name was not set"
+      fi
+    ''; };
+    # Nextcloud's theming has one field for the name of the page, the tab and the app, and the footer of its login page repeats that same field before the tagline: with a service's name in it ("Tidepool Cloud – your own cloud") the footer is
+    # corrected on its way out (docs/exceptions.md), to the brand's name alone (the name is a link in that footer, to the address the theming has; a footer without a link is not rewritten).
+    assertions = lib.mapAttrsToList (k: v: { assertion = builtins.match "[^\"'$\\\\;]*" v != null; message = "tidepool.brand: the name or the ${k} label has a quote, a dollar sign, a semicolon or a backslash (it is written into a web server's configuration)"; }) (cfg.product // { name = cfg.name; });
+    services.nginx.virtualHosts."cloud.${d}" = lib.mkIf (config.services.nextcloud.enable && cfg.product.cloud != cfg.name) {
+      extraConfig = ''
+        sub_filter "class=\"entity-name\">${cfg.product.cloud}</a>" "class=\"entity-name\">${cfg.name}</a>";
+        sub_filter_once on;
+      '';
+      # Nextcloud compresses its pages for a client that accepts it, and nginx does not rewrite a body that is already compressed: the application is told the client takes no compression (nginx compresses the page itself, after the rewrite)
+      locations."~ \\.php(?:$|/)".extraConfig = lib.mkAfter ''fastcgi_param HTTP_ACCEPT_ENCODING "";'';
     };
     systemd.tmpfiles.rules = lib.optional config.tidepool.services.jellyfin.enable "f+ /srv/data/jellyfin/config/config/branding.xml 0644 root root - ${jellyfinBranding}";
   };

@@ -31,6 +31,10 @@ Copy this directory to a **new private repository**. It holds the values of one 
 
 A move from an existing server adds its own script next to these (a private repository can have one that copies the old WebDAV login, Syncthing identity and application tokens into `secrets.yaml` without printing them).
 
+## Your brand, from one file
+
+`brand/brand.json` and `brand/logo.svg` are the identity of your deployment: the name, the tagline, the label of each service, the text of the single sign-on button, six colours and the logo. Edit them, and say `brand.file = ./brand/brand.json;` in `host.nix` (the line is there, commented). Every program that takes a brand follows that one file: the name of each page and tab is `<name> <label>` ("Example Cloud", "Example Photos", "Example Media", "Example Track"), the footers and banners carry the name and the tagline, Nextcloud, Immich, Jellyfin, Floppy, the admin page and the TV session take the palette and the logo. A field the file leaves out keeps the public repository's default. The fields and what each one reaches are in [nixos/brand/README.md](../nixos/brand/README.md).
+
 ## Adding your own modules (anything the public repository does not have)
 
 Put them in this repository and import them from `host.nix`; **nothing of the public repository is replaced or edited**. `host.nix` is one more NixOS module, and the module system merges it with the public ones:

@@ -11,11 +11,11 @@ let
   uid = 1003;
   port = 8100;        # the image's own nginx; the container shares the machine's network, and the firewall does not open this port (nginx at the edge is the only way in)
   redisPort = 6380;   # Immich's Valkey keeps 6379: Floppy would set limits on a Redis it shares, so it has its own
-  # the brand's palette, forced: the edge adds one stylesheet to Floppy's pages (the sign-in page included, before any user has a theme), see brand.nix and docs/exceptions.md
+  # the brand's palette, forced: the edge adds one stylesheet to Floppy's pages (the sign-in page included, before any user has a theme), and gives the title and the app's name the brand's name of the service in place of Floppy's own; see brand.nix and docs/exceptions.md
   brandOn = cfg.brand.enable;
   brandFile = pkgs.writeText "floppy-brand.css" cfg.brand.css.floppy;
   brandHref = "/_brand/theme.css?v=${builtins.substring 0 8 (builtins.hashString "sha256" cfg.brand.css.floppy)}";
-  brandInject = lib.optionalString brandOn "proxy_set_header Accept-Encoding \"\"; sub_filter '</head>' '<link rel=\"stylesheet\" href=\"${brandHref}\"></head>'; sub_filter_once on;";
+  brandInject = lib.optionalString brandOn "proxy_set_header Accept-Encoding \"\"; sub_filter '</head>' '<link rel=\"stylesheet\" href=\"${brandHref}\"></head>'; sub_filter '- Floppy' '- ${cfg.brand.product.track}'; sub_filter 'name=\"mobile-web-app-title\" content=\"Floppy\"' 'name=\"mobile-web-app-title\" content=\"${cfg.brand.product.track}\"'; sub_filter_once on;";
   acme = if cfg.lab then { enableACME = true; } else { useACMEHost = d; };
 in
 {
