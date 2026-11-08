@@ -5,7 +5,7 @@
 import asyncio, sys
 from playwright.async_api import async_playwright
 CHROME, SHOTS, USER, PASSWORD = sys.argv[1:5]
-MAP = "MAP photos.lab.test 127.0.0.1:18444, MAP cloud.lab.test 127.0.0.1:18444, MAP track.lab.test 127.0.0.1:18444"
+MAP = "MAP photos.lab.test 127.0.0.1:18444, MAP cloud.lab.test 127.0.0.1:18444, MAP track.lab.test 127.0.0.1:18444, MAP media.lab.test 127.0.0.1:18444"
 fails = 0
 def ok(cond, text):
     global fails
@@ -17,6 +17,8 @@ async def main():
         ctx = await b.new_context(locale="en-US", ignore_https_errors=True, viewport={"width": 1100, "height": 700}); pg = await ctx.new_page()
         await pg.goto("https://photos.lab.test/auth/login", wait_until="networkidle"); await pg.wait_for_timeout(1500)
         btn = pg.get_by_role("button", name="Sign in with SSO")
+        try: await btn.first.wait_for(timeout=20000)   # the page may still be loading its settings
+        except Exception: pass
         ok(await btn.count() == 1, "Immich offers 'Sign in with SSO'")
         await btn.click()
         try:
@@ -73,6 +75,29 @@ async def main():
         await fp.screenshot(path=f"{SHOTS}/sso-floppy-in.png")
         ok(fp.url.startswith("https://track.lab.test/") and "/accounts/login" not in fp.url, "Nextcloud sends the user back to Floppy, logged in (" + fp.url[:70] + ")")
         ok("/accounts/3rdparty/signup" not in fp.url, "Floppy made the account without asking for more")
+        # Jellyfin: the button of its login page leads to Nextcloud, and Nextcloud's login brings the user back as a Jellyfin user (the plugin makes it, from Nextcloud's account)
+        ctx3 = await b.new_context(locale="en-US", ignore_https_errors=True, viewport={"width": 1100, "height": 800}); jp = await ctx3.new_page()
+        await jp.goto("https://media.lab.test/web/#/login.html", wait_until="networkidle"); await jp.wait_for_timeout(4000)
+        sso = jp.get_by_role("button", name="Sign in with SSO")
+        ok(await sso.count() == 1, "Jellyfin's login page offers 'Sign in with SSO'")
+        await sso.scroll_into_view_if_needed(); await jp.screenshot(path=f"{SHOTS}/sso-jellyfin-login.png")
+        await sso.click()
+        try:
+            await jp.wait_for_url("**cloud.lab.test/**", timeout=25000)
+            ok(True, "Jellyfin's button leads to Nextcloud (the plugin found its settings, the discovery and the client work)")
+        except Exception:
+            ok(False, "Jellyfin's button leads to Nextcloud (got " + jp.url[:80] + ")"); await b.close(); sys.exit(1)
+        if await jp.locator("#user").count() == 0: await jp.wait_for_selector("#user", timeout=15000)
+        await jp.fill("#user", USER); await jp.fill("#password", PASSWORD); await jp.click("button[type=submit]")
+        try:
+            await jp.wait_for_url("**media.lab.test/**", timeout=30000)
+        except Exception:
+            pass
+        await jp.wait_for_timeout(6000)
+        await jp.screenshot(path=f"{SHOTS}/sso-jellyfin-in.png")
+        ok(jp.url.startswith("https://media.lab.test/"), "Nextcloud sends the user back to Jellyfin (" + jp.url[:70] + ")")
+        who = await jp.evaluate("""(async () => { try { const c = JSON.parse(localStorage.getItem('jellyfin_credentials')).Servers[0]; const r = await fetch('/Users/' + c.UserId, { headers: { 'Authorization': 'MediaBrowser Token="' + c.AccessToken + '"' } }); const t = await r.text(); try { return JSON.parse(t).Name } catch (e) { return r.status + ' ' + t.slice(0, 60) } } catch (e) { return String(e) } })()""")
+        ok(who == USER, "Jellyfin has a session for the Nextcloud user (" + str(who)[:60] + ")")
         await b.close()
     print(f"{fails} failed"); sys.exit(1 if fails else 0)
 asyncio.run(main())

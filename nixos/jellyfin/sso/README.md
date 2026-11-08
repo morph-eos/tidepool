@@ -39,9 +39,11 @@ A failure of the script is told in the journal and does not stop Jellyfin.
 
 ## What is proven
 
-The CI's `brand` check runs the script on a temporary directory (a missing file is written valid and private, a differing provider is not touched, `--adopt` updates the four fields and keeps the links, a second provider is added) and evaluates the module (the client, the button, the adopted id). Jellyfin 12 loads the plugin and the file the script writes (the plugin is listed as active). The lab (`lab/brand-test.sh`) switches a VM to a host with all of it on and looks at what is installed, written and served.
+The CI's `brand` check runs the script on a temporary directory (a missing file is written valid and private, a differing provider is not touched, `--adopt` updates the four fields and keeps the links, a second provider is added) and evaluates the module (the client, the button, the adopted id). Jellyfin 12 loads the plugin and the file the script writes (the plugin is listed as active).
+
+The lab (`lab/brand-test.sh`, `lab/sso-check.py`) switches a VM to a host with all of it on and looks at what is installed, written and served, and then **does the whole login in a browser**: Jellyfin's login page offers the button, the button leads to Nextcloud's login, and after the login of a Nextcloud user the browser is back in Jellyfin with a session of a Jellyfin user of that name (made by the plugin). For that the lab's Jellyfin container is given the test CA's current root (the lab's certificates are not public ones).
 
 ## What is not proven
 
-- **A whole login in a browser**, from Jellyfin's page through Nextcloud and back into a Jellyfin session, is not part of the lab: Jellyfin's container does not trust the lab's test certificates, so it cannot fetch Nextcloud's discovery document there. On a real machine the certificates are public ones.
 - A plugin **update** (the catalog's auto-update) is not tried.
+- The links the plugin keeps between existing Jellyfin users and Nextcloud users are not made by this module; a user that signs in for the first time gets a new Jellyfin user, and linking an existing one is done in the plugin's own page.
