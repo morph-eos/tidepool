@@ -61,6 +61,9 @@ let
       && lib.hasInfix "want='Pippo Film'" pippo.systemd.services.podman-jellyfin.preStart
       && lib.hasInfix ''class=\"entity-name\">Pippo Nuvola</a>" "class=\"entity-name\">Pippo</a>'' pippo.services.nginx.virtualHosts."cloud.${pd}".extraConfig
       && pippoName.services.homepage-dashboard.settings.title == "Pippo Admin";
+    "Immich's tab title is the brand's name of the service, written at the edge, and the brand off leaves it" =
+         lib.hasInfix "- Pippo Foto`" (pippo.services.nginx.virtualHosts."photos.${pd}".locations."~ ^/_app/immutable/nodes/0\\.[A-Za-z0-9_-]+\\.js$").extraConfig
+      && lib.hasInfix "- Tidepool Photos`" (base.services.nginx.virtualHosts."photos.${base.tidepool.domain}".locations."~ ^/_app/immutable/nodes/0\\.[A-Za-z0-9_-]+\\.js$").extraConfig;
     "a footer, a banner and a tagline carry the brand's name and no service's" =
          pippo.tidepool.services.immich.settings.server.loginPageMessage == "Pippo, casa nostra" && lib.any (lib.hasInfix "Pippo - casa nostra&lt;br&gt;") pippo.systemd.tmpfiles.rules
       && !(lib.any (lib.hasInfix "Pippo Film - ") pippo.systemd.tmpfiles.rules) && base.services.nginx.virtualHosts."cloud.${base.tidepool.domain}".extraConfig != "" && !(lib.hasInfix "entity-name" off.services.nginx.virtualHosts."cloud.${off.tidepool.domain}".extraConfig);
