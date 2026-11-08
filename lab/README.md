@@ -28,6 +28,8 @@ lab/gate.sh --full   # adds the restore drill, about an hour, on the VM host-t (
 lab/gate.sh --only brand,names      # some of the steps
 ```
 
+**A brand of another repository, in a browser** ([brand-alt.sh](brand-alt.sh) with [brand-alt.py](brand-alt.py)): not a step of the gate, run by hand after a change to the brand's fields or to what follows them. It switches a VM to the host `lab-pippo` (the host `lab-brand` with a brand that names everything in its own words, `nixos/brand/test/pippo-brand.json`) and looks at every program that takes a brand: the name of each service in its title and tab, the footer, the sign-in button, the palette, and no trace of the default brand. Run `brand-test.sh` first to put the VM back on `lab-brand`.
+
 It prints `GO` or `NO GO` and keeps each step's log in `/tmp/gate`. Run it **when a change touches what a step covers** (the table says which); the full tier before a change to the backups, the storage, the boot or the deploy chain, and before the first deployment. A change to Proton Drive's copy is tried by hand ([proton-offsite/](proton-offsite/README.md): it needs a login).
 
 | Step | Script | What it proves | Run it when you change |

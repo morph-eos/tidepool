@@ -9,7 +9,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 NAME="${1:?usage: brand-test.sh <vm-name>}"
 tar -C "$HERE/.." -c nixos | "$HERE/vm.sh" ssh "$NAME" 'rm -rf ~/nn && mkdir ~/nn && tar x -C ~/nn'
-"$HERE/vm.sh" ssh "$NAME" 'bash -s' <<'REMOTE_EOF'
+out=$(mktemp)
+"$HERE/vm.sh" ssh "$NAME" 'bash -s' <<'REMOTE_EOF' | tee "$out"
 r() { local desc="$1" want="$2"; shift 2; local got; got=$("$@" 2>/dev/null); if [ "$got" = "$want" ]; then echo "PASS $desc"; else echo "FAIL $desc (wanted '$want', got '$got')"; fi; }
 has() { local desc="$1" re="$2"; shift 2; if "$@" 2>/dev/null | grep -q -E -e "$re"; then echo "PASS $desc"; else echo "FAIL $desc (no match for $re)"; fi; }
 cd ~/nn/nixos
@@ -22,7 +23,7 @@ r "the unit that applies the brand to Nextcloud ran"           "active" systemct
 r "Nextcloud's theming has the name of the service"           "Tidepool Cloud" sudo nextcloud-occ config:app:get theming name
 r "Nextcloud's theming has the primary colour"                 "#0f7a8c" sudo nextcloud-occ config:app:get theming primary_color
 has "Nextcloud's login page says the name of the service"      "<title>[^<]*Tidepool Cloud" bash -c "curl -sk --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login | tr -d '\n'"
-has "the footer is right for a browser too (a client that takes compression)" "entity-name\\">Tidepool</a> – your own cloud" bash -c "curl -sk -H 'Accept-Encoding: gzip, deflate, br' --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login | gunzip -c"
+has "the footer is right for a browser too (a client that takes compression)" "entity-name\">Tidepool</a> – your own cloud" bash -c "curl -sk -H 'Accept-Encoding: gzip, deflate, br' --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login | gunzip -c"
 has "Nextcloud's footer says the brand's name and the tagline" "entity-name\">Tidepool</a> – your own cloud" curl -sk --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login
 r "Prometheus has the name in its title"                       "<title>Tidepool Metrics" bash -c "curl -sk --resolve metrics.lab.test:443:$V https://metrics.lab.test/query | grep -o '<title>[^<]*'"
 # another repository overrides it: one field at a time, or the whole file, with its own logo
@@ -62,7 +63,7 @@ r "a second run makes nothing new"                              "made 0, linked 
 for u in acctest1 acctest2; do sudo nextcloud-occ user:delete $u >/dev/null 2>&1; done
 r "Floppy's client secret is not in the Nix store"             "0" bash -c "grep -rl \$(sudo cat /run/secrets/floppy-oauth-secret) /nix/store 2>/dev/null | wc -l"
 r "the client secret is not in the Nix store"                  "0" bash -c "grep -rl \$(sudo cat /run/secrets/immich-oauth-secret) /nix/store --include=*.json 2>/dev/null | wc -l"
-r "Jellyfin's server name is the name of the service (it is the tab and the apps' name)" "Tidepool Media" bash -c "sudo systemctl restart podman-jellyfin.service; for i in \$(seq 1 40); do n=\$(curl -s localhost:8096/System/Info/Public | jq -r .ServerName 2>/dev/null); [ -n \"\$n\" ] && break; sleep 3; done; echo \$n"
+r "Jellyfin's server name is the name of the service (it is the tab and the apps' name)" "Tidepool Media" bash -c "sudo systemctl restart podman-jellyfin.service; for i in \$(seq 1 40); do n=\$(curl -s localhost:8096/System/Info/Public | jq -r .ServerName 2>/dev/null); [ -n \"\$n\" ] && [ \"\$n\" != null ] && break; sleep 3; done; echo \$n"
 has "Jellyfin's branding file is written, the brand's line first" "^Tidepool - your own cloud<br>" bash -c "curl -s localhost:8096/Branding/Configuration | jq -r .LoginDisclaimer"
 # Jellyfin's sign-in through Nextcloud (nixos/jellyfin/sso/): the client, the plugin, its settings, the button
 f=/srv/data/jellyfin/config/plugins/configurations/SSO-Auth.xml
@@ -72,7 +73,7 @@ r "the plugin is in Jellyfin's plugin directory"               "yes" bash -c "su
 r "its settings file is private"                               "600" sudo stat -c %a $f
 r "its settings name the provider and the address"             "2" bash -c "sudo grep -c -e '<string>nextcloud</string>' -e '<OidEndpoint>https://cloud.lab.test</OidEndpoint>' $f"
 r "the secret in the settings is the declared one (compared, not shown)" "yes" bash -c "[ \"\$(sudo grep -o '<OidSecret>[^<]*' $f | cut -c12-)\" = \"\$(sudo cat /run/secrets/jellyfin-oauth-secret)\" ] && echo yes"
-r "Jellyfin loaded the plugin"                                  "yes" bash -c "sudo podman logs jellyfin 2>&1 | grep -q 'Loaded plugin: SSO-Auth' && echo yes"
+r "Jellyfin loaded the plugin"                                  "yes" bash -c "sudo podman logs jellyfin 2>&1 | grep -q 'Loaded plugin: SSO Authentication' && echo yes"
 r "the plugin answers at the button's address (not a 404)"     "yes" bash -c "c=\$(curl -s -o /dev/null -w '%{http_code}' localhost:8096/sso/OID/start/nextcloud); [ \"\$c\" != 404 ] && echo yes"
 has "the login message has the button, with the generic text"  "/sso/OID/start/nextcloud.*Sign in with SSO" bash -c "curl -s localhost:8096/Branding/Configuration | jq -r .LoginDisclaimer"
 r "a second start of Jellyfin finds the settings as declared"  "nothing to do" bash -c "sudo journalctl -u podman-jellyfin --no-pager | grep -o 'nothing to do' | tail -1"
@@ -89,3 +90,6 @@ for u in $(systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d' ' -f
 systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d" " -f1 | sed 's/^/failed unit: /'
 echo "failed units: $(systemctl --failed --no-legend | wc -l)"
 REMOTE_EOF
+# a run that stopped early (a syntax error in the part above prints no FAIL of its own) is a failure, never a pass with fewer checks
+grep -q '^failed units:' "$out" || echo "FAIL the test script stopped before its end"
+rm -f "$out"

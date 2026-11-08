@@ -37,6 +37,8 @@
           tidepool.services.jellyfin = { enable = lib.mkForce true; mediaMounts = lib.mkForce { "/media" = "/srv/data/media"; }; };
           systemd.tmpfiles.rules = [ "d /srv/data/media 0755 root root -" ];
         }) ]; };
+        # the same with a brand that names everything in its own words (lab/brand-alt.sh)
+        lab-pippo = (self.nixosConfigurations.lab-brand).extendModules { modules = [ { tidepool.brand.file = ./brand/test/pippo-brand.json; } ]; };
         lab-secure-sb = (mk ./hosts/lab-secure).extendModules { modules = [ { tidepool.encryption.secureBoot = true; } ]; };
         # the real host: the values that are private (domain, disks by serial, VPN peers) come from the private repository; this repository holds an example
         tidepool = mk ./hosts/tidepool;
