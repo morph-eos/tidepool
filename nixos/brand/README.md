@@ -17,6 +17,22 @@ The brand is **on by default**: a deployment that sets nothing shows this identi
 
 **Another deployment** copies this directory into its private repository, edits it, and says `tidepool.brand.file = ./brand/brand.json;` in `host.nix` (fields it leaves out keep these defaults); or sets single fields (`tidepool.brand.name = "Acme";`).
 
+## What follows the brand
+
+| Program | Name | Logo | Palette |
+|---|---|---|---|
+| Nextcloud (and its apps) | yes | yes, and the favicon | yes |
+| Immich | yes (login text and sign-on button) | yes (login) | its primary scale; its backgrounds are Immich's |
+| Jellyfin (and the clients built on its web) | yes | yes (the wordmark if there is one) | a whole theme, the default |
+| Floppy | the sign-on button | yes (replaced by the edge's stylesheet; its favicon stays) | yes, forced by the same stylesheet |
+| The admin page | the title | no | the background; its text colour is one of Homepage's fixed names |
+| Prometheus | the title | no | no |
+| The system, Samba, the mail's sender | yes | n/a | n/a |
+| The TV session | yes | the wallpaper and the start page | yes (GNOME's nearest accent, the start page) |
+| Alertmanager, ntfy, Syncthing, Vaultwarden's web vault, Incus's UI | no setting | no | no |
+
+A page that a private repository adds is its own to style; it does not read the brand unless it is written to.
+
 ## The TV session
 
 When the TV session is on ([ADR 0022](../../docs/decisions/0022-the-tv-session.md)), the same brand sets its wallpaper, GNOME's dark style and nearest accent colour, and the start page and bookmarks of its browser (`modules/desktop-brand.nix`, [ADR 0020](../../docs/decisions/0020-brand-identity.md)). Nothing to add: a private repository that changes `brand.json` changes it too; `tidepool.desktop.startPage.links` adds its own tiles.

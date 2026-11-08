@@ -15,6 +15,8 @@ let
   off = ext [ { tidepool.brand.enable = false; } ];
   withJellyfin = ext [ { tidepool.services.jellyfin = { enable = lib.mkForce true; mediaMounts = lib.mkForce { "/media" = "/tmp"; }; }; } ];
   withSso = ext [ { tidepool.sso.enable = true; } ];
+  # another repository's brand on a host with every program that takes one running (Jellyfin is off in the lab)
+  otherAll = ext [ { tidepool.brand.file = fixture "other-brand.json"; tidepool.services.jellyfin = { enable = lib.mkForce true; mediaMounts = lib.mkForce { "/media" = "/tmp"; }; }; } ];
   withAdmin = base;
   noAdmin = ext [ { tidepool.admin.enable = false; } ];
   noFloppy = ext [ { tidepool.services.floppy.enable = lib.mkForce false; } ];
@@ -25,6 +27,14 @@ let
     "the brand off leaves the system as it comes" = off.system.nixos.distroName == "NixOS" && !(off.systemd.services ? nextcloud-brand);
     "a brand file of another repository replaces the brand" = other.tidepool.brand.name == "Acme Home" && other.tidepool.brand.slug == "acme-home" && other.tidepool.brand.colors.primary == "#aa3355"
       && baseNameOf (toString other.tidepool.brand.logo) == "other-logo.svg" && other.system.nixos.distroName == "Acme Home";
+    "a brand of another repository reaches every program that takes one: Immich, the admin page, Prometheus, Samba, the alerts' sender, Jellyfin's login text, Floppy's logo" =
+         lib.hasInfix "Acme Home" otherAll.tidepool.services.immich.settings.server.loginPageMessage && lib.hasInfix "170 51 85" otherAll.tidepool.services.immich.settings.theme.customCss
+      && otherAll.services.homepage-dashboard.settings.title == "Acme Home admin" && lib.hasInfix "#220011" otherAll.services.homepage-dashboard.customCSS
+      && lib.any (lib.hasInfix "Acme Home metrics") otherAll.services.prometheus.extraFlags
+      && otherAll.services.samba.settings.global."server string" == "Acme Home NAS" && otherAll.services.samba.settings.global."netbios name" == "acme-home"
+      && lib.hasInfix "Acme Home alerts" (builtins.toJSON otherAll.services.prometheus.alertmanager.configuration)
+      && lib.any (lib.hasInfix "Acme Home - ours") otherAll.systemd.tmpfiles.rules
+      && lib.hasInfix "floppy-logo" otherAll.tidepool.brand.css.floppy && otherAll.tidepool.brand.css.floppy != base.tidepool.brand.css.floppy;
     "a brand file with one field keeps the other defaults" = partial.tidepool.brand.name == "Partial Co" && partial.tidepool.brand.colors.deep == "#0b3c49" && partial.tidepool.brand.tagline == "your own cloud";
     "one option overrides one field" = single.tidepool.brand.name == "Solo Name" && single.tidepool.brand.slug == "solo-name" && single.tidepool.brand.colors.primary == "#0f7a8c";
     "Immich's declared settings carry the brand" = lib.hasInfix "--immich-primary" base.tidepool.services.immich.settings.theme.customCss && base.tidepool.services.immich.settings.server.externalDomain == "https://photos.${base.tidepool.domain}";
@@ -85,7 +95,7 @@ in
       # Floppy's stylesheet is derived from the palette: the pairs of its own tokens that carry text keep their contrast (WCAG AA, 4.5)
       python3 - ${pkgs.writeText "floppy-brand.css" base.tidepool.brand.css.floppy} <<'PY'
       import re, sys
-      v = dict(re.findall(r"--color-([a-z-]+): (#[0-9a-f]{6}) !important", open(sys.argv[1]).read()))
+      v = dict(re.findall(r"--color-([a-z0-9-]+): (#[0-9a-f]{6}) !important", open(sys.argv[1]).read()))
       def lum(h):
           r, g, b = [int(h[i:i+2], 16) / 255 for i in (1, 3, 5)]
           f = lambda x: x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
@@ -93,7 +103,9 @@ in
       def ratio(a, b):
           x, y = sorted([lum(a), lum(b)], reverse=True); return (x + 0.05) / (y + 0.05)
       bgs = ["page-bg", "panel", "surface", "surface-strong", "surface-alt", "surface-muted", "sidebar"]
-      need = [(t, b) for t in ("text", "text-secondary", "text-muted", "link") for b in bgs] + [("accent-contrast", "accent")]
+      v["white"] = "#ffffff"
+      need = [(t, b) for t in ("text", "text-secondary", "text-muted", "link") for b in bgs] + [("accent-contrast", "accent")] \
+           + [("white", i) for i in ("indigo-500", "indigo-600", "indigo-700")] + [(i, b) for i in ("indigo-300", "indigo-400") for b in ("page-bg", "panel", "surface")]
       bad = [(t, b, round(ratio(v[t], v[b]), 2)) for t, b in need if ratio(v[t], v[b]) < 4.5]
       assert not bad, f"Floppy's palette: contrast too low: {bad}"
       print("Floppy's contrasts hold")
@@ -102,6 +114,10 @@ in
       cfg=${withJellyfin.tidepool.brand.out.jellyfinWebConfig}
       jq -e '([.themes[] | select(.default == true)] | length) == 1 and (.themes[] | select(.default == true) | .id) == "tidepool" and ([.themes[] | select(.id != "tidepool")] | length) == 6 and (.plugins | length) > 5' "$cfg" > /dev/null
       diff <(jq -S 'del(.themes)' "$cfg") <(jq -S 'del(.themes)' ${./brand/jellyfin-web-config.json})
+      # the same for another repository's brand: its theme is the default one and carries its colours
+      cfg2=${otherAll.tidepool.brand.out.jellyfinWebConfig}
+      jq -e '(.themes[] | select(.default == true) | .name) == "Acme Home" and (.themes[] | select(.default == true) | .color) == "#220011"' "$cfg2" > /dev/null
+      grep -q '#ff8fa8' ${otherAll.tidepool.brand.out.jellyfinThemeDir}/theme.css
       touch $out
     '';
 
