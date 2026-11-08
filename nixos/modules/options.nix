@@ -63,6 +63,9 @@ in
       };
       immichMachineLearning.enable = mkOption { type = types.bool; default = true; };
       floppy.enable = mkEnableOption "Floppy (ADR 0023), the private tracker for what is watched, read and played, at track.<domain>: a pinned container with its own queue (Valkey) and a database in PostgreSQL over the Unix socket. Off by default: it needs the secret `floppy-secret`, and the single sign-on (`tidepool.sso.enable`) is how people log in";
+      floppy.accounts = mkOption { type = types.bool; default = true; description = "With Floppy and the single sign-on: every enabled Nextcloud user has a Floppy account without having to sign in first (a timer makes the missing ones), so a new user is covered and the recap and the media server's plugins have an account to use. Nextcloud stays the list of people; accounts are never deleted."; };
+      floppy.recap.enable = mkEnableOption "the yearly recap by mail: once a year each person who has a Floppy account and an address in Nextcloud gets their own recap of what they watched, heard, read and played (nixos/floppy/wrapped.py), through the alerts' mail relay (`tidepool.mail.smtpLogin`, the secret `smtp-password`). Off by default: it sends mail to people";
+      floppy.recap.calendar = mkOption { type = types.str; default = "*-12-01 08:00:00"; description = "When the recap is sent (a systemd calendar expression); a run missed while the machine was off is made up at the next start."; };
     };
   };
 }
