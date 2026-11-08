@@ -33,7 +33,7 @@ async def main():
         ok(await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--immich-primary').trim()") == "15 122 140", "Immich's primary colour is the brand's")
         ok("Tidepool, your own cloud" in await pg.inner_text("body"), "Immich's login page carries the brand's message")
         ok("Sign in with SSO" in await pg.inner_text("body"), "Immich offers the single sign-on under the generic text")
-        print("note: Immich's tab says", repr(await pg.title()), "(the program sets it itself; there is no setting for it)")
+        ok("Tidepool Photos" in await pg.title() and "Immich" not in await pg.title(), "Immich's tab carries the name of the service (" + await pg.title() + ")")
         ok(await pg.evaluate("(() => { const i = document.querySelector('img.h-24.aspect-square'); return !!i && getComputedStyle(i).content.includes('data:image/svg+xml') })()"), "Immich's logo is the brand's")
         # Jellyfin
         await visit("jellyfin", "https://media.lab.test/web/#/login.html", 4000)

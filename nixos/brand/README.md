@@ -25,7 +25,7 @@ The brand is **on by default**: a deployment that sets nothing shows this identi
 | Program | Name of the page, the tab and the app | Footer, banner | Sign-in text | Logo | Palette |
 |---|---|---|---|---|---|
 | Nextcloud (and its apps) | `<name> <cloud>`: the tab, the login heading, the mobile app's server name | `<name>` and the tagline (the edge corrects the one footer field, below) | n/a | yes, and the favicon | yes |
-| Immich | no setting: its own tab title stays | `<name>, <tagline>` on the login page | the button's text | yes (login) | its primary scale; its backgrounds are Immich's |
+| Immich | `<name> <photos>` in the tab: the edge rewrites the one place where its web client writes the title (exception 11); its login page names the brand | `<name>, <tagline>` on the login page | the button's text | yes (login) | its primary scale; its backgrounds are Immich's |
 | Jellyfin (and the clients built on its web) | `<name> <media>`: the server's name, which is the tab and the apps' name | `<name> - <tagline>` | the button's text | yes (the wordmark if there is one) | a whole theme, the default |
 | Floppy | `<name> <track>`: the title and the installed app's name, rewritten by the edge | n/a | the button's text | yes (replaced by the edge's stylesheet; its favicon stays) | yes, forced by the same stylesheet |
 | The admin page | `<name> <admin>` | n/a | n/a | no | the background; its text colour is one of Homepage's fixed names |
@@ -36,7 +36,7 @@ The brand is **on by default**: a deployment that sets nothing shows this identi
 
 A page that a private repository adds is its own to style; it does not read the brand unless it is written to.
 
-**What a program does not let be set**, said plainly: Immich writes its own tab title ("… - Immich") in the browser, so the name of its service is not on its tab; Nextcloud's theming has **one** field for the name of the page, the tab and the footer, so the footer's repeat of the service's name ("Tidepool Cloud – your own cloud") is corrected by the edge (`docs/exceptions.md`, entry 10); Jellyfin's server name is a setting of the program, written in its settings file before each start (that one element, in place), so a name typed into its dashboard is replaced at the next start.
+**What a program does not let be set**, said plainly: Immich writes its own tab title ("… - Immich") in the browser, with no setting, so the edge rewrites that one place of its web client (exception 11; a browser that cached the old file shows the old title until a hard reload); Nextcloud's theming has **one** field for the name of the page, the tab and the footer, so the footer's repeat of the service's name ("Tidepool Cloud – your own cloud") is corrected by the edge (`docs/exceptions.md`, entry 10); Jellyfin's server name is a setting of the program, written in its settings file before each start (that one element, in place), so a name typed into its dashboard is replaced at the next start.
 
 ## The TV session
 

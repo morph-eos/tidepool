@@ -135,6 +135,17 @@ in
       # Nextcloud compresses its pages for a client that accepts it, and nginx does not rewrite a body that is already compressed: the application is told the client takes no compression (nginx compresses the page itself, after the rewrite)
       locations."~ \\.php(?:$|/)".extraConfig = lib.mkAfter ''fastcgi_param HTTP_ACCEPT_ENCODING "";'';
     };
+    # Immich writes its tab title in the browser, in one place of its web client: `${the page's title} - Immich`. No setting reaches it; the edge gives that one chunk (nodes/0.<hash>.js) the name of the service in place of the program's own (docs/exceptions.md).
+    # The chunk's file name is cached by browsers as immutable: a browser that has the old one shows the old title until its cache is cleared (a hard reload).
+    services.nginx.virtualHosts."photos.${d}".locations."~ ^/_app/immutable/nodes/0\\.[A-Za-z0-9_-]+\\.js$" = {
+      proxyPass = "http://127.0.0.1:2283";
+      extraConfig = ''
+        proxy_set_header Accept-Encoding "";
+        sub_filter_types application/javascript text/javascript;
+        sub_filter ' - Immich`' ' - ${cfg.product.photos}`';
+        sub_filter_once on;
+      '';
+    };
     systemd.tmpfiles.rules = lib.optional config.tidepool.services.jellyfin.enable "f+ /srv/data/jellyfin/config/config/branding.xml 0644 root root - ${jellyfinBranding}";
   };
 }

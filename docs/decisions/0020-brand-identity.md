@@ -100,7 +100,11 @@ What each program lets be set, and what it does not, checked in a browser:
 | Jellyfin | the server's name, which the web client shows as its tab and the apps show as the server's name; it is one element of the server's settings file, set in place before each start | a name typed into the dashboard is replaced at the next start |
 | Floppy | the page's title and the installed app's name, rewritten at the edge by the filter that already carries the palette (exception 9) | its templates have no setting for either |
 | The admin page, Prometheus | their title settings | none |
-| Immich | nothing | the tab's title ("… - Immich") is written by the program in the browser and no setting reaches it; its login page carries the brand's name and tagline in the message it allows |
+| Immich | the tab's title, written by its web client in one place that the edge rewrites (exception 11) | no setting reaches it, so the rewrite depends on that one line of its code; the browser's cache keeps the old file until a hard reload |
 | The TV session | the tiles of the start page and the bookmarks are named after the services | none |
 
 The CI evaluates a brand of another repository and a brand with only a new name ("Pippo") and checks that every title, label and button follows; the lab looks at the titles and the footer in a browser. The programs I chose not to style (Prometheus' and Alertmanager's own pages, Vaultwarden's web vault, ntfy, Syncthing, Incus's UI) stay as they are and are not new exceptions.
+
+## Update (2026-11-08, Immich's title)
+
+Immich's tab title was the one name I could not set. It is written by its web client in one place (`${page title} - Immich`), so I added a rewrite of that one chunk at the edge, the same kind of exception as for Floppy's title (exception 11): the tab now says "<page> - <name of the service>". It depends on that line of the program's code, so the browser check at every update of Immich is what keeps it honest; if the line changes, the title falls back to Immich's own and the check says so.

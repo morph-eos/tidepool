@@ -34,7 +34,7 @@ async def main():
         ok("Pippo, casa nostra" in body, "Immich's login message is the brand's name and tagline")
         ok(await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--immich-primary').trim()") == "170 51 85", "Immich's primary colour is the brand's")
         ok("Tidepool" not in body, "Immich shows nothing of the default brand")
-        print("note: Immich's tab says", repr(title), "(no setting reaches it)")
+        ok("Pippo Foto" in title and "Immich" not in title, f"Immich's tab is the name of the service ({title})")
         # Jellyfin
         title, body = await visit("jellyfin", "https://media.lab.test/web/#/login.html", 4500)
         ok("Pippo Film" in title, f"Jellyfin's tab is the name of the service ({title})")
