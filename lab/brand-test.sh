@@ -63,7 +63,13 @@ r "a second run makes nothing new"                              "made 0, linked 
 for u in acctest1 acctest2; do sudo nextcloud-occ user:delete $u >/dev/null 2>&1; done
 r "Floppy's client secret is not in the Nix store"             "0" bash -c "grep -rl \$(sudo cat /run/secrets/floppy-oauth-secret) /nix/store 2>/dev/null | wc -l"
 r "the client secret is not in the Nix store"                  "0" bash -c "grep -rl \$(sudo cat /run/secrets/immich-oauth-secret) /nix/store --include=*.json 2>/dev/null | wc -l"
+# a fresh certificate for Nextcloud's name, from the test CA as it is now (Jellyfin's container trusts the CA's current root: nixos/hosts/lab/fixtures.nix); the CA refuses an order that comes in the same second as its start, so it is tried again
+sudo systemctl stop nginx; sudo rm -rf /var/lib/acme/cloud.lab.test /var/lib/acme/.lego/cloud.lab.test
+for i in 1 2 3 4 5 6; do sudo systemctl restart acme-order-renew-cloud.lab.test.service >/dev/null 2>&1 && break; sleep 3; done
+sudo systemctl restart acme-cloud.lab.test.service >/dev/null 2>&1; sudo systemctl start nginx; sleep 3
 r "Jellyfin's server name is the name of the service (it is the tab and the apps' name)" "Tidepool Media" bash -c "sudo systemctl restart podman-jellyfin.service; for i in \$(seq 1 40); do n=\$(curl -s localhost:8096/System/Info/Public | jq -r .ServerName 2>/dev/null); [ -n \"\$n\" ] && [ \"\$n\" != null ] && break; sleep 3; done; echo \$n"
+# the start-up wizard done, so that the web client shows its login page and the sign-in plugin can make a user (calls that fail when it is done already are no harm)
+for c in 'Configuration {"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' 'User {"Name":"labadmin","Password":"Lab-admin-pass-12345"}' 'RemoteAccess {"EnableRemoteAccess":true,"EnableAutomaticPortMapping":false}' 'Complete {}'; do curl -s -o /dev/null -X POST "localhost:8096/Startup/${c%% *}" -H 'Content-Type: application/json' -d "${c#* }"; done
 has "Jellyfin's branding file is written, the brand's line first" "^Tidepool - your own cloud<br>" bash -c "curl -s localhost:8096/Branding/Configuration | jq -r .LoginDisclaimer"
 # Jellyfin's sign-in through Nextcloud (nixos/jellyfin/sso/): the client, the plugin, its settings, the button
 f=/srv/data/jellyfin/config/plugins/configurations/SSO-Auth.xml

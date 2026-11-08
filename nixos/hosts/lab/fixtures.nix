@@ -59,6 +59,9 @@ in
     environment.PYTHONPATH = "/opt/lab";
     volumes = [ "${labNoVerify}:/opt/lab:ro" ];
   };
+  # Jellyfin's single sign-on plugin fetches Nextcloud's discovery document over HTTPS from inside its container (.NET, which reads SSL_CERT_FILE): the container is given the test CA's current root and intermediate, taken from
+  # Pebble when Jellyfin starts (the lab only). The CA's roots change at every start of Pebble and a certificate outlives them, so the test makes the certificate for Nextcloud's name afresh first (lab/brand-test.sh)
+  virtualisation.oci-containers.containers.jellyfin = lib.mkIf config.tidepool.services.jellyfin.enable { environment.SSL_CERT_FILE = "/config/lab-ca.pem"; };
   security.pki.certificateFiles = [ "${pebbleTls}/minica.pem" ];
   security.acme.defaults = { server = "https://localhost:14000/dir"; email = "lab@example.test"; };
   systemd.services = {
@@ -72,6 +75,13 @@ in
       wantedBy = [ "multi-user.target" ]; after = [ "pebble-challtestsrv.service" ]; before = [ "nginx.service" ];
       environment = { PEBBLE_VA_NOSLEEP = "1"; PEBBLE_WFE_NONCEREJECT = "0"; };
       serviceConfig.ExecStart = "${pkgs.pebble}/bin/pebble -config ${pebbleCfg} -dnsserver 127.0.0.1:8053";
+    };
+    podman-jellyfin = lib.mkIf config.tidepool.services.jellyfin.enable {
+      after = [ "pebble.service" ];
+      preStart = ''
+        c="${pkgs.curl}/bin/curl -s --retry 10 --retry-connrefused --cacert ${pebbleTls}/minica.pem"
+        { $c https://localhost:15000/roots/0; $c https://localhost:15000/intermediates/0; } > /srv/data/jellyfin/config/lab-ca.pem || true
+      '';
     };
     lab-smtp-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3.withPackages (p: [ p.aiosmtpd ])}/bin/python ${sink}"; };
     lab-heartbeat-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3}/bin/python ${ping}"; };
