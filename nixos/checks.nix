@@ -45,6 +45,10 @@ let
       && !(lib.hasInfix "floppy" noFloppy.services.postgresql.identMap) && !(noFloppy.users.users ? tracker) && !(noFloppy.tidepool.sso.clients ? floppy);
     "the single sign-on registers Floppy, with its secret as a sops placeholder, and the edge refuses the sign-up form" = withSso.tidepool.sso.clients ? floppy && withSso.sops.secrets ? floppy-oauth-secret
       && lib.hasInfix "<SOPS:" withSso.sops.templates."floppy-sso.env".content && withSso.services.nginx.virtualHosts."track.${withSso.tidepool.domain}".locations ? "= /accounts/signup/";
+    "Floppy's pages carry the brand's stylesheet, forced, and the brand off leaves them as they come" = lib.hasInfix "--color-accent: ${base.tidepool.brand.colors.primaryOnDark} !important" base.tidepool.brand.css.floppy
+      && lib.hasInfix "/_brand/theme.css" base.services.nginx.virtualHosts."track.${base.tidepool.domain}".locations."/".extraConfig && base.services.nginx.virtualHosts."track.${base.tidepool.domain}".locations ? "= /_brand/theme.css"
+      && !(off.services.nginx.virtualHosts."track.${off.tidepool.domain}".locations ? "= /_brand/theme.css") && !(lib.hasInfix "sub_filter" off.services.nginx.virtualHosts."track.${off.tidepool.domain}".locations."/".extraConfig)
+      && lib.hasInfix other.tidepool.brand.colors.primaryOnDark other.tidepool.brand.css.floppy && other.tidepool.brand.colors.primaryOnDark != base.tidepool.brand.colors.primaryOnDark;
     "Jellyfin gets its theme mounted when it runs" = lib.any (v: lib.hasInfix "jellyfin-web/config.json" v) withJellyfin.virtualisation.oci-containers.containers.jellyfin.volumes;
   };
   failing = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
@@ -77,6 +81,22 @@ in
       bad = [(a, b, round(ratio(a, b), 2), m) for a, b, m in need if ratio(a, b) < m]
       assert not bad, f"contrast too low: {bad}"
       print("contrasts hold")
+      PY
+      # Floppy's stylesheet is derived from the palette: the pairs of its own tokens that carry text keep their contrast (WCAG AA, 4.5)
+      python3 - ${pkgs.writeText "floppy-brand.css" base.tidepool.brand.css.floppy} <<'PY'
+      import re, sys
+      v = dict(re.findall(r"--color-([a-z-]+): (#[0-9a-f]{6}) !important", open(sys.argv[1]).read()))
+      def lum(h):
+          r, g, b = [int(h[i:i+2], 16) / 255 for i in (1, 3, 5)]
+          f = lambda x: x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+      def ratio(a, b):
+          x, y = sorted([lum(a), lum(b)], reverse=True); return (x + 0.05) / (y + 0.05)
+      bgs = ["page-bg", "panel", "surface", "surface-strong", "surface-alt", "surface-muted", "sidebar"]
+      need = [(t, b) for t in ("text", "text-secondary", "text-muted", "link") for b in bgs] + [("accent-contrast", "accent")]
+      bad = [(t, b, round(ratio(v[t], v[b]), 2)) for t, b in need if ratio(v[t], v[b]) < 4.5]
+      assert not bad, f"Floppy's palette: contrast too low: {bad}"
+      print("Floppy's contrasts hold")
       PY
       # Jellyfin: the web config served is the image's, with the brand's theme the only default and the six built-in ones still offered
       cfg=${withJellyfin.tidepool.brand.out.jellyfinWebConfig}

@@ -1,7 +1,7 @@
 # Floppy (ADR 0023): the private tracker for what is watched, read and played, at track.<domain>. A pinned container under Podman, like Immich and Jellyfin, because no NixOS module exists for it.
 # Its database is in PostgreSQL over the Unix socket, no password (database.nix), its queue is a Valkey of its own, its files are under /srv/data/floppy. Off by default (tidepool.services.floppy.enable).
 # People log in through the single sign-on (sso.nix registers the client and writes Floppy's side of it); without it nobody can sign up, an account is made by hand (docs/decisions/0023-floppy.md).
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 let
   cfg = config.tidepool;
   d = cfg.domain;
@@ -11,6 +11,11 @@ let
   uid = 1003;
   port = 8100;        # the image's own nginx; the container shares the machine's network, and the firewall does not open this port (nginx at the edge is the only way in)
   redisPort = 6380;   # Immich's Valkey keeps 6379: Floppy would set limits on a Redis it shares, so it has its own
+  # the brand's palette, forced: the edge adds one stylesheet to Floppy's pages (the sign-in page included, before any user has a theme), see brand.nix and docs/exceptions.md
+  brandOn = cfg.brand.enable;
+  brandFile = pkgs.writeText "floppy-brand.css" cfg.brand.css.floppy;
+  brandHref = "/_brand/theme.css?v=${builtins.substring 0 8 (builtins.hashString "sha256" cfg.brand.css.floppy)}";
+  brandInject = lib.optionalString brandOn "proxy_set_header Accept-Encoding \"\"; sub_filter '</head>' '<link rel=\"stylesheet\" href=\"${brandHref}\"></head>'; sub_filter_once on;";
   acme = if cfg.lab then { enableACME = true; } else { useACMEHost = d; };
 in
 {
@@ -63,9 +68,11 @@ in
     services.nginx.virtualHosts."track.${d}" = acme // {
       forceSSL = true;
       locations = {
-        "/" = { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; };
+        "/" = { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; extraConfig = brandInject; };
         # the sign-in pages are the one place a stranger can knock: a request a second on average per address, a burst of 20 (the programs' own calls, the webhook and the scrobbles, are not here: they carry a token)
-        "/accounts/" = { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; extraConfig = "limit_req zone=track_accounts burst=20 nodelay; limit_req_status 429;"; };
+        "/accounts/" = { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; extraConfig = "limit_req zone=track_accounts burst=20 nodelay; limit_req_status 429; ${brandInject}"; };
+      } // lib.optionalAttrs brandOn {
+        "= /_brand/theme.css" = { alias = brandFile; extraConfig = "default_type text/css;"; };
       } // lib.optionalAttrs cfg.sso.enable {
         # the sign-up form would let anyone with the address make an account; the single sign-on is the way in
         "= /accounts/signup/".return = "404";

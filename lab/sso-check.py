@@ -43,6 +43,8 @@ async def main():
         page_text = await fp.inner_text("body")
         ok("Tidepool" in page_text, "Floppy's login page offers the sign-on under the brand's name")
         ok(await fp.locator("input[type=password]").count() == 0, "Floppy's login page has no password form")
+        accent = (await fp.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--color-accent')")).strip()
+        ok(accent.lower() == "#4fc3d4", "Floppy's sign-in page carries the brand's accent (" + accent + ")")
         link = fp.get_by_text("Tidepool", exact=False).first
         await link.click()
         await fp.wait_for_timeout(2500)
