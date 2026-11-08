@@ -73,7 +73,7 @@ r "the plugin is in Jellyfin's plugin directory"               "yes" bash -c "su
 r "its settings file is private"                               "600" sudo stat -c %a $f
 r "its settings name the provider and the address"             "2" bash -c "sudo grep -c -e '<string>nextcloud</string>' -e '<OidEndpoint>https://cloud.lab.test</OidEndpoint>' $f"
 r "the secret in the settings is the declared one (compared, not shown)" "yes" bash -c "[ \"\$(sudo grep -o '<OidSecret>[^<]*' $f | cut -c12-)\" = \"\$(sudo cat /run/secrets/jellyfin-oauth-secret)\" ] && echo yes"
-r "Jellyfin loaded the plugin"                                  "yes" bash -c "sudo podman logs jellyfin 2>&1 | grep -q 'Loaded plugin: SSO-Auth' && echo yes"
+r "Jellyfin loaded the plugin"                                  "yes" bash -c "sudo podman logs jellyfin 2>&1 | grep -q 'Loaded plugin: SSO Authentication' && echo yes"
 r "the plugin answers at the button's address (not a 404)"     "yes" bash -c "c=\$(curl -s -o /dev/null -w '%{http_code}' localhost:8096/sso/OID/start/nextcloud); [ \"\$c\" != 404 ] && echo yes"
 has "the login message has the button, with the generic text"  "/sso/OID/start/nextcloud.*Sign in with SSO" bash -c "curl -s localhost:8096/Branding/Configuration | jq -r .LoginDisclaimer"
 r "a second start of Jellyfin finds the settings as declared"  "nothing to do" bash -c "sudo journalctl -u podman-jellyfin --no-pager | grep -o 'nothing to do' | tail -1"
