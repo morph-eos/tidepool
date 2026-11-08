@@ -59,10 +59,13 @@ in
       "d /srv/data/floppy 0700 root root -" "d /srv/data/floppy/db 0700 root root -" "d /srv/data/floppy/backups 0700 root root -" "d /srv/data/floppy/redis 0700 root root -"
     ];
 
+    services.nginx.appendHttpConfig = "limit_req_zone $binary_remote_addr zone=track_accounts:2m rate=60r/m;";
     services.nginx.virtualHosts."track.${d}" = acme // {
       forceSSL = true;
       locations = {
         "/" = { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; };
+        # the sign-in pages are the one place a stranger can knock: a request a second on average per address, a burst of 20 (the programs' own calls, the webhook and the scrobbles, are not here: they carry a token)
+        "/accounts/" = { proxyPass = "http://127.0.0.1:${toString port}"; proxyWebsockets = true; extraConfig = "limit_req zone=track_accounts burst=20 nodelay; limit_req_status 429;"; };
       } // lib.optionalAttrs cfg.sso.enable {
         # the sign-up form would let anyone with the address make an account; the single sign-on is the way in
         "= /accounts/signup/".return = "404";

@@ -26,6 +26,7 @@ r "photos answers"                                   200 code photos.$D api/serv
 r "push answers"                                     200 code push.$D
 r "track answers (a redirect to its login)"          302 code track.$D
 r "track's health answers"                           200 code track.$D health/
+r "track's sign-in pages are rate limited"           yes bash -c "for i in \$(seq 60); do curl -sk -o /dev/null -w '%{http_code}\n' --resolve track.$D:443:127.0.0.1 https://track.$D/accounts/login/; done | grep -q 429 && echo yes"
 r "backup asks for a password"                       401 code backup.$D
 r "a name that is nobody's gets no answer"           000 code nobody.$D
 r "the vault's admin panel is not served"                404 code vault.$D admin
