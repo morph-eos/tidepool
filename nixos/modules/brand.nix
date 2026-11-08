@@ -50,6 +50,19 @@ let
     img.h-24.aspect-square { content: ${inline cfg.logo}; }
   '';
 
+  # Floppy has no setting for a palette that every user, and the sign-in page before any user, gets: its colours are CSS variables on the root element, a theme per user in its database. The edge adds this stylesheet to its pages
+  # (floppy.nix; docs/exceptions.md), every variable `!important` so that a user's own theme cannot undo it. The same dark scale as Jellyfin's theme: the deep colour for the panels, lighter steps above it, the sand for the text, the colour on dark for the accent.
+  floppyCss = let up = t: mix c.deep "#ffffff" t; down = t: mix c.deep "#000000" t; in ''
+    html { color-scheme: dark;
+      --color-page-bg: ${down 0.6} !important; --color-sidebar: ${down 0.7} !important; --color-panel: ${c.deep} !important;
+      --color-surface: ${up 0.06} !important; --color-surface-strong: ${up 0.12} !important; --color-surface-hover: ${up 0.2} !important; --color-surface-alt: ${up 0.1} !important; --color-surface-muted: ${up 0.08} !important;
+      --color-surface-dim: ${down 0.3} !important; --color-hover-dim: ${down 0.4} !important; --color-border: ${up 0.14} !important; --color-surface-border: ${up 0.22} !important;
+      --color-text: ${c.sand} !important; --color-text-secondary: ${mix c.sand c.deep 0.12} !important; --color-text-muted: ${mix c.sand c.deep 0.25} !important;
+      --color-accent: ${c.primaryOnDark} !important; --color-accent-contrast: ${c.deep} !important; --color-link: ${mix c.primaryOnDark "#ffffff" 0.25} !important; --color-link-hover: ${mix c.primaryOnDark "#ffffff" 0.45} !important;
+      --color-genre-badge-bg: rgba(${lib.replaceStrings [ " " ] [ ", " ] (rgb c.primaryOnDark)}, 0.1) !important; --color-genre-badge-border: rgba(${lib.replaceStrings [ " " ] [ ", " ] (rgb c.primaryOnDark)}, 0.25) !important;
+      --color-genre-badge-text: ${c.sand} !important; --color-genre-badge-hover-bg: rgba(${lib.replaceStrings [ " " ] [ ", " ] (rgb c.primaryOnDark)}, 0.2) !important; }
+  '';
+
   # Jellyfin reads its branding from config/branding.xml: written whole (tmpfiles' f+ replaces the file; the escapes give the line breaks)
   jellyfinBranding = lib.replaceStrings [ "\n" "%" ] [ "\\n" "%%" ] ''<?xml version="1.0" encoding="utf-8"?>
 <BrandingOptions><LoginDisclaimer>${lib.escapeXML cfg.name} - ${lib.escapeXML cfg.tagline}${lib.optionalString (cfg.jellyfinLoginHtml != "") (lib.escapeXML "<br>${cfg.jellyfinLoginHtml}")}</LoginDisclaimer><CustomCss>${lib.escapeXML jellyfinCss}</CustomCss><SplashscreenEnabled>false</SplashscreenEnabled></BrandingOptions>
@@ -77,7 +90,7 @@ in
     wordmark = lib.mkOption { type = lib.types.nullOr lib.types.path; default = fileOf "wordmark"; defaultText = "from the file"; description = "Optional: the mark with the name in outlined letters, for the wide places."; };
     jellyfinLoginHtml = lib.mkOption { type = lib.types.str; default = ""; example = ''<form action="/sso/OID/start/provider"><button class="raised block emby-button button-submit">Sign in with the provider</button></form>''; description = "HTML added under the brand's line in Jellyfin's login message, which is where its single sign-on plugin has the button for its login page. The file is written whole at each change of the system, so what is wanted there is declared here and not typed into Jellyfin's settings, where the next write would remove it."; };
     out = lib.mkOption { type = lib.types.attrsOf lib.types.path; readOnly = true; default = { inherit jellyfinWebConfig jellyfinThemeDir; }; description = "What the module builds, for the checks."; };
-    css = lib.mkOption { type = lib.types.attrsOf lib.types.str; readOnly = true; default = { immich = immichCss; }; description = "The stylesheet that a program takes in its own settings (other modules put it where the program reads it)."; };
+    css = lib.mkOption { type = lib.types.attrsOf lib.types.str; readOnly = true; default = { immich = immichCss; floppy = floppyCss; }; description = "The stylesheet that a program takes in its own settings (other modules put it where the program reads it); Floppy's is served by the edge, which adds it to the pages."; };
   };
   config = lib.mkIf cfg.enable {
     system.nixos.distroName = cfg.name;
