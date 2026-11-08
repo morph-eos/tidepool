@@ -1,21 +1,24 @@
 # PostgreSQL 17, native, for every service that can use it (ADR 0006, 0011), with pgBackRest through its NixOS module (ADR 0004).
 # The repository is on the large disk. The overrides below are the exception of docs/exceptions.md, entry 1: the module is built for a repository on another host.
 { config, lib, pkgs, ... }:
-let cfg = config.tidepool; repo = "/mnt/backup16/pgbackrest"; in
+let cfg = config.tidepool; repo = "/mnt/backup16/pgbackrest"; floppy = cfg.services.floppy.enable; in
 {
   services.postgresql = {
     enable = true;
     package = pkgs.postgresql_17;
     extensions = ps: [ ps.pgvector ps.vectorchord ];
     settings = { shared_preload_libraries = "vchord.so"; archive_timeout = 30; };
-    ensureDatabases = [ "immich" "vaultwarden" ];   # Nextcloud's module creates and orders its own (database.createLocally)
-    ensureUsers = [ { name = "vaultwarden"; ensureDBOwnership = true; } { name = "immich"; ensureDBOwnership = true; } ];
+    ensureDatabases = [ "immich" "vaultwarden" ] ++ lib.optional floppy "floppy";   # Nextcloud's module creates and orders its own (database.createLocally)
+    ensureUsers = [ { name = "vaultwarden"; ensureDBOwnership = true; } { name = "immich"; ensureDBOwnership = true; } ] ++ lib.optional floppy { name = "floppy"; ensureDBOwnership = true; };
     # Immich's container connects over the Unix socket as the container's root, mapped to its own role `immich` (not a superuser) and to its own database only: no password anywhere.
     # The container's root is the host's root, so the map is for that one role: root cannot become `postgres` or any other role through it, and a compromised Immich reaches nothing but its database.
-    identMap = "immich root immich";
-    authentication = lib.mkBefore ''
+    # Floppy's container is the same case with two users: its start-up runs the migrations as root, its web and worker processes as the host's user `tracker` (floppy.nix); both reach the role `floppy` and nothing else.
+    identMap = "immich root immich" + lib.optionalString floppy "\nfloppy root floppy\nfloppy tracker floppy";
+    authentication = lib.mkBefore (''
       local immich immich peer map=immich
-    '';
+    '' + lib.optionalString floppy ''
+      local floppy floppy peer map=floppy
+    '');
   };
 
   # What Immich cannot do as a role that is not a superuser, done by the unit tidepool-db-setup below: its extensions (it creates them itself only when it may), the ownership of what an earlier run as `postgres` created (its
@@ -82,7 +85,7 @@ let cfg = config.tidepool; repo = "/mnt/backup16/pgbackrest"; in
             loop
               execute format('alter %s %s owner to immich', case r.typtype when 'd' then 'domain' else 'type' end, r.obj);
             end loop;
-            for r in select datname from pg_database where datname in ('immich', 'vaultwarden', 'nextcloud') loop
+            for r in select datname from pg_database where datname in ('immich', 'vaultwarden', 'nextcloud', 'floppy') loop
               execute format('revoke connect on database %I from public', r.datname);
             end loop;
           end $$;

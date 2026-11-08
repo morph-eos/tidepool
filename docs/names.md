@@ -12,6 +12,7 @@ One domain (`tidepool.domain` in the private `host.nix`), one wildcard certifica
 | `vault.` | passwords | Vaultwarden |
 | `backup.` | the phones' backup destination (WebDAV, password) | nginx WebDAV |
 | `push.` | push notifications | ntfy |
+| `track.` | what is watched, read and played; the yearly recap (off until `tidepool.services.floppy.enable`) | Floppy |
 
 ## Only through the VPN (the name listens on the WireGuard address 10.100.0.1)
 
@@ -54,7 +55,7 @@ The public names resolve to the home's public address. A device inside the home 
 
 ## What the DNS provider needs
 
-- **Public names:** the address of the house (an A record, or a CNAME to the dynamic-DNS name) for each of the six; a wildcard record covers them.
+- **Public names:** the address of the house (an A record, or a CNAME to the dynamic-DNS name) for each of the public names; a wildcard record covers them.
 - **VPN names:** `sync`, `metrics`, `alerts`, `compute`, `admin` (and `ssh`) as A records to **10.100.0.1**, a private address that only means something inside the VPN. The certificate is valid for them all, so the browser shows no warning.
 - **The instances' zone:** a CNAME `_acme-challenge.compute` to the acme-dns name of a registration made for it (like the main domain's), **and that registration's credentials added, under the key `compute.<domain>`, to the secret `acme-dns-credentials` of the private repository** ([the template's step 8](../private-repo-template/README.md); the certificate's order looks them up by the zone's name, and without them it fails), `compute` and `*.compute` as A records to **10.100.0.1**, and, for **each public instance**, its own A record to the house's address (it wins over the wildcard: a wildcard cannot be VPN and public at once). The CAA record's `issuewild` already allows the second wildcard.
 - A new name is a line in `edge.nix` and, for a VPN one, a DNS record: the certificate needs nothing.

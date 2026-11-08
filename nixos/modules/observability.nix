@@ -190,7 +190,7 @@ in
     scrapeConfigs = [
       { job_name = "node"; static_configs = [ { targets = [ "127.0.0.1:9100" ]; } ]; }
       { job_name = "postgres"; static_configs = [ { targets = [ "127.0.0.1:9187" ]; } ]; }
-      (probe "https" "https" [ "https://vault.${d}/alive" "https://cloud.${d}/status.php" "https://photos.${d}/api/server/ping" "https://media.${d}/health" "https://backup.${d}/" ])
+      (probe "https" "https" ([ "https://vault.${d}/alive" "https://cloud.${d}/status.php" "https://photos.${d}/api/server/ping" "https://media.${d}/health" "https://backup.${d}/" ] ++ lib.optional cfg.services.floppy.enable "https://track.${d}/health/"))
       (probe "caa" "caa" [ "1.1.1.1" ])   # the CAA record, asked of a public resolver, as a CA would see it
     ] ++ lib.optional (!cfg.lab) { job_name = "smartctl"; static_configs = [ { targets = [ "127.0.0.1:9633" ]; } ]; };
     alertmanager = {

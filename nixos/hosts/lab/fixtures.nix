@@ -18,6 +18,15 @@ let
     certificate = "${pebbleTls}/cert.pem"; privateKey = "${pebbleTls}/key.pem";
     httpPort = 80; tlsPort = 443; ocspResponderURL = ""; externalAccountBindingRequired = false;
   }; });
+  labNoVerify = pkgs.writeTextDir "sitecustomize.py" ''
+    import requests, urllib3
+    urllib3.disable_warnings()
+    _request = requests.Session.request
+    def _no_verify(self, *args, **kwargs):
+        kwargs["verify"] = False
+        return _request(self, *args, **kwargs)
+    requests.Session.request = _no_verify
+  '';
   sink = pkgs.writeText "sink.py" ''
     import datetime, time
     from aiosmtpd.controller import Controller
@@ -44,6 +53,12 @@ in
   tidepool.compute.names.tls = lib.mkIf config.tidepool.compute.names.enable (lib.mkDefault { cert = "${computeTls}/cert.pem"; key = "${computeTls}/key.pem"; });
   # Immich's container calls Nextcloud over HTTPS for the single sign-on: the lab's certificates come from a test CA that changes at every start, so the container does not verify them (the lab only)
   virtualisation.oci-containers.containers.immich-server.environment.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  # Floppy's container does the same call (Python's requests) and the same is true: a certificate of the test CA that the container cannot verify, since the CA's roots change at every start of Pebble and the
+  # certificates the edge serves outlive them. A sitecustomize makes the container's requests skip the verification (the lab only)
+  virtualisation.oci-containers.containers.floppy = lib.mkIf config.tidepool.services.floppy.enable {
+    environment.PYTHONPATH = "/opt/lab";
+    volumes = [ "${labNoVerify}:/opt/lab:ro" ];
+  };
   security.pki.certificateFiles = [ "${pebbleTls}/minica.pem" ];
   security.acme.defaults = { server = "https://localhost:14000/dir"; email = "lab@example.test"; };
   systemd.services = {
@@ -61,6 +76,6 @@ in
     lab-smtp-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3.withPackages (p: [ p.aiosmtpd ])}/bin/python ${sink}"; };
     lab-heartbeat-sink = { wantedBy = [ "multi-user.target" ]; serviceConfig.ExecStart = "${pkgs.python3}/bin/python ${ping}"; };
   };
-  networking.hosts."127.0.0.1" = map (n: "${n}.${d}") [ "vault" "photos" "media" "cloud" "backup" "push" "sync" "metrics" "alerts" "admin" ];
+  networking.hosts."127.0.0.1" = map (n: "${n}.${d}") [ "vault" "photos" "media" "cloud" "backup" "push" "track" "sync" "metrics" "alerts" "admin" ];
   environment.systemPackages = with pkgs; [ openssl python3 sops age ];
 }

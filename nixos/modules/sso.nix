@@ -1,5 +1,5 @@
 # Single sign-on (ADR 0011, 0020): Nextcloud's oidc app is the identity provider. The clients (the programs that log in through it) are declared here and registered after Nextcloud's setup,
-# and each program's own side is configured from the same declaration. Today: Immich. Off by default (tidepool.sso.enable): it needs Nextcloud and the clients' secrets.
+# and each program's own side is configured from the same declaration. Today: Immich, and Floppy when it runs. Off by default (tidepool.sso.enable): it needs Nextcloud and the clients' secrets.
 # This is an exception to P1 (docs/exceptions.md, entry 4): the oidc app has no declarative setting for its clients, only the `occ oidc:create` command.
 { config, lib, pkgs, ... }:
 let
@@ -7,6 +7,8 @@ let
   d = config.tidepool.domain;
   occ = "${config.services.nextcloud.occ}/bin/nextcloud-occ";
   json = builtins.toJSON;
+  floppy = config.tidepool.services.floppy.enable;
+  providerId = "sso";   # the name in Floppy's callback address, /accounts/oidc/<providerId>/login/callback/
   # `occ oidc:create` wants a client id of 32 to 64 printable characters: a stable one made from the domain
   idOf = n: "${n}-" + builtins.substring 0 32 (builtins.hashString "sha256" "${n}-${d}");
   register = id: c: ''
@@ -36,6 +38,7 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [ { assertion = config.services.nextcloud.enable; message = "tidepool.sso.enable needs Nextcloud"; } ];
     tidepool.sso.clients.immich = { name = "Immich"; redirectUris = [ "https://photos.${d}/auth/login" "https://photos.${d}/user-settings" "app.immich:///oauth-callback" ]; secret = "immich-oauth-secret"; };
+    tidepool.sso.clients.floppy = lib.mkIf floppy { name = "Floppy"; redirectUris = [ "https://track.${d}/accounts/oidc/${providerId}/login/callback/" ]; secret = "floppy-oauth-secret"; };
     sops.secrets = lib.mapAttrs' (_: c: lib.nameValuePair c.secret { }) cfg.clients;
     # the identity provider's discovery document, answered at the address the programs ask (Nextcloud's own rule redirects it, and Immich's OpenID library does not follow a redirect)
     services.nginx.virtualHosts."cloud.${d}".locations."= /.well-known/openid-configuration".extraConfig = "rewrite ^ /index.php/.well-known/openid-configuration last;";
@@ -58,5 +61,17 @@ in
       tokenEndpointAuthMethod = "client_secret_post";
       signingAlgorithm = "RS256";
     };
+    # Floppy's side (floppy.nix holds the rest of its environment): django-allauth's OpenID Connect provider, discovered from the same document; the client secret is filled in from sops at activation
+    sops.templates."floppy-sso.env" = lib.mkIf floppy {
+      restartUnits = [ "podman-floppy.service" ];
+      content = ''
+        SOCIAL_PROVIDERS=allauth.socialaccount.providers.openid_connect
+        SOCIALACCOUNT_PROVIDERS=${json { openid_connect = {
+          OAUTH_PKCE_ENABLED = true;
+          APPS = [ { provider_id = providerId; name = config.tidepool.brand.name; client_id = idOf "floppy"; secret = config.sops.placeholder.${cfg.clients.floppy.secret}; settings.server_url = "https://cloud.${d}/.well-known/openid-configuration"; } ];
+        }; }}
+      '';
+    };
+    virtualisation.oci-containers.containers.floppy.environmentFiles = lib.mkIf floppy [ config.sops.templates."floppy-sso.env".path ];
   };
 }
