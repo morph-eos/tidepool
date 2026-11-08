@@ -25,7 +25,7 @@ in
       # Incus is not here: its instances are recovered from the pool itself (docs/restore-drill.md), its settings are declared; the NAS share (2 TB disk), the Samba users' database and (with signed boot images) the Secure Boot signing keys are
       # /etc is a safety net for what is changed on the machine by hand and is not in the flake (the flake regenerates the rest): it is not restored whole, only what is wanted from it (docs/restore-drill.md). The offsite job does not have it: that one holds what cannot be recreated
       paths = [ "/srv/data" "/var/lib/vaultwarden" "/etc" ] ++ lib.optional (dumps != [ ]) dumpDir ++ lib.optionals config.tidepool.nas.enable [ config.tidepool.nas.path "/var/lib/samba" ] ++ lib.optional config.tidepool.encryption.secureBoot "/var/lib/sbctl";
-      exclude = [ "/srv/data/jellyfin/cache" "/srv/data/immich/model-cache" ];
+      exclude = [ "/srv/data/jellyfin/cache" "/srv/data/immich/model-cache" "/srv/data/floppy/redis" ];   # caches, and Floppy's queue (an append-only file of a running Valkey: a copy of it is worth nothing)
       repo = "/mnt/backup16/borg-everything";
     };
     offsite = common // {

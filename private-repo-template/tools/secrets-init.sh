@@ -28,6 +28,7 @@ reg = lambda: {"username": "REPLACE-acme-dns-username", "password": "REPLACE-acm
 acme = {domain: reg(), "compute." + domain: reg()}   # the second one only if tidepool.compute.names.enable is used
 out = {
     "borg-passphrase": rnd(), "pgbackrest-cipher": rnd(), "nextcloud-admin-pass": rnd(24), "immich-oauth-secret": "".join(secrets.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(48)),   # 32 to 64 printable characters, no colon: what Nextcloud's oidc app accepts
+     "floppy-secret": rnd(50), "floppy-oauth-secret": "".join(secrets.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(48)),   # Floppy's signing secret; its sign-on client (the same limits as Immich's)
      "proton-keyring-password": rnd(36),
     "wg-private-key": priv,
     "ntfy-env": f"NTFY_AUTH_USERS=phone:{h(phone)}:user,bridge:{h(bridge)}:user\nNTFY_AUTH_ACCESS=phone:alerts:read-only,bridge:alerts:write-only",

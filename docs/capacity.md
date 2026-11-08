@@ -10,7 +10,7 @@ The data that needs to be fast and redundant is small. In the reference setup it
 
 | Disk | What goes on it | Now | After a year (estimate) |
 |---|---|---|---|
-| SSD, 1 TB (ZFS) | the services' live data: Immich, Nextcloud, WebDAV, Syncthing, Jellyfin's configuration, Vaultwarden, PostgreSQL | about 125 GB, and a few GB of databases | about 175 GB |
+| SSD, 1 TB (ZFS) | the services' live data: Immich, Nextcloud, WebDAV, Syncthing, Jellyfin's configuration, Floppy's files (the database is PostgreSQL's), Vaultwarden, PostgreSQL | about 125 GB, and a few GB of databases | about 175 GB |
 | SSD, the `fast` Incus pool | VMs that matter | a quota to set ([pending](pending.md)): 200 GB leaves about 600 GB | |
 | Mid-size disk (SMR, ext4 on LUKS), the offsite repository | a Borg repository of the data that cannot be recreated (about 100 GB of source); photos do not compress, so the repository is about the size of the source | about 110 GB | about 160 GB |
 | Mid-size disk, Incus | its state (`incus-state`) and the `smr` directory pool for throwaway VMs | about 15 GB, and a pool budget of 200 GB | |

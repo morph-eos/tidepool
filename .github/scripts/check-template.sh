@@ -15,10 +15,12 @@ bash tools/secrets-init.sh > /dev/null
 [ -s vpn-server.pub ] && [ "$(wc -c < vpn-server.pub)" -eq 45 ] || fail "vpn-server.pub is not a WireGuard key"
 [ -s deploy.pub ] || fail "no deploy.pub"
 plain=$(sops -d secrets.yaml)
-for k in borg-passphrase pgbackrest-cipher nextcloud-admin-pass immich-oauth-secret proton-keyring-password wg-private-key ntfy-env ntfy-bridge-env deploy-key acme-dns-credentials smtp-password heartbeat-url alertmanager-env renovate-token wifi-psk; do
+for k in borg-passphrase pgbackrest-cipher nextcloud-admin-pass immich-oauth-secret floppy-secret floppy-oauth-secret proton-keyring-password wg-private-key ntfy-env ntfy-bridge-env deploy-key acme-dns-credentials smtp-password heartbeat-url alertmanager-env renovate-token wifi-psk; do
   grep -q "^$k:" <<< "$plain" || fail "secrets.yaml has no $k"
 done
-n=$(sops -d --extract '["immich-oauth-secret"]' secrets.yaml | tr -d '\n' | wc -c); [ "$n" -ge 32 ] && [ "$n" -le 64 ] || fail "immich-oauth-secret is $n characters (Nextcloud takes 32 to 64)"
+for k in immich-oauth-secret floppy-oauth-secret; do
+  n=$(sops -d --extract "[\"$k\"]" secrets.yaml | tr -d '\n' | wc -c); [ "$n" -ge 32 ] && [ "$n" -le 64 ] || fail "$k is $n characters (Nextcloud takes 32 to 64)"
+done
 sops -d --extract '["acme-dns-credentials"]' secrets.yaml | jq -e 'length >= 2' > /dev/null || fail "acme-dns-credentials is not a JSON object with an entry for the domain and one for compute"
 # what is left is said, and only the things somebody else issues
 out=$(bash tools/check.sh || true)

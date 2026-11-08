@@ -46,6 +46,8 @@ in
           (svc "Immich" "https://photos.${d}" "photos and videos" { siteMonitor = "http://127.0.0.1:2283/api/server/ping"; })
           (svc "Jellyfin" "https://media.${d}" "films, series, music" { siteMonitor = "http://127.0.0.1:8096/health"; })
           (svc "Vaultwarden" "https://vault.${d}" "passwords" { siteMonitor = "http://127.0.0.1:8222/alive"; })
+        ] ++ lib.optionals cfg.services.floppy.enable [
+          (svc "Floppy" "https://track.${d}" "what is watched, read and played" { siteMonitor = "http://127.0.0.1:8100/health/"; })
         ]; }
       ];
     };

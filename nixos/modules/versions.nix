@@ -26,6 +26,8 @@ let
     ntfy        = { version = config.services.ntfy-sh.package.version; github = "binwiederhier/ntfy"; repology = "ntfy-binwiederhier"; };
   } // lib.optionalAttrs config.tidepool.services.jellyfin.enable {
     jellyfin    = { version = tag (image "jellyfin"); github = "jellyfin/jellyfin"; };
+  } // lib.optionalAttrs config.tidepool.services.floppy.enable {
+    floppy      = { version = tag (image "floppy"); github = "dannyvfilms/Floppy"; };
   };
   eolApps = filterAttrs (_: a: a ? eol) apps;
   ghApps = filterAttrs (_: a: a ? github) apps;

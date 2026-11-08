@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-# The single sign-on, end to end in a browser: Immich's "Login with <brand>" button, Nextcloud's login, and back into Immich as a user created by the first login.
+# The single sign-on, end to end in a browser: Immich's "Login with <brand>" button, Nextcloud's login, and back into Immich as a user created by the first login; then the same for Floppy
+# (track.<domain>), in a browser that has no session: its login page offers only the sign-on, and the first login makes the account.
 # Usage: sso-check.py <chromium> <screenshot dir> <nextcloud user> <password>     (through the tunnel of lab/brand-check.sh)
 import asyncio, sys
 from playwright.async_api import async_playwright
 CHROME, SHOTS, USER, PASSWORD = sys.argv[1:5]
-MAP = "MAP photos.lab.test 127.0.0.1:18444, MAP cloud.lab.test 127.0.0.1:18444"
+MAP = "MAP photos.lab.test 127.0.0.1:18444, MAP cloud.lab.test 127.0.0.1:18444, MAP track.lab.test 127.0.0.1:18444"
 fails = 0
 def ok(cond, text):
     global fails
@@ -13,7 +14,7 @@ def ok(cond, text):
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=["--host-resolver-rules=" + MAP])
-        ctx = await b.new_context(ignore_https_errors=True, viewport={"width": 1100, "height": 700}); pg = await ctx.new_page()
+        ctx = await b.new_context(locale="en-US", ignore_https_errors=True, viewport={"width": 1100, "height": 700}); pg = await ctx.new_page()
         await pg.goto("https://photos.lab.test/auth/login", wait_until="networkidle"); await pg.wait_for_timeout(1500)
         btn = pg.get_by_role("button", name="Login with Tidepool")
         ok(await btn.count() == 1, "Immich offers 'Login with Tidepool'")
@@ -34,6 +35,36 @@ async def main():
         body = await pg.inner_text("body")
         ok(pg.url.startswith("https://photos.lab.test/") and "/auth/login" not in pg.url, "Nextcloud sends the user back to Immich, logged in (" + pg.url[:60] + ")")
         ok("SSO Test" in body or USER in body, "Immich created the user from Nextcloud's account")
+        # Floppy: a fresh browser (no Nextcloud session), the sign-on is the only way in
+        ctx2 = await b.new_context(locale="en-US", ignore_https_errors=True, viewport={"width": 1100, "height": 700}); fp = await ctx2.new_page()
+        await fp.goto("https://track.lab.test/", wait_until="networkidle"); await fp.wait_for_timeout(1500)
+        await fp.screenshot(path=f"{SHOTS}/sso-floppy-login.png")
+        ok("/accounts/login" in fp.url, "Floppy sends a visitor to its login page (" + fp.url[:60] + ")")
+        page_text = await fp.inner_text("body")
+        ok("Tidepool" in page_text, "Floppy's login page offers the sign-on under the brand's name")
+        ok(await fp.locator("input[type=password]").count() == 0, "Floppy's login page has no password form")
+        link = fp.get_by_text("Tidepool", exact=False).first
+        await link.click()
+        await fp.wait_for_timeout(2500)
+        await fp.screenshot(path=f"{SHOTS}/sso-floppy-step.png")
+        if "/accounts/oidc/" in fp.url:   # allauth's own page between the two: one button to continue to the provider
+            await fp.locator("button[type=submit]").first.click()
+        try:
+            await fp.wait_for_url("**cloud.lab.test/**", timeout=20000)
+            ok(True, "Floppy's button leads to Nextcloud (the discovery and the client work)")
+        except Exception:
+            ok(False, "Floppy's button leads to Nextcloud (got " + fp.url[:80] + ")"); await b.close(); sys.exit(1)
+        # allauth may ask for a confirmation before it leaves; then Nextcloud asks for the login
+        if await fp.locator("#user").count() == 0: await fp.wait_for_selector("#user", timeout=15000)
+        await fp.fill("#user", USER); await fp.fill("#password", PASSWORD); await fp.click("button[type=submit]")
+        try:
+            await fp.wait_for_url("**track.lab.test/**", timeout=30000)
+        except Exception:
+            pass
+        await fp.wait_for_timeout(5000)
+        await fp.screenshot(path=f"{SHOTS}/sso-floppy-in.png")
+        ok(fp.url.startswith("https://track.lab.test/") and "/accounts/login" not in fp.url, "Nextcloud sends the user back to Floppy, logged in (" + fp.url[:70] + ")")
+        ok("/accounts/3rdparty/signup" not in fp.url, "Floppy made the account without asking for more")
         await b.close()
     print(f"{fails} failed"); sys.exit(1 if fails else 0)
 asyncio.run(main())

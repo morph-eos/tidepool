@@ -62,6 +62,7 @@ in
         description = "Immich's settings, declared here: with a configuration file, Immich's admin page shows its settings read-only. What is not named keeps Immich's default. Modules add to it (the brand, the single sign-on); a private repository adds its own.";
       };
       immichMachineLearning.enable = mkOption { type = types.bool; default = true; };
+      floppy.enable = mkEnableOption "Floppy (ADR 0023), the private tracker for what is watched, read and played, at track.<domain>: a pinned container with its own queue (Valkey) and a database in PostgreSQL over the Unix socket. Off by default: it needs the secret `floppy-secret`, and the single sign-on (`tidepool.sso.enable`) is how people log in";
     };
   };
 }

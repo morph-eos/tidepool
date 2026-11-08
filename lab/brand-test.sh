@@ -46,6 +46,9 @@ r "the discovery document is answered at the address Immich asks" "200" curl -sk
 r "Immich reads its settings from the declared file"           "Login with Tidepool" bash -c "curl -s localhost:2283/api/server/config | jq -r .oauthButtonText"
 r "Immich's external domain is the declared one"               "https://photos.lab.test" bash -c "curl -s localhost:2283/api/server/config | jq -r .externalDomain"
 has "Immich serves the brand's stylesheet"                     "immich-primary: 15 122 140" curl -s localhost:2283/custom.css
+r "Nextcloud knows the Floppy client"                          "Floppy" bash -c "sudo nextcloud-occ oidc:list | jq -r '.[] | select(.name == \"Floppy\") | .name'"
+r "Floppy's sign-up form is not served (the sign-on is the way in)" "404" curl -sk -o /dev/null -w '%{http_code}' --resolve track.lab.test:443:127.0.0.1 https://track.lab.test/accounts/signup/
+r "Floppy's client secret is not in the Nix store"             "0" bash -c "grep -rl \$(sudo cat /run/secrets/floppy-oauth-secret) /nix/store 2>/dev/null | wc -l"
 r "the client secret is not in the Nix store"                  "0" bash -c "grep -rl \$(sudo cat /run/secrets/immich-oauth-secret) /nix/store --include=*.json 2>/dev/null | wc -l"
 r "Jellyfin's branding file is written"                        "Tidepool - your own cloud" bash -c "curl -s localhost:8096/Branding/Configuration | jq -r .LoginDisclaimer"
 # Jellyfin's web themes: the brand's theme is the default and the rest of the config is the image's own

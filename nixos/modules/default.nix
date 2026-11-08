@@ -14,6 +14,7 @@
     ./backup.nix
     ./offsite.nix
     ./services.nix
+    ./floppy.nix
     ./versions.nix
     ./push.nix
     ./nas.nix

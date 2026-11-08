@@ -17,6 +17,7 @@ let
   withSso = ext [ { tidepool.sso.enable = true; } ];
   withAdmin = base;
   noAdmin = ext [ { tidepool.admin.enable = false; } ];
+  noFloppy = ext [ { tidepool.services.floppy.enable = lib.mkForce false; } ];
 
   # assertions about the brand and the single sign-on: the module system's merging (a file, a field, nothing), and the constraints the lab found (a client id of 32 to 64 characters)
   facts = {
@@ -36,6 +37,14 @@ let
     "the admin page listens on the loopback and is served on the VPN address only" = withAdmin.systemd.services.homepage-dashboard.environment.HOSTNAME == "127.0.0.1"
       && lib.all (l: l.addr == "10.100.0.1") withAdmin.services.nginx.virtualHosts."admin.${withAdmin.tidepool.domain}".listen
       && withAdmin.services.homepage-dashboard.allowedHosts == "admin.${withAdmin.tidepool.domain}";
+    "Floppy is a container pinned by digest, told the number of the user the machine makes for it" = lib.hasInfix "@sha256:" base.virtualisation.oci-containers.containers.floppy.image
+      && base.virtualisation.oci-containers.containers.floppy.environment.PUID == toString base.users.users.tracker.uid;
+    "Floppy's database role is reached by its container's two users and no other" = lib.hasInfix "floppy root floppy" base.services.postgresql.identMap && lib.hasInfix "floppy tracker floppy" base.services.postgresql.identMap
+      && !(lib.hasInfix "floppy nginx" base.services.postgresql.identMap);
+    "Floppy off leaves no trace" = !(noFloppy.virtualisation.oci-containers.containers ? floppy) && !(noFloppy.virtualisation.oci-containers.containers ? floppy-redis) && !(noFloppy.services.nginx.virtualHosts ? "track.${noFloppy.tidepool.domain}")
+      && !(lib.hasInfix "floppy" noFloppy.services.postgresql.identMap) && !(noFloppy.users.users ? tracker) && !(noFloppy.tidepool.sso.clients ? floppy);
+    "the single sign-on registers Floppy, with its secret as a sops placeholder, and the edge refuses the sign-up form" = withSso.tidepool.sso.clients ? floppy && withSso.sops.secrets ? floppy-oauth-secret
+      && lib.hasInfix "<SOPS:" withSso.sops.templates."floppy-sso.env".content && withSso.services.nginx.virtualHosts."track.${withSso.tidepool.domain}".locations ? "= /accounts/signup/";
     "Jellyfin gets its theme mounted when it runs" = lib.any (v: lib.hasInfix "jellyfin-web/config.json" v) withJellyfin.virtualisation.oci-containers.containers.jellyfin.volumes;
   };
   failing = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);

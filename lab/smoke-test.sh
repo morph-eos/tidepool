@@ -18,10 +18,14 @@ sudo nixos-rebuild test --flake path:$PWD#lab > /tmp/switch.log 2>&1; rc=$?; tai
 sudo systemctl restart 'acme-order-renew-*.service' nginx; sleep 40
 code() { curl -sk -o /dev/null -w '%{http_code}' --max-time 10 --resolve "$1:443:127.0.0.1" "https://$1/$2"; }
 D=lab.test
+# Floppy's first start runs all its migrations (minutes on a new database): the checks below wait for it, up to ten minutes
+for _ in $(seq 1 120); do [ "$(code track.$D health/)" = 200 ] && break; sleep 5; done
 r "cloud answers (a redirect to its login)"           302 code cloud.$D
 r "vault answers"                                    200 code vault.$D alive
 r "photos answers"                                   200 code photos.$D api/server/ping
 r "push answers"                                     200 code push.$D
+r "track answers (a redirect to its login)"          302 code track.$D
+r "track's health answers"                           200 code track.$D health/
 r "backup asks for a password"                       401 code backup.$D
 r "a name that is nobody's gets no answer"           000 code nobody.$D
 r "the vault's admin panel is not served"                404 code vault.$D admin
@@ -36,6 +40,13 @@ sudo systemctl start tidepool-db-dump.service
 r "Immich's database role is not a superuser"      f bash -c "sudo -u postgres psql -tAc \"select rolsuper from pg_roles where rolname = 'immich'\""
 r "nothing of Immich's own is left to postgres" 0 bash -c "sudo -u postgres psql -d immich -tAc \"select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and pg_get_userbyid(c.relowner) = 'postgres' and c.relkind in ('r','S','v','m') and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')\" | tr -d ' '"
 r "Immich's role reads its own database"            1 sudo psql -h /run/postgresql -U immich -d immich -tAc 'select 1'
+# Floppy's database: its own role (no superuser), made by the migrations that ran over the socket as root, used by the web processes as the user `tracker`
+r "Floppy's database role is not a superuser"      f bash -c "sudo -u postgres psql -tAc \"select rolsuper from pg_roles where rolname = 'floppy'\""
+r "Floppy's migrations made its tables"            yes bash -c "[ \$(sudo -u postgres psql -d floppy -tAc \"select count(*) from information_schema.tables where table_schema = 'public'\") -gt 50 ] && echo yes"
+r "Floppy's web processes run as the user tracker" tracker bash -c "sudo podman top floppy huser | grep -v -x -e root -e HUSER | sort -u | head -1"
+r "Floppy's role is refused the other databases"   refused bash -c "sudo -u tracker psql -h /run/postgresql -U floppy -d immich -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
+r "Floppy's role cannot be taken by another user"  refused bash -c "sudo -u nginx psql -h /run/postgresql -U floppy -d floppy -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
+r "Floppy is reached through its own role"          1 bash -c "sudo -u tracker psql -h /run/postgresql -U floppy -d floppy -tAc 'select 1'"
 r "Immich's role is refused the other databases"   refused bash -c "sudo psql -h /run/postgresql -U immich -d vaultwarden -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
 r "root cannot become postgres through the map"    refused bash -c "sudo psql -h /run/postgresql -U postgres -d immich -tAc 'select 1' >/dev/null 2>&1 && echo open || echo refused"
 r "the vault database is dumped for the Borg repositories" PGDMP sudo head -c 5 /var/lib/tidepool-db-dumps/vaultwarden.dump

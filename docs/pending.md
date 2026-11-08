@@ -17,6 +17,7 @@ Things not done yet, so they are not lost. Each waits for something I have to do
 | Item | Why |
 |---|---|
 | **Memory**: the ZFS cache is capped at 3 GiB in the flake; watch the memory pressure counters in the first weeks and add RAM only if they show it ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) | the first weeks on real hardware |
+| **The tracker's yearly recap by mail** ([ADR 0023](decisions/0023-floppy.md)): Floppy has the recap page; a mailed copy reads its API through the relay and is a script of its own | not needed to use the tracker |
 | **Disk replacement on a SMART warning** (an alert from `smartd` or similar): the large disk holds the only copy of the media | phase 5 |
 | **Self-healing of the primary disk** | deferred: done properly, with a second SSD attached as a mirror ([ADR 0005](decisions/0005-storage-layout-and-filesystem.md)) |
 | **Scheduled ZFS snapshots** | dropped: the Borg repositories cover what they would undo; can be added later in code ([ADR 0004](decisions/0004-backup.md)) |
