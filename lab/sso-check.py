@@ -45,6 +45,11 @@ async def main():
         ok(await fp.locator("input[type=password]").count() == 0, "Floppy's login page has no password form")
         accent = (await fp.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--color-accent')")).strip()
         ok(accent.lower() == "#4fc3d4", "Floppy's sign-in page carries the brand's accent (" + accent + ")")
+        # the interface's own colours too: the sign-on button (Tailwind's indigo in the page's markup) is the brand's primary, and the logo is the brand's, not Floppy's
+        button = await fp.evaluate("getComputedStyle(document.querySelector('button[type=submit]')).backgroundColor")
+        ok(button == "rgb(15, 122, 140)", "Floppy's sign-on button is the brand's primary (" + button + ")")
+        logo = await fp.evaluate("(() => { const i = document.querySelector('img[src*=\"/floppy-logo\"]'); return i ? [i.naturalWidth, i.currentSrc.slice(0, 40)] : null })()")
+        ok(logo is not None and "data:image/svg+xml" in str(await fp.evaluate("getComputedStyle(document.querySelector('img[src*=\"/floppy-logo\"]')).content")), "Floppy's logo is the brand's (" + str(logo)[:60] + ")")
         link = fp.get_by_text("Tidepool", exact=False).first
         await link.click()
         await fp.wait_for_timeout(2500)

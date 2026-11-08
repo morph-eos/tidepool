@@ -60,7 +60,11 @@ let
       --color-text: ${c.sand} !important; --color-text-secondary: ${mix c.sand c.deep 0.12} !important; --color-text-muted: ${mix c.sand c.deep 0.25} !important;
       --color-accent: ${c.primaryOnDark} !important; --color-accent-contrast: ${c.deep} !important; --color-link: ${mix c.primaryOnDark "#ffffff" 0.25} !important; --color-link-hover: ${mix c.primaryOnDark "#ffffff" 0.45} !important;
       --color-genre-badge-bg: rgba(${lib.replaceStrings [ " " ] [ ", " ] (rgb c.primaryOnDark)}, 0.1) !important; --color-genre-badge-border: rgba(${lib.replaceStrings [ " " ] [ ", " ] (rgb c.primaryOnDark)}, 0.25) !important;
-      --color-genre-badge-text: ${c.sand} !important; --color-genre-badge-hover-bg: rgba(${lib.replaceStrings [ " " ] [ ", " ] (rgb c.primaryOnDark)}, 0.2) !important; }
+      --color-genre-badge-text: ${c.sand} !important; --color-genre-badge-hover-bg: rgba(${lib.replaceStrings [ " " ] [ ", " ] (rgb c.primaryOnDark)}, 0.2) !important;
+      /* the buttons, borders and links of Floppy's own interface are Tailwind's indigo (utilities that read these variables, white text on the 500 to 700 steps): the brand's scale in their place, lightness for lightness */
+      --color-indigo-200: ${mix c.primaryOnDark "#ffffff" 0.55} !important; --color-indigo-300: ${mix c.primaryOnDark "#ffffff" 0.25} !important; --color-indigo-400: ${c.primaryOnDark} !important;
+      --color-indigo-500: ${c.primary} !important; --color-indigo-600: ${c.primary} !important; --color-indigo-700: ${mix c.primary "#000000" 0.2} !important; }
+    img[src*="/floppy-logo"] { content: ${inline wide}; }
   '';
 
   # Jellyfin reads its branding from config/branding.xml: written whole (tmpfiles' f+ replaces the file; the escapes give the line breaks)

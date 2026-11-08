@@ -71,7 +71,7 @@ in
 {
   options.tidepool.desktop.startPage.links = lib.mkOption {
     type = lib.types.attrsOf lib.types.str;
-    default = { Photos = "photos"; Cloud = "cloud"; Media = "media"; Passwords = "vault"; };
+    default = { Photos = "photos"; Cloud = "cloud"; Media = "media"; Tracker = "track"; Passwords = "vault"; };
     description = "The tiles of the TV session's start page and the bookmarks of its browser: a label and the name's first part (`photos` for photos.<domain>). A name that no virtual host answers to is left out; a private repository adds its own (`{ Wiki = \"wiki\"; }`).";
   };
 
