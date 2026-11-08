@@ -9,7 +9,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 NAME="${1:?usage: brand-test.sh <vm-name>}"
 tar -C "$HERE/.." -c nixos | "$HERE/vm.sh" ssh "$NAME" 'rm -rf ~/nn && mkdir ~/nn && tar x -C ~/nn'
-"$HERE/vm.sh" ssh "$NAME" 'bash -s' <<'REMOTE_EOF'
+out=$(mktemp)
+"$HERE/vm.sh" ssh "$NAME" 'bash -s' <<'REMOTE_EOF' | tee "$out"
 r() { local desc="$1" want="$2"; shift 2; local got; got=$("$@" 2>/dev/null); if [ "$got" = "$want" ]; then echo "PASS $desc"; else echo "FAIL $desc (wanted '$want', got '$got')"; fi; }
 has() { local desc="$1" re="$2"; shift 2; if "$@" 2>/dev/null | grep -q -E -e "$re"; then echo "PASS $desc"; else echo "FAIL $desc (no match for $re)"; fi; }
 cd ~/nn/nixos
@@ -22,7 +23,7 @@ r "the unit that applies the brand to Nextcloud ran"           "active" systemct
 r "Nextcloud's theming has the name of the service"           "Tidepool Cloud" sudo nextcloud-occ config:app:get theming name
 r "Nextcloud's theming has the primary colour"                 "#0f7a8c" sudo nextcloud-occ config:app:get theming primary_color
 has "Nextcloud's login page says the name of the service"      "<title>[^<]*Tidepool Cloud" bash -c "curl -sk --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login | tr -d '\n'"
-has "the footer is right for a browser too (a client that takes compression)" "entity-name\\">Tidepool</a> – your own cloud" bash -c "curl -sk -H 'Accept-Encoding: gzip, deflate, br' --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login | gunzip -c"
+has "the footer is right for a browser too (a client that takes compression)" "entity-name\">Tidepool</a> – your own cloud" bash -c "curl -sk -H 'Accept-Encoding: gzip, deflate, br' --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login | gunzip -c"
 has "Nextcloud's footer says the brand's name and the tagline" "entity-name\">Tidepool</a> – your own cloud" curl -sk --resolve cloud.lab.test:443:127.0.0.1 https://cloud.lab.test/login
 r "Prometheus has the name in its title"                       "<title>Tidepool Metrics" bash -c "curl -sk --resolve metrics.lab.test:443:$V https://metrics.lab.test/query | grep -o '<title>[^<]*'"
 # another repository overrides it: one field at a time, or the whole file, with its own logo
@@ -89,3 +90,6 @@ for u in $(systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d' ' -f
 systemctl --failed --no-legend | sed 's/^[^a-zA-Z]*//' | cut -d" " -f1 | sed 's/^/failed unit: /'
 echo "failed units: $(systemctl --failed --no-legend | wc -l)"
 REMOTE_EOF
+# a run that stopped early (a syntax error in the part above prints no FAIL of its own) is a failure, never a pass with fewer checks
+grep -q '^failed units:' "$out" || echo "FAIL the test script stopped before its end"
+rm -f "$out"
