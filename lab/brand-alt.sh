@@ -17,7 +17,7 @@ cd ~/nn/nixos
 sudo rm -rf /var/lib/acme/.lego/accounts; sudo systemctl reset-failed
 sudo nixos-rebuild test --flake path:$PWD#lab-pippo > /tmp/switch.log 2>&1; rc=$?; tail -n 1 /tmp/switch.log; [ $rc -eq 0 ] || echo "FAIL the switch to the host lab-pippo failed (exit $rc): $(grep -m1 -i 'error' /tmp/switch.log | cut -c1-160)"
 sudo systemctl restart "acme-order-renew-*.service" nginx; sleep 10
-sudo systemctl restart podman-jellyfin.service; for i in $(seq 1 40); do curl -s localhost:8096/System/Info/Public | grep -q ServerName && break; sleep 3; done   # the server's name is set at the start after the first
+sudo systemctl restart podman-jellyfin.service; for i in $(seq 1 40); do curl -s localhost:8096/System/Info/Public | grep -q '"ServerName"' && break; sleep 3; done   # the server's name is set at the start after the first
 sudo systemctl restart podman-floppy.service homepage-dashboard.service; sleep 25
 REMOTE_EOF
 port=$("$HERE/vm.sh" list | awk -v n="$NAME" '$1==n {sub("ssh:","",$3); print $3}')

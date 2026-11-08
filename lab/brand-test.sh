@@ -63,7 +63,7 @@ r "a second run makes nothing new"                              "made 0, linked 
 for u in acctest1 acctest2; do sudo nextcloud-occ user:delete $u >/dev/null 2>&1; done
 r "Floppy's client secret is not in the Nix store"             "0" bash -c "grep -rl \$(sudo cat /run/secrets/floppy-oauth-secret) /nix/store 2>/dev/null | wc -l"
 r "the client secret is not in the Nix store"                  "0" bash -c "grep -rl \$(sudo cat /run/secrets/immich-oauth-secret) /nix/store --include=*.json 2>/dev/null | wc -l"
-r "Jellyfin's server name is the name of the service (it is the tab and the apps' name)" "Tidepool Media" bash -c "sudo systemctl restart podman-jellyfin.service; for i in \$(seq 1 40); do n=\$(curl -s localhost:8096/System/Info/Public | jq -r .ServerName 2>/dev/null); [ -n \"\$n\" ] && break; sleep 3; done; echo \$n"
+r "Jellyfin's server name is the name of the service (it is the tab and the apps' name)" "Tidepool Media" bash -c "sudo systemctl restart podman-jellyfin.service; for i in \$(seq 1 40); do n=\$(curl -s localhost:8096/System/Info/Public | jq -r .ServerName 2>/dev/null); [ -n \"\$n\" ] && [ \"\$n\" != null ] && break; sleep 3; done; echo \$n"
 has "Jellyfin's branding file is written, the brand's line first" "^Tidepool - your own cloud<br>" bash -c "curl -s localhost:8096/Branding/Configuration | jq -r .LoginDisclaimer"
 # Jellyfin's sign-in through Nextcloud (nixos/jellyfin/sso/): the client, the plugin, its settings, the button
 f=/srv/data/jellyfin/config/plugins/configurations/SSO-Auth.xml
