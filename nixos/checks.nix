@@ -61,6 +61,13 @@ let
       && lib.hasInfix "want='Pippo Film'" pippo.systemd.services.podman-jellyfin.preStart
       && lib.hasInfix ''class=\"entity-name\">Pippo Nuvola</a>" "class=\"entity-name\">Pippo</a>'' pippo.services.nginx.virtualHosts."cloud.${pd}".extraConfig
       && pippoName.services.homepage-dashboard.settings.title == "Pippo Admin";
+    "the favicons and app icons of Immich, Jellyfin and Floppy are the brand's, made from its mark at build time, and the brand off leaves the programs' own" =
+         lib.all (n: base.services.nginx.virtualHosts."photos.${base.tidepool.domain}".locations ? "= /${n}") [ "favicon.ico" "favicon-32.png" "apple-icon-180.png" "manifest-icon-512.maskable.png" ]
+      && lib.all (n: base.services.nginx.virtualHosts."track.${base.tidepool.domain}".locations ? "= /static/favicon/${n}") [ "favicon.ico" "apple-touch-icon.png" "android-chrome-512x512.png" ]
+      && lib.all (n: otherAll.services.nginx.virtualHosts."media.${otherAll.tidepool.domain}".locations ? ${n}) [ "~ ^/web/favicon\\.[0-9a-f]+\\.ico$" "= /web/favicons/touchicon512.png" ]
+      && otherAll.tidepool.brand.out.icons != base.tidepool.brand.out.icons
+      && !(off.services.nginx.virtualHosts."photos.${off.tidepool.domain}".locations ? "= /favicon.ico") && !(off.services.nginx.virtualHosts."track.${off.tidepool.domain}".locations ? "= /static/favicon/favicon.ico")
+      && lib.hasInfix "immich-logo-inline" base.tidepool.brand.css.immich;
     "Immich's tab title is the brand's name of the service, written at the edge, and the brand off leaves it" =
          lib.hasInfix "- Pippo Foto`" (pippo.services.nginx.virtualHosts."photos.${pd}".locations."~ ^/_app/immutable/nodes/0\\.[A-Za-z0-9_-]+\\.js$").extraConfig
       && lib.hasInfix "- Tidepool Photos`" (base.services.nginx.virtualHosts."photos.${base.tidepool.domain}".locations."~ ^/_app/immutable/nodes/0\\.[A-Za-z0-9_-]+\\.js$").extraConfig;

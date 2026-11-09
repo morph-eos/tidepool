@@ -44,12 +44,29 @@ let
   jellyfinWebConfig = let orig = lib.importJSON ../brand/jellyfin-web-config.json; in pkgs.writeText "jellyfin-web-config.json" (builtins.toJSON (orig // {
     themes = map (t: removeAttrs t [ "default" ]) orig.themes ++ [ { name = cfg.name; id = cfg.slug; color = c.deep; default = true; } ];
   }));
+  # the favicons and the app icons of the programs that have no setting for them, made at build time from the one mark (never committed): the edge serves them in place of each program's own (below, docs/exceptions.md)
+  icons = pkgs.runCommand "brand-icons-${cfg.slug}" { nativeBuildInputs = [ pkgs.librsvg pkgs.imagemagick ]; } ''
+    mkdir $out
+    for s in 16 32 48 72 96 114 144 180 192 512; do rsvg-convert -w $s -h $s ${cfg.logo} -o $out/$s.png; done
+    magick $out/16.png $out/32.png $out/48.png $out/favicon.ico
+  '';
+  at = file: { alias = "${icons}/${file}"; extraConfig = "default_type ${if lib.hasSuffix ".ico" file then "image/x-icon" else "image/png"};"; };
+  # file name the program serves -> the size of the brand's mark that replaces it
+  immichIcons = { "favicon.ico" = "favicon.ico"; "favicon.png" = "32.png"; "favicon-16.png" = "16.png"; "favicon-32.png" = "32.png"; "favicon-48.png" = "48.png"; "favicon-96.png" = "96.png"; "favicon-144.png" = "144.png";
+                  "apple-icon-180.png" = "180.png"; "manifest-icon-192.maskable.png" = "192.png"; "manifest-icon-512.maskable.png" = "512.png"; };
+  floppyIcons = { "favicon.ico" = "favicon.ico"; "favicon-16x16.png" = "16.png"; "favicon-32x32.png" = "32.png"; "apple-touch-icon.png" = "180.png"; "android-chrome-192x192.png" = "192.png"; "android-chrome-192x192-maskable.png" = "192.png";
+                  "android-chrome-512x512.png" = "512.png"; "android-chrome-512x512-maskable.png" = "512.png"; };
+  # Jellyfin names its files with a hash of their content: the pattern takes any
+  jellyfinIcons = {
+    "~ ^/web/favicon\\.[0-9a-f]+\\.ico$" = "favicon.ico"; "~ ^/web/touchicon\\.[0-9a-f]+\\.png$" = "180.png"; "~ ^/web/touchicon144\\.[0-9a-f]+\\.png$" = "144.png"; "~ ^/web/notificationicon\\.[0-9a-f]+\\.png$" = "96.png";
+    "= /web/favicons/touchicon.png" = "180.png"; "= /web/favicons/touchicon72.png" = "72.png"; "= /web/favicons/touchicon114.png" = "114.png"; "= /web/favicons/touchicon144.png" = "144.png"; "= /web/favicons/touchicon512.png" = "512.png";
+  };
   jellyfinCss = ''
     img[src*="icon-transparent"], img[src*="banner"] { content: ${inline wide}; }
   '';
   immichCss = ''
     :root { --immich-primary: ${rgb c.primary}; --immich-dark-primary: ${rgb c.primaryOnDark}; ${vars "--immich-ui-primary-" (noZero (scale c.primary))} }
-    img.h-24.aspect-square { content: ${inline cfg.logo}; }
+    img.h-24.aspect-square, img[src*="immich-logo-inline"], img[src*="immich-logo-stacked"] { content: ${inline cfg.logo}; }
   '';
 
   # Floppy has no setting for a palette that every user, and the sign-in page before any user, gets: its colours are CSS variables on the root element, a theme per user in its database. The edge adds this stylesheet to its pages
@@ -98,7 +115,7 @@ in
     logo = lib.mkOption { type = lib.types.path; default = fileOf "logo"; defaultText = "from the file"; description = "A square mark, SVG (Nextcloud's logo and favicon, the stylesheets of Immich and Jellyfin)."; };
     wordmark = lib.mkOption { type = lib.types.nullOr lib.types.path; default = fileOf "wordmark"; defaultText = "from the file"; description = "Optional: the mark with the name in outlined letters, for the wide places."; };
     jellyfinLoginHtml = lib.mkOption { type = lib.types.str; default = lib.optionalString (config.tidepool.sso.enable && config.tidepool.sso.jellyfin.enable) ''<form action="/sso/OID/start/${config.tidepool.sso.jellyfin.provider}"><button class="raised block emby-button button-submit" type="submit">${lib.escapeXML cfg.signInLabel}</button></form>''; defaultText = "the button of the single sign-on when it is on for Jellyfin, nothing otherwise"; example = ''<form action="/sso/OID/start/provider"><button class="raised block emby-button button-submit">Sign in with the provider</button></form>''; description = "HTML added under the brand's line in Jellyfin's login message, which is where its single sign-on plugin has the button for its login page. With `tidepool.sso.jellyfin.enable` it is that button, with the text of `signInLabel`; set it to have something else. The file is written whole at each change of the system, so what is wanted there is declared here and not typed into Jellyfin's settings, where the next write would remove it."; };
-    out = lib.mkOption { type = lib.types.attrsOf lib.types.path; readOnly = true; default = { inherit jellyfinWebConfig jellyfinThemeDir nextcloudBrand; }; description = "What the module builds, for the checks."; };
+    out = lib.mkOption { type = lib.types.attrsOf lib.types.path; readOnly = true; default = { inherit jellyfinWebConfig jellyfinThemeDir nextcloudBrand icons; }; description = "What the module builds, for the checks."; };
     css = lib.mkOption { type = lib.types.attrsOf lib.types.str; readOnly = true; default = { immich = immichCss; floppy = floppyCss; }; description = "The stylesheet that a program takes in its own settings (other modules put it where the program reads it); Floppy's is served by the edge, which adds it to the pages."; };
   };
   config = lib.mkIf cfg.enable {
@@ -137,14 +154,19 @@ in
     };
     # Immich writes its tab title in the browser, in one place of its web client: `${the page's title} - Immich`. No setting reaches it; the edge gives that one chunk (nodes/0.<hash>.js) the name of the service in place of the program's own (docs/exceptions.md).
     # The chunk's file name is cached by browsers as immutable: a browser that has the old one shows the old title until its cache is cleared (a hard reload).
-    services.nginx.virtualHosts."photos.${d}".locations."~ ^/_app/immutable/nodes/0\\.[A-Za-z0-9_-]+\\.js$" = {
-      proxyPass = "http://127.0.0.1:2283";
-      extraConfig = ''
-        proxy_set_header Accept-Encoding "";
-        sub_filter_types application/javascript text/javascript;
-        sub_filter ' - Immich`' ' - ${cfg.product.photos}`';
-        sub_filter_once on;
-      '';
+    # The favicons and the app icons of Immich, Jellyfin and Floppy have no setting either: the edge serves the brand's, made from the mark, at the paths where each program has its own (docs/exceptions.md).
+    services.nginx.virtualHosts."media.${d}" = lib.mkIf config.tidepool.services.jellyfin.enable { locations = lib.mapAttrs (_: at) jellyfinIcons; };
+    services.nginx.virtualHosts."track.${d}" = lib.mkIf config.tidepool.services.floppy.enable { locations = lib.mapAttrs' (n: f: lib.nameValuePair "= /static/favicon/${n}" (at f)) floppyIcons; };
+    services.nginx.virtualHosts."photos.${d}".locations = lib.mapAttrs' (n: f: lib.nameValuePair "= /${n}" (at f)) immichIcons // {
+      "~ ^/_app/immutable/nodes/0\\.[A-Za-z0-9_-]+\\.js$" = {
+        proxyPass = "http://127.0.0.1:2283";
+        extraConfig = ''
+          proxy_set_header Accept-Encoding "";
+          sub_filter_types application/javascript text/javascript;
+          sub_filter ' - Immich`' ' - ${cfg.product.photos}`';
+          sub_filter_once on;
+        '';
+      };
     };
     systemd.tmpfiles.rules = lib.optional config.tidepool.services.jellyfin.enable "f+ /srv/data/jellyfin/config/config/branding.xml 0644 root root - ${jellyfinBranding}";
   };

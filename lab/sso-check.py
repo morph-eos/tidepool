@@ -53,6 +53,8 @@ async def main():
         ok(button == "rgb(15, 122, 140)", "Floppy's sign-on button is the brand's primary (" + button + ")")
         logo = await fp.evaluate("(() => { const i = document.querySelector('img[src*=\"/floppy-logo\"]'); return i ? [i.naturalWidth, i.currentSrc.slice(0, 40)] : null })()")
         ok(logo is not None and "data:image/svg+xml" in str(await fp.evaluate("getComputedStyle(document.querySelector('img[src*=\"/floppy-logo\"]')).content")), "Floppy's logo is the brand's (" + str(logo)[:60] + ")")
+        px = "async (u) => { const r = await fetch(u); const bm = await createImageBitmap(await r.blob()); const c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; const x = c.getContext('2d'); x.drawImage(bm, 0, 0); const d = x.getImageData(Math.floor(bm.width / 2), Math.floor(bm.height * 0.08), 1, 1).data; return 'rgb(' + d[0] + ', ' + d[1] + ', ' + d[2] + ')' }"
+        ok(await fp.evaluate(px, "/static/favicon/apple-touch-icon.png") == "rgb(11, 60, 73)" and await fp.evaluate(px, "/static/favicon/android-chrome-512x512.png") == "rgb(11, 60, 73)", "Floppy's favicon and app icons are the brand's mark")
         link = fp.get_by_text("Sign in with SSO", exact=False).first
         await link.click()
         await fp.wait_for_timeout(2500)
