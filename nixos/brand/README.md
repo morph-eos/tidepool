@@ -13,7 +13,7 @@
 | `colors.primaryOnDark` | `#4fc3d4` | the same role on `deep` and in dark themes (contrast 5.7) |
 | `colors.accent` | `#e8765a` | the one warm note; **dark text on it, never white** (white on it: 2.9) |
 | `colors.sand`, `colors.text` | `#f4f1ea`, `#12303a` | light backgrounds and the text on them (12.3) |
-| `logo` | `logo.svg` | a square SVG, relative to this file; the favicons and app icons are made from it at build time |
+| `logo` | `logo.svg` | a square SVG, relative to this file; the favicons and app icons of Immich, Jellyfin and Floppy are made from it at build time and served by the edge (Nextcloud's theming takes the SVG itself) |
 | `wordmark` | `null` | optional: an SVG of the mark with the name in letters, **outlined** (no live text), for the wide places (Jellyfin's login logo, Floppy's logo); `null` uses the mark |
 
 The brand is **on by default**: a deployment that sets nothing shows this identity on every service that can take it; `tidepool.brand.enable = false;` turns it off.
@@ -25,9 +25,9 @@ The brand is **on by default**: a deployment that sets nothing shows this identi
 | Program | Name of the page, the tab and the app | Footer, banner | Sign-in text | Logo | Palette |
 |---|---|---|---|---|---|
 | Nextcloud (and its apps) | `<name> <cloud>`: the tab, the login heading, the mobile app's server name | `<name>` and the tagline (the edge corrects the one footer field, below) | n/a | yes, and the favicon | yes |
-| Immich | `<name> <photos>` in the tab: the edge rewrites the one place where its web client writes the title (exception 11); its login page names the brand | `<name>, <tagline>` on the login page | the button's text | yes (login) | its primary scale; its backgrounds are Immich's |
-| Jellyfin (and the clients built on its web) | `<name> <media>`: the server's name, which is the tab and the apps' name | `<name> - <tagline>` | the button's text | yes (the wordmark if there is one) | a whole theme, the default |
-| Floppy | `<name> <track>`: the title and the installed app's name, rewritten by the edge | n/a | the button's text | yes (replaced by the edge's stylesheet; its favicon stays) | yes, forced by the same stylesheet |
+| Immich | `<name> <photos>` in the tab: the edge rewrites the one place where its web client writes the title (exception 11); its login page names the brand | `<name>, <tagline>` on the login page | the button's text | yes (login and the interface), its favicon and app icons by the edge | its primary scale; its backgrounds are Immich's |
+| Jellyfin (and the clients built on its web) | `<name> <media>`: the server's name, which is the tab and the apps' name | `<name> - <tagline>` | the button's text | yes (the wordmark if there is one), its favicon and app icons by the edge | a whole theme, the default |
+| Floppy | `<name> <track>`: the title and the installed app's name, rewritten by the edge | n/a | the button's text | yes (replaced by the edge's stylesheet), its favicon and app icons by the edge | yes, forced by the same stylesheet |
 | The admin page | `<name> <admin>` | n/a | n/a | no | the background; its text colour is one of Homepage's fixed names |
 | Prometheus | `<name> <metrics>` | n/a | n/a | no | no |
 | The system, Samba, the mail's sender | `<name>` | n/a | n/a | n/a | n/a |
