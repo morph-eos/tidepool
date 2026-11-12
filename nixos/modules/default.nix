@@ -16,6 +16,7 @@
     ./services.nix
     ./floppy.nix
     ./floppy-companions.nix
+    ./jellyfin-lyrics.nix
     ./versions.nix
     ./push.nix
     ./nas.nix

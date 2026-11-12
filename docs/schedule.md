@@ -20,6 +20,7 @@ One table for every automatic job and alert of the integrated host (`nixos/`), r
 | Nix store collection (`nix-gc`) | weekly (Monday 00:00); removes generations older than **14 days** | the system disk is 119 GB and a generation is 4.7 GiB; freed 12.4 GiB of leftovers in the lab test | [0016](decisions/0016-updates-deploys-and-checks.md) |
 | Nix store deduplication (`nix-optimise`) | daily 03:45, up to 30 minutes of random delay | | [0016](decisions/0016-updates-deploys-and-checks.md) |
 | Podman image prune | weekly, up to 30 minutes of random delay | removes untagged images no container uses (the old digest after an update) | [0016](decisions/0016-updates-deploys-and-checks.md) |
+| Timed lyrics (`jellyfin-lyrics`, off unless `tidepool.services.jellyfin.lyrics.enable`) | weekly, Saturday 05:30 plus up to 30 minutes of random delay; at the next boot if missed | fills the sidecar `.lrc` files of the music folders from LRCLIB (a free service run by volunteers); a run with nothing new does nothing | [0023](decisions/0023-floppy.md) |
 | Nextcloud background jobs | every 5 minutes | | [0011](decisions/0011-services.md) |
 | Prometheus scrape and rule evaluation | every 30 seconds | | [0012](decisions/0012-observability.md) |
 

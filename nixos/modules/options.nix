@@ -48,6 +48,10 @@ in
         default = { "/media" = "/mnt/backup16/media"; };
         description = "Media folders read by Jellyfin: the path INSIDE the container = the path on the machine. The libraries of an existing Jellyfin database point at container paths, so a move from another setup keeps its paths here (a private value).";
       };
+      jellyfin.lyrics.enable = mkEnableOption "the weekly fill of time-synced lyrics (nixos/jellyfin/lyrics/lrc_fill.py): a sidecar `.lrc` beside each track of `directories` from LRCLIB, a free service run by volunteers, for the tracks that have none or a plain one; a track the service knows as an instrumental gets a `.lrc` that says so, and is not looked up again. Off by default: it writes into the library and talks to a third party";
+      jellyfin.lyrics.directories = mkOption { type = types.listOf types.str; default = [ ]; example = [ "/mnt/backup16/media/music" ]; description = "The music folders on the machine whose tracks get a `.lrc` (the media mounts are read-only for Jellyfin, so the job runs on the machine, not in the container). Jellyfin finds the new files at its next library scan."; };
+      jellyfin.lyrics.user = mkOption { type = types.str; default = "root"; description = "The user the job runs as, who must be able to write in `directories` (the files get this owner)."; };
+      jellyfin.lyrics.calendar = mkOption { type = types.str; default = "Sat 05:30:00"; description = "When it runs (a systemd calendar expression); a run missed while the machine was off is made up at the next start. A second run over the same library finds nothing to do, so once a week is for the tracks added since."; };
       syncthing.restoreIdentity = mkEnableOption "the device identity of an existing Syncthing (its certificate and key, the sops secrets `syncthing-cert` and `syncthing-key`), so the device keeps its ID on a move";
       immich.externalLibraries = mkOption {
         type = types.attrsOf types.str; default = { };
