@@ -4,3 +4,4 @@ incus-config-backup/
 .env
 # Values that belong to the owner, written by the lab scripts (the domain): never committed
 nixos/private/
+__pycache__/
