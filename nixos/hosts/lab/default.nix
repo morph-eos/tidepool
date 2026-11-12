@@ -22,6 +22,8 @@
     lanInterface = "enp0s2";
     services.immichMachineLearning.enable = false;   # the lab VM has too little memory for it: the real host runs it
     services.jellyfin.enable = false;                # a 2.5 GB image: tried in ADR 0011, not part of the restore drill
+    services.jellyfin.lyrics = { enable = true; directories = [ "/srv/lab-music" ]; };   # the weekly fill of timed lyrics: the unit is built and its timer is armed; it is not run in the lab (no network service to ask)
     services.floppy.enable = true;                   # ADR 0023: the tracker; its sign-in through Nextcloud is looked at by lab/brand-check.sh (the host lab-brand)
   };
+  systemd.tmpfiles.rules = [ "d /srv/lab-music 0755 root root -" ];   # the folder the lyrics job is pointed at
 }

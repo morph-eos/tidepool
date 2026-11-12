@@ -4,7 +4,7 @@ Two small scripts that prepare the lyrics a player shows line by line. They are 
 
 | Script | What it does |
 |---|---|
-| `lrc_fill.py ROOT` | For each track under `ROOT`, writes a sidecar `.lrc` (same name, next to the file) with the time-synced lyrics from [LRCLIB](https://lrclib.net), a free, open lyrics service. A `.lrc` that already has timestamps is left alone; a missing one is filled; a plain-text one is replaced. |
+| `lrc_fill.py ROOT` | For each track under `ROOT`, writes a sidecar `.lrc` (same name, next to the file) with the time-synced lyrics from [LRCLIB](https://lrclib.net), a free, open lyrics service. A `.lrc` that already has timestamps is left alone; a missing one is filled; a plain-text one is replaced; a track that LRCLIB knows as an instrumental gets a `.lrc` with only `[00:00.00] ♪ Instrumental ♪` (so it is not asked about again). |
 | `lrc2ttml.py SRC.lrc DST.ttml [LANG]` | Turns a time-synced `.lrc` into a TTML file with a Latin transliteration track beside the original lines, for a client that can show it. |
 
 ## Use
@@ -16,7 +16,7 @@ nixos/jellyfin/lyrics/lrc_fill.py /path/to/music --limit 50            # stop af
 nixos/jellyfin/lyrics/lrc2ttml.py song.lrc song.ttml ko
 ```
 
-`lrc_fill.py` prints what it did (`already_synced`, `upgraded_plain`, `filled_missing`, `not_found`) and the first tracks that LRCLIB had nothing for (instrumentals and little-known covers, mostly). A second run over the same library finds nothing to do.
+`lrc_fill.py` prints what it did (`already_synced`, `upgraded_plain`, `filled_missing`, `marked_instrumental`, `not_found`) and the first tracks that LRCLIB had nothing for (instrumentals and little-known covers, mostly). A second run over the same library finds nothing to do.
 
 ## Dependencies
 
@@ -26,6 +26,12 @@ nixos/jellyfin/lyrics/lrc2ttml.py song.lrc song.ttml ko
 ## Where to run them
 
 The media directories are mounted **read-only** into Jellyfin's container ([ADR 0011](../../../docs/decisions/0011-services.md)), so these scripts do not run in the container and Jellyfin never writes to the library. Run them as a user that can write to the library, on the machine or on any computer that has the files, then let Jellyfin rescan the library so that it picks the `.lrc` files up.
+
+## On a timer
+
+With `tidepool.services.jellyfin.lyrics.enable` the machine runs `lrc_fill.py` once a week over the folders in `tidepool.services.jellyfin.lyrics.directories`, as `tidepool.services.jellyfin.lyrics.user` (who must be able to write there; the new files get that owner). A plain `.lrc` that it replaces is copied to `/var/lib/jellyfin-lyrics/replaced` first. Jellyfin finds the new files at its next library scan. A run with nothing new does nothing, a failed run reaches the alert like any other unit, and a service that does not answer is "nothing found" until the next week. It is off by default, because it writes into the library and talks to a third party. The tracks that LRCLIB has no lyrics for (many are instrumentals, classical music, film scores) are asked about again every week, one request or three each; that is the price of picking up songs the service adds later, and it is why the pause between requests stays.
+
+Lyrics made from the audio itself (speech recognition) were considered and left out: they are what a model heard, not what the artist wrote, and they cost hours of processor time.
 
 ## Being a good client
 
