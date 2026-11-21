@@ -19,8 +19,26 @@ let cfg = config.tidepool.wifi; in
       networks.${cfg.ssid}.pskRaw = "ext:psk_home";   # the key comes from the secret, never from the Nix store (`psk = "ext:..."` is written with quotes and read as a literal passphrase: tried, the handshake fails)
     };
     networking.interfaces.${cfg.interface}.useDHCP = true;
-    # a server does not sleep its radio between packets: the card's power saving adds latency and drops (it was on under Ubuntu's NetworkManager)
-    services.udev.extraRules = ''ACTION=="add", SUBSYSTEM=="net", KERNEL=="${cfg.interface}", RUN+="${pkgs.iw}/bin/iw dev %k set power_save off"'';
+    # a server does not sleep its radio between packets: the card's power saving adds latency and drops (it is on by default on desktop systems).
+    # A udev rule at the interface's creation does not hold: the interface is still down then, the driver refuses the setting, and the radio keeps its default.
+    # So a service does it once wpa_supplicant has brought the interface up, tries for up to a minute and checks the result.
+    systemd.services."wifi-power-save-off" = {
+      description = "Switch the WiFi radio's power saving off";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "wpa_supplicant-${cfg.interface}.service" ];
+      wants = [ "wpa_supplicant-${cfg.interface}.service" ];
+      path = [ pkgs.iw pkgs.gnugrep ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        for i in $(seq 60); do
+          iw dev ${cfg.interface} set power_save off 2>/dev/null
+          iw dev ${cfg.interface} get power_save 2>/dev/null | grep -q 'Power save: off' && exit 0
+          sleep 1
+        done
+        echo "power saving is still on for ${cfg.interface}" >&2
+        exit 1
+      '';
+    };
     tidepool.lanInterface = lib.mkDefault cfg.interface;   # Samba and Avahi listen on it
   };
 }
