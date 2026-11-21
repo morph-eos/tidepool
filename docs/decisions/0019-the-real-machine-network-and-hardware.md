@@ -22,7 +22,7 @@ Verdict: not a blocker. What the services need is small (the web names, Syncthin
 
 What it costs: the NAS and Time Machine are slower than on a cable, because WiFi shares the air; the machine depends on the access point and on the radio environment; and a network that is down is a machine that cannot be reached from outside (the heartbeat to Healthchecks.io then stops and says so, [ADR 0012](0012-observability.md)). Nothing in the flake depends on the cable: only the LAN interface's name does.
 
-Built: `modules/wifi.nix` (off by default, `tidepool.wifi.enable`). `wpa_supplicant` through the NixOS module, the network's name and the interface as private values, the key a sops secret (`wifi-psk`, one line `psk_home=<64 hex digits from wpa_passphrase>`), the radio's power saving turned off by a udev rule, DHCP on that interface, and `tidepool.lanInterface` set to it (Samba and Avahi follow).
+Built: `modules/wifi.nix` (off by default, `tidepool.wifi.enable`). `wpa_supplicant` through the NixOS module, the network's name and the interface as private values, the key a sops secret (`wifi-psk`, one line `psk_home=<64 hex digits from wpa_passphrase>`), the radio's power saving turned off by a service that runs once `wpa_supplicant` has brought the interface up and checks the result (a udev rule at the interface's creation was tried first: the interface is still down then and the setting does not stick), DHCP on that interface, and `tidepool.lanInterface` set to it (Samba and Avahi follow).
 
 To use a cable instead: remove `wifi`, set `lanInterface` to the Ethernet interface's name, and update the router's reservation to the Ethernet port's address (it is by the card's address, and the two cards have different ones).
 
@@ -43,7 +43,7 @@ Three defects, found by the test and fixed:
 2. The secret must belong to `wpa_supplicant`. The service runs as its own user: with sops' root-only file it logged "could not open file ... Permission denied". Also a changed secret did not restart the unit (a new passphrase would have been ignored): `restartUnits` is set.
 3. Samba fixed its addresses at its start. With `bind interfaces only` it started before the WiFi had an address, stayed "active", never listened on the WiFi address (ping answered, SMB timed out), and `nmbd` timed out and failed. `bind interfaces only` is off (the firewall already lets 445 in on the LAN interface only), and the Samba units wait for `network-online.target` and retry on failure. This changes [ADR 0017 section 4](0017-version-watch-push-and-nas.md): the NAS no longer relies on Samba's own address binding.
 
-Not tried in the lab: a real radio (the card's firmware, WPA3 or 6 GHz, how fast the card reconnects after the router restarts), throughput over the air, the power-saving rule on a real card (the virtual radio reports "off" with or without it), the boot order on real hardware (the late access point simulates it), and Time Machine over WiFi.
+Not tried in the lab: a real radio (the card's firmware, WPA3 or 6 GHz, how fast the card reconnects after the router restarts), throughput over the air, the power-saving service on a real card (the virtual radio reports "off" with or without it), the boot order on real hardware (the late access point simulates it), and Time Machine over WiFi.
 
 ## 4. The SSD's interface: SATA or NVMe
 
