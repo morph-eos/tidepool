@@ -62,7 +62,7 @@ The cable is optional and I do not plan to connect one; the design does not push
 
 - Rules that depend on the interface by name: the SSH port is also open on the WiFi interface, from the home network only (a forwarded port arrives on that same interface, so the interface alone would also let the router's forwards in); the NAS and Avahi follow `lanInterface`. A change of interface needs those lines changed together.
 - Seen on real hardware: the firmware loads, the machine reconnects at every boot, the interface counts no receive or transmit error, and a large sustained upload ran at 100 Mbit/s or more while the services kept working.
-- Still to try: the reconnection after a router restart (the address comes from a reservation by the card's address, so it should come back by itself), the radio's power saving read on the live card (`iw` is not installed by default), and Time Machine over the air once it is switched on. The heartbeat to the outside service says so if the machine drops off the network.
+- Still to try: the reconnection after a router restart (the address comes from a reservation by the card's address, so it should come back by itself), and Time Machine over the air once it is switched on. The heartbeat to the outside service says so if the machine drops off the network.
 
 ## Consequences
 
