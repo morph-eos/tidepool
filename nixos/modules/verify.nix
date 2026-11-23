@@ -35,6 +35,7 @@ in
     };
   };
   systemd.timers.borgmatic.timerConfig = { OnCalendar = [ "" "Sun *-*-* 04:30:00" ]; Persistent = true; };   # the empty entry resets the package's own "daily"
+  systemd.services.borgmatic.environment.BORG_HOST_ID = config.networking.hostName;   # the same host name as the jobs (backup.nix): a lock left by a dead check is recognised, not waited on
 
   systemd.services.pgbackrest-restore-test = {
     description = "Restore the latest pgBackRest backup into a scratch directory and check it";

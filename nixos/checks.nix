@@ -99,6 +99,8 @@ let
       && withAdmin.services.homepage-dashboard.allowedHosts == "admin.${withAdmin.tidepool.domain}";
     "Floppy is a container pinned by digest, told the number of the user the machine makes for it" = lib.hasInfix "@sha256:" base.virtualisation.oci-containers.containers.floppy.image
       && base.virtualisation.oci-containers.containers.floppy.environment.PUID == toString base.users.users.tracker.uid;
+    "The Borg jobs and the checks name the host the same fixed way, so the lock a dead one leaves is recognised and removed by the next run" = base.services.borgbackup.jobs.everything.environment.BORG_HOST_ID == base.networking.hostName
+      && base.services.borgbackup.jobs.offsite.environment.BORG_HOST_ID == base.networking.hostName && base.systemd.services.borgmatic.environment.BORG_HOST_ID == base.networking.hostName;
     "Floppy's database role is reached by its container's two users and no other" = lib.hasInfix "floppy root floppy" base.services.postgresql.identMap && lib.hasInfix "floppy tracker floppy" base.services.postgresql.identMap
       && !(lib.hasInfix "floppy nginx" base.services.postgresql.identMap);
     "Floppy off leaves no trace" = !(noFloppy.virtualisation.oci-containers.containers ? floppy) && !(noFloppy.virtualisation.oci-containers.containers ? floppy-redis) && !(noFloppy.services.nginx.virtualHosts ? "track.${noFloppy.tidepool.domain}")
