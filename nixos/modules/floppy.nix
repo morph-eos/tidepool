@@ -61,7 +61,9 @@ in
 
     systemd.tmpfiles.rules = [
       # the tracker's files are for its container, which starts as root and hands them to the user above: closed to every other local user, the TV session's included (ADR 0022)
-      "d /srv/data/floppy 0700 root root -" "d /srv/data/floppy/db 0700 root root -" "d /srv/data/floppy/backups 0700 root root -" "d /srv/data/floppy/redis 0700 root root -"
+      # The three folders inside keep the owner the container gave them: a rule that names root would take them back every time systemd-tmpfiles runs again on the running machine (a deploy that touches a rule),
+      # and the queue (Valkey) and the application, which run as their own users, could not write there any more (the queue's log filled with "Can't open or create append-only dir"). Mode only, no owner.
+      "d /srv/data/floppy 0700 root root -" "d /srv/data/floppy/db 0700 - - -" "d /srv/data/floppy/backups 0700 - - -" "d /srv/data/floppy/redis 0700 - - -"
     ];
 
     services.nginx.appendHttpConfig = "limit_req_zone $binary_remote_addr zone=track_accounts:2m rate=60r/m;";

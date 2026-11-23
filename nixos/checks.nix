@@ -101,6 +101,8 @@ let
       && base.virtualisation.oci-containers.containers.floppy.environment.PUID == toString base.users.users.tracker.uid;
     "The Borg jobs and the checks name the host the same fixed way, so the lock a dead one leaves is recognised and removed by the next run" = base.services.borgbackup.jobs.everything.environment.BORG_HOST_ID == base.networking.hostName
       && base.services.borgbackup.jobs.offsite.environment.BORG_HOST_ID == base.networking.hostName && base.systemd.services.borgmatic.environment.BORG_HOST_ID == base.networking.hostName;
+    "Floppy's data folders keep the owner their container gave them: the rules set the mode and name no owner, so a later run of tmpfiles does not take them back" = lib.all (p: lib.elem "d /srv/data/floppy/${p} 0700 - - -" base.systemd.tmpfiles.rules) [ "db" "backups" "redis" ]
+      && lib.elem "d /srv/data/floppy 0700 root root -" base.systemd.tmpfiles.rules;
     "Floppy's database role is reached by its container's two users and no other" = lib.hasInfix "floppy root floppy" base.services.postgresql.identMap && lib.hasInfix "floppy tracker floppy" base.services.postgresql.identMap
       && !(lib.hasInfix "floppy nginx" base.services.postgresql.identMap);
     "Floppy off leaves no trace" = !(noFloppy.virtualisation.oci-containers.containers ? floppy) && !(noFloppy.virtualisation.oci-containers.containers ? floppy-redis) && !(noFloppy.services.nginx.virtualHosts ? "track.${noFloppy.tidepool.domain}")
