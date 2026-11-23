@@ -146,6 +146,12 @@ The staleness rules read `node_systemd_timer_last_trigger_seconds` with the time
 1. **Accept an entry in the exceptions register** for a 20-line unit of ours, in exchange for a real restore test of the databases every month?
 2. **The `data` check every three months**: acceptable even if it holds the Borg repositories for hours (the jobs wait)?
 
+## A lock left by a process that died
+
+A long `--lock-wait` has a side effect: if the machine stops in the middle of a run (a crash, a power cut), the lock that run held stays in the repository, and every later job waits on it for the whole wait. Borg removes such a lock by itself, but only if it recognises the host as its own, and in version 1.4 it names the host from the machine's name and `uuid.getnode()`. In a systemd unit the PATH has no tool that lists the network cards, so `getnode()` falls back to a random number, different at every start: the dead run's lock always looked like another host's. Reproduced on a scratch repository with the unit's own PATH: a process killed while it held the lock blocked the next one, and with a fixed `BORG_HOST_ID` the next one removed the lock and ran.
+
+**Decision: the Borg jobs, borgmatic and the copy offsite set `BORG_HOST_ID` to the machine's name** (`backup.nix`, `verify.nix`, `offsite.nix`; a check in `nixos/checks.nix` keeps the first two). The dead owner is then found by its process number, and the lock is removed by the next run. A lock still held by a live process is never touched. The alert chain does its part meanwhile: `BackupJobRunningLong` after 8 hours, `BorgBackupStale` and `BackupNoRecentSuccess` when no archive is made. A lock the next run does not remove (the owner's number reused by another process after a reboot) is removed by hand with `borg break-lock`, after checking that no Borg process is running.
+
 ## Consequences
 
 - `modules/verify.nix` holds both; `backup.nix` gets the lock wait; `observability.nix` two rules.

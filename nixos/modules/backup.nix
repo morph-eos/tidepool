@@ -17,6 +17,10 @@ let
     # 12 hours: the check of a repository of 1 TB on a slow disk (50 MB/s) takes about 5.6 hours (ADR 0015), so this is twice the worst case computed.
     # A wait that long must not hide a hung check: the rule BackupJobRunningLong (observability.nix) warns when a backup unit has been running for 8 hours.
     extraArgs = [ "--lock-wait" "43200" ];
+    # A lock left by a process that died (a crash, a power cut in the middle of a run) is removed by the next run only if Borg recognises the host as its own.
+    # Borg 1.4 names the host from the machine's name and uuid.getnode(), and in a systemd unit, where no tool that lists the network cards is in the PATH, getnode() answers a random number
+    # at every start: the lock was always "another host's", and every later run waited on it for the whole 12 hours. A fixed name makes the lock known, and a dead owner is found by its process number.
+    environment.BORG_HOST_ID = config.networking.hostName;
   };
 in
 {

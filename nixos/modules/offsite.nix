@@ -63,7 +63,10 @@ in
       description = "Copy the offsite Borg repository to Proton Drive";
       after = [ "network-online.target" ]; wants = [ "network-online.target" ];
       unitConfig.RequiresMountsFor = [ cfg.repository ];
-      environment.BORG_PASSCOMMAND = "cat ${config.sops.secrets.borg-passphrase.path}";
+      environment = {
+        BORG_PASSCOMMAND = "cat ${config.sops.secrets.borg-passphrase.path}";
+        BORG_HOST_ID = config.networking.hostName;   # the same host name as the jobs (backup.nix): the lock this unit takes is known as ours if the machine dies in the middle of a copy
+      };
       serviceConfig = {
         Type = "oneshot"; ExecStart = "${sync}/bin/proton-offsite-sync";
         StateDirectory = "proton-offsite"; StateDirectoryMode = "0700";
